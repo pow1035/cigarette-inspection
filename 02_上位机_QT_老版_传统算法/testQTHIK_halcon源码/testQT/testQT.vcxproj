@@ -1,0 +1,148 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="16.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{843FE879-9920-4DAC-8DDA-3657A8BED889}</ProjectGuid>
+    <Keyword>QtVS_v302</Keyword>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <QtMsBuild Condition="'$(QtMsBuild)'=='' OR !Exists('$(QtMsBuild)\qt.targets')">$(MSBuildProjectDirectory)\QtMsBuild</QtMsBuild>
+    <ProjectName>testQTHIK</ProjectName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <Target Name="QtMsBuildNotFound" BeforeTargets="CustomBuild;ClCompile" Condition="!Exists('$(QtMsBuild)\qt.targets') or !Exists('$(QtMsBuild)\qt.props')">
+    <Message Importance="High" Text="QtMsBuild: could not locate qt.targets, qt.props; project may not build correctly." />
+  </Target>
+  <ImportGroup Label="ExtensionSettings" />
+  <ImportGroup Label="Shared" />
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <IncludePath>d:\Program Files\MVTec\HALCON-20.11-Steady\include;C:\Program Files\MVTec\HALCON-22.11-Steady\include\halconcpp;$(VC_IncludePath);$(WindowsSDK_IncludePath)</IncludePath>
+    <LibraryPath>$(VC_LibraryPath_x64);$(WindowsSDK_LibraryPath_x64);$(NETFXKitsDir)Lib\um\x64</LibraryPath>
+    <ExternalIncludePath>d:\Program Files\MVTec\HALCON-20.11-Steady\lib;$(VC_IncludePath);$(WindowsSDK_IncludePath)</ExternalIncludePath>
+    <ReferencePath>d:\Program Files\MVTec\HALCON-20.11-Steady\lib;$(VC_ReferencesPath_x64)</ReferencePath>
+  </PropertyGroup>
+  <ImportGroup Condition="Exists('$(QtMsBuild)\qt_defaults.props')">
+    <Import Project="$(QtMsBuild)\qt_defaults.props" />
+  </ImportGroup>
+  <PropertyGroup Label="QtSettings" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <QtInstall>5.9.9_msvc2017_64</QtInstall>
+    <QtModules>core;sql;gui;uitools;widgets;serialport;quickwidgets;charts</QtModules>
+  </PropertyGroup>
+  <PropertyGroup Label="QtSettings" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <QtInstall>Qt5.9.9</QtInstall>
+    <QtModules>charts;core;gui;quickwidgets;uitools;widgets</QtModules>
+  </PropertyGroup>
+  <ImportGroup Condition="Exists('$(QtMsBuild)\qt.props')">
+    <Import Project="$(QtMsBuild)\qt.props" />
+  </ImportGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <Optimization>Disabled</Optimization>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <TreatWChar_tAsBuiltInType>true</TreatWChar_tAsBuiltInType>
+      <BrowseInformation>true</BrowseInformation>
+      <AdditionalIncludeDirectories>D:\Program Files\MVTec\HALCON-20.11-Steady\include\halconcpp;D:\Program Files\MVTec\HALCON-20.11-Steady\include;C:\Program Files (x86)\MVS\Development\Includes\GenICam;C:\Program Files (x86)\MVS\Development\Includes;$(Qt_INCLUDEPATH_);.\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <OutputFile>$(OutDir)\$(ProjectName).exe</OutputFile>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>$(Qt_LIBS_);%(AdditionalDependencies);MvCameraControl.lib;halconcpp.lib;halcon.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>d:\Program Files\MVTec\HALCON-20.11-Steady\lib;C:\Program Files\MVTec\HALCON-22.11-Steady\lib\x64-win64;C:\Program Files (x86)\MVS\Development\Libraries\win64;$(Qt_LIBPATH_);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+    </Link>
+    <Bscmake>
+      <PreserveSbr>true</PreserveSbr>
+    </Bscmake>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <DebugInformationFormat />
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <TreatWChar_tAsBuiltInType>true</TreatWChar_tAsBuiltInType>
+      <AdditionalIncludeDirectories>C:\Program Files (x86)\MVS\Development\Includes\GenICam;C:\Program Files (x86)\MVS\Development\Includes;$(Qt_INCLUDEPATH_);.\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <OutputFile>$(OutDir)\$(ProjectName).exe</OutputFile>
+      <GenerateDebugInformation>false</GenerateDebugInformation>
+      <AdditionalLibraryDirectories>C:\Program Files (x86)\MVS\Development\Libraries\win64;$(Qt_LIBPATH_);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>$(Qt_LIBS_);%(AdditionalDependencies);MvCameraControl.lib</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="configForm.cpp" />
+    <ClCompile Include="getNumberTask.cpp" />
+    <ClCompile Include="main.cpp" />
+    <ClCompile Include="MyCamera.cpp" />
+    <ClCompile Include="picture.cpp" />
+    <ClCompile Include="process.cpp" />
+    <ClCompile Include="process2_1.cpp" />
+    <ClCompile Include="readIOTask.cpp" />
+    <ClCompile Include="reject.cpp" />
+    <ClCompile Include="saveImage.cpp" />
+    <ClCompile Include="search.cpp" />
+    <ClCompile Include="testQT.cpp" />
+    <ClCompile Include="testWrite.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <QtMoc Include="testQT.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <QtUic Include="configForm.ui" />
+    <QtUic Include="search.ui" />
+    <QtUic Include="testQT.ui" />
+  </ItemGroup>
+  <ItemGroup>
+    <QtRcc Include="testQT.qrc" />
+  </ItemGroup>
+  <ItemGroup>
+    <QtMoc Include="configForm.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <QtMoc Include="getNumberTask.h" />
+    <ClInclude Include="MultipleCameraDefine.h" />
+    <ClInclude Include="MyCamera.h" />
+    <QtMoc Include="readIOTask.h" />
+    <QtMoc Include="testWrite.h" />
+    <ClInclude Include="picture.h" />
+    <QtMoc Include="search.h" />
+    <QtMoc Include="process.h" />
+    <QtMoc Include="reject.h" />
+    <QtMoc Include="saveImage.h" />
+    <QtMoc Include="process2_1.h" />
+    <ClInclude Include="USB5841.h" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Condition="Exists('$(QtMsBuild)\qt.targets')">
+    <Import Project="$(QtMsBuild)\qt.targets" />
+  </ImportGroup>
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

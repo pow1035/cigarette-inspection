@@ -1,0 +1,63 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.29521.150
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "testQTHIK", "testQT\testQT.vcxproj", "{843FE879-9920-4DAC-8DDA-3657A8BED889}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DI_StaticDI", "C:\Advantech\DAQNavi\Examples\C++_Console\DI_StaticDI\StaticDI.vcxproj", "{84095F52-2583-497D-AF62-5C166CAB5011}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DO_StaticDO", "C:\Advantech\DAQNavi\Examples\C++_Console\DO_StaticDO\StaticDO.vcxproj", "{E852EBD2-863C-4F82-A1CA-E4B19A0831D5}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DI_DIInterrupt", "C:\Advantech\DAQNavi\Examples\C++_Console\DI_DIInterrupt\DIInterrupt.vcxproj", "{6C1D8781-22FB-42C9-95F0-7B4D31E52B7E}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "picProcessing", "picProcessing\picProcessing.vcxproj", "{0C94A7D2-0BFA-438D-8940-3700ED02FF06}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Debug|x86 = Debug|x86
+		Release|x64 = Release|x64
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{843FE879-9920-4DAC-8DDA-3657A8BED889}.Debug|x64.ActiveCfg = Debug|x64
+		{843FE879-9920-4DAC-8DDA-3657A8BED889}.Debug|x64.Build.0 = Debug|x64
+		{843FE879-9920-4DAC-8DDA-3657A8BED889}.Debug|x86.ActiveCfg = Debug|x64
+		{843FE879-9920-4DAC-8DDA-3657A8BED889}.Release|x64.ActiveCfg = Release|x64
+		{843FE879-9920-4DAC-8DDA-3657A8BED889}.Release|x64.Build.0 = Release|x64
+		{843FE879-9920-4DAC-8DDA-3657A8BED889}.Release|x86.ActiveCfg = Release|x64
+		{84095F52-2583-497D-AF62-5C166CAB5011}.Debug|x64.ActiveCfg = Debug|Win32
+		{84095F52-2583-497D-AF62-5C166CAB5011}.Debug|x86.ActiveCfg = Debug|Win32
+		{84095F52-2583-497D-AF62-5C166CAB5011}.Debug|x86.Build.0 = Debug|Win32
+		{84095F52-2583-497D-AF62-5C166CAB5011}.Release|x64.ActiveCfg = Release|Win32
+		{84095F52-2583-497D-AF62-5C166CAB5011}.Release|x86.ActiveCfg = Release|Win32
+		{84095F52-2583-497D-AF62-5C166CAB5011}.Release|x86.Build.0 = Release|Win32
+		{E852EBD2-863C-4F82-A1CA-E4B19A0831D5}.Debug|x64.ActiveCfg = Debug|Win32
+		{E852EBD2-863C-4F82-A1CA-E4B19A0831D5}.Debug|x86.ActiveCfg = Debug|Win32
+		{E852EBD2-863C-4F82-A1CA-E4B19A0831D5}.Debug|x86.Build.0 = Debug|Win32
+		{E852EBD2-863C-4F82-A1CA-E4B19A0831D5}.Release|x64.ActiveCfg = Release|Win32
+		{E852EBD2-863C-4F82-A1CA-E4B19A0831D5}.Release|x86.ActiveCfg = Release|Win32
+		{E852EBD2-863C-4F82-A1CA-E4B19A0831D5}.Release|x86.Build.0 = Release|Win32
+		{6C1D8781-22FB-42C9-95F0-7B4D31E52B7E}.Debug|x64.ActiveCfg = Debug|Win32
+		{6C1D8781-22FB-42C9-95F0-7B4D31E52B7E}.Debug|x86.ActiveCfg = Debug|Win32
+		{6C1D8781-22FB-42C9-95F0-7B4D31E52B7E}.Debug|x86.Build.0 = Debug|Win32
+		{6C1D8781-22FB-42C9-95F0-7B4D31E52B7E}.Release|x64.ActiveCfg = Release|Win32
+		{6C1D8781-22FB-42C9-95F0-7B4D31E52B7E}.Release|x86.ActiveCfg = Release|Win32
+		{6C1D8781-22FB-42C9-95F0-7B4D31E52B7E}.Release|x86.Build.0 = Release|Win32
+		{0C94A7D2-0BFA-438D-8940-3700ED02FF06}.Debug|x64.ActiveCfg = Debug|x64
+		{0C94A7D2-0BFA-438D-8940-3700ED02FF06}.Debug|x64.Build.0 = Debug|x64
+		{0C94A7D2-0BFA-438D-8940-3700ED02FF06}.Debug|x86.ActiveCfg = Debug|Win32
+		{0C94A7D2-0BFA-438D-8940-3700ED02FF06}.Debug|x86.Build.0 = Debug|Win32
+		{0C94A7D2-0BFA-438D-8940-3700ED02FF06}.Release|x64.ActiveCfg = Release|x64
+		{0C94A7D2-0BFA-438D-8940-3700ED02FF06}.Release|x64.Build.0 = Release|x64
+		{0C94A7D2-0BFA-438D-8940-3700ED02FF06}.Release|x86.ActiveCfg = Release|Win32
+		{0C94A7D2-0BFA-438D-8940-3700ED02FF06}.Release|x86.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {470F5EB8-AA4A-4614-92D3-174C670B1689}
+	EndGlobalSection
+EndGlobal

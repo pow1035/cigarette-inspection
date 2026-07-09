@@ -1,0 +1,87 @@
+// 在 postprocess 函数中添加调试输出
+// 临时调试版本 - 查看原始输出数据
+
+std::vector<Detection> YOLOTensorRTv2::postprocess_debug(const float* output,
+                                                          int orig_width,
+                                                          int orig_height) {
+    std::vector<Detection> detections;
+
+    std::cout << "\n=== Postprocess Debug Info ===" << std::endl;
+    std::cout << "Original image size: " << orig_width << "x" << orig_height << std::endl;
+    std::cout << "Format: POST-PROCESSED [" << num_anchors_ << ", " << output_features_ << "]" << std::endl;
+    std::cout << "\nFirst 10 raw detections:" << std::endl;
+
+    // POST-PROCESSED format: [max_det, 6]
+    // Format: [x1, y1, x2, y2, confidence, class_id]
+
+    for (int i = 0; i < std::min(10, num_anchors_); ++i) {
+        const float* det = output + i * output_features_;
+
+        float x1 = det[0];
+        float y1 = det[1];
+        float x2 = det[2];
+        float y2 = det[3];
+        float confidence = det[4];
+        int class_id = static_cast<int>(det[5]);
+
+        std::cout << i << ": [" << x1 << ", " << y1 << ", " << x2 << ", " << y2
+                  << "] conf=" << confidence << " cls=" << class_id << std::endl;
+
+        // If confidence is 0, no more detections
+        if (confidence < 0.01f) {
+            std::cout << "  -> Stopped at detection " << i << " (confidence < 0.01)" << std::endl;
+            break;
+        }
+    }
+
+    std::cout << "\nProcessing with threshold: " << conf_threshold_ << std::endl;
+    std::cout << "=========================\n" << std::endl;
+
+    // Now do the actual processing
+    for (int i = 0; i < num_anchors_; ++i) {
+        const float* det = output + i * output_features_;
+
+        float x1 = det[0];
+        float y1 = det[1];
+        float x2 = det[2];
+        float y2 = det[3];
+        float confidence = det[4];
+        int class_id = static_cast<int>(det[5]);
+
+        // If confidence is 0, this is padding
+        if (confidence < 0.01f) break;
+
+        // Filter by threshold
+        if (confidence < conf_threshold_) {
+            std::cout << "  Filtered detection " << i << ": conf=" << confidence
+                      << " < threshold=" << conf_threshold_ << std::endl;
+            continue;
+        }
+
+        std::cout << "  Accepted detection " << i << ": conf=" << confidence
+                  << " cls=" << class_id << " box=[" << x1 << "," << y1 << "," << x2 << "," << y2 << "]" << std::endl;
+
+        // Coordinates are already in original image space
+        x1 = std::max(0.0f, std::min(x1, static_cast<float>(orig_width)));
+        y1 = std::max(0.0f, std::min(y1, static_cast<float>(orig_height)));
+        x2 = std::max(0.0f, std::min(x2, static_cast<float>(orig_width)));
+        y2 = std::max(0.0f, std::min(y2, static_cast<float>(orig_height)));
+
+        int box_w = static_cast<int>(x2 - x1);
+        int box_h = static_cast<int>(y2 - y1);
+
+        if (box_w > 0 && box_h > 0) {
+            Detection detection;
+            detection.box = cv::Rect(static_cast<int>(x1), static_cast<int>(y1), box_w, box_h);
+            detection.confidence = confidence;
+            detection.class_id = class_id;
+            detections.push_back(detection);
+
+            std::cout << "    -> Added to results" << std::endl;
+        } else {
+            std::cout << "    -> Skipped (invalid box size: " << box_w << "x" << box_h << ")" << std::endl;
+        }
+    }
+
+    return detections;
+}

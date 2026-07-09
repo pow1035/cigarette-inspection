@@ -1,0 +1,32 @@
+.DS_Store
+Thumbs.db
+
+# IDE / build cache
+.vs/
+.vscode/
+*.user
+*.suo
+*.VC.db
+*.VC.opendb
+Debug/
+Release/
+x64/
+build/
+cmake-build-*/
+*.obj
+*.pdb
+*.ilk
+*.idb
+*.ipch
+*.tlog
+*.lastbuildstate
+*.recipe
+
+# Local-only large runtime/install packages.
+# These files are kept on this machine but should not enter normal GitHub history.
+07_运行环境与依赖包/*
+!07_运行环境与依赖包/README_本地大文件说明.md
+
+# Files above GitHub's normal file limit.
+04_测试数据与样例图片/图片压缩包/images----OK.zip
+05_项目文档与汇报/张烟-卷烟机烟支外观在线检测系统的研发-建院.pptx
