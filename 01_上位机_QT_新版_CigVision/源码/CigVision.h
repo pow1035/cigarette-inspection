@@ -7,22 +7,25 @@
 #include<CusTabBar.h>
 #include<myTabWidget.h>
 #include<CigVisionParams.h>
+#include <atomic>
 #include <QMutex>//内存锁
+#include <QWaitCondition>
 #include <QThreadPool>//线程池
 #include<qqueue.h>
 #include "MvCameraControl.h"
 #include<MyCamera.h>
 #include"MultipleCameraDefine.h"
-#include"readIOTask.h"
 #include<qdebug.h>
 
 
 using namespace HalconCpp;
+class readIOTask;
+
 enum current_stackedwidget { run, edit, change_brand, system_set, search, count, logTxt, alarm, login };//stackedWidget画面枚举类型
 struct picStruct
 {
     HObject ho_Cam_Image;
-    MV_FRAME_OUT_INFO* mv_frame;
+    MV_FRAME_OUT_INFO mv_frame = {};
     uchar uchar_pic_IO;//用于硬件读写
     uchar uchar_pic_number;//用于图片编号计数
 };
@@ -39,24 +42,27 @@ struct machineStateStruct
     //组件相机对应关系
     QMap<QString, QString> cameraMatchMap;
     MV_CC_DEVICE_INFO_LIST m_stDevList;             // ch:设备信息列表结构体变量，用来存储设备列表
-    MyCamera* m_pcMyCamera[MAX_DEVICE_NUM];      // ch:MyCamera封装了常用接口 | en:CMyCamera packed normal used interface
+    MyCamera* m_pcMyCamera[MAX_DEVICE_NUM] = {}; // ch:MyCamera封装了常用接口 | en:CMyCamera packed normal used interface
+    int cameraCount = 0;
     //系统运行状态
-    bool systemRun = false;
-    
-    int nowShowPicReadIO1 = 0;//烟支编号用于IO 组件1
-    int nowShowPicReadIO2_1 = 0;//烟支编号用于IO 组件2_1
-    int nowShowPicReadIO2_2 = 0;//烟支编号用于IO 组件2_2
-    //uchar nowPictureNumber = 0;//图像编号：1-100
-    uchar nowPictureNumber1 = 0;//组件1图像编号：1-100
-    uchar nowPictureNumber2_1 = 0;//组件2_1图像编号：1-100
-    uchar nowPictureNumber2_2 = 0;//组件2_2图像编号：1-100
-    int nowPicReadIO = 0;//烟支编号用于复检
+    std::atomic_bool systemRun{ false };
+
+    struct PictureNumberSnapshot
+    {
+        uchar nowShowPicReadIO1 = 0;
+        uchar nowShowPicReadIO2_1 = 0;
+        uchar nowShowPicReadIO2_2 = 0;
+        uchar nowPictureNumber1 = 0;
+        uchar nowPictureNumber2_1 = 0;
+        uchar nowPictureNumber2_2 = 0;
+    } pictureNumbers;
     //灰度图队列QQueue
     QQueue<picStruct> grayPicQueList1;//图像缓存队列
     QQueue<picStruct> grayPicQueList2_1;//图像缓存队列
     QQueue<picStruct> grayPicQueList2_2;//图像缓存队列
     //互斥量
     QMutex mutex;//互斥量
+    QMutex mutexPictureNumbers;//同一触发周期的编号必须整体读写
     QMutex mutexGrayPicQueList1;//1组队列互斥量
     QMutex mutexGrayPicQueList2_1;//2组1队列互斥量
     QMutex mutexGrayPicQueList2_2;//2组2队列互斥量
@@ -65,7 +71,7 @@ struct machineStateStruct
     QQueue<picStruct> rgbPicQueList2_1;//图像缓存队列
     QQueue<picStruct> rgbPicQueList2_2;//图像缓存队列
 
-    
+
 };
 
 class CigVision : public QWidget
@@ -90,6 +96,7 @@ private slots:
     // 添加系统参数窗口退出响应槽
     void onSystemParaWidgetQuit();
     void onBrandComboBoxChanged();
+    void onIOReadFailure();
 
 
 public:
@@ -97,11 +104,11 @@ public:
     //参数调整画面
     /*QTableWidget* zu1_processTableWidget = new QTableWidget(10, 3);
     QTableWidget* zu1_operatorTableWidget = new QTableWidget(7, 3);*/
-    
+
     CusTabBar* myTabBar = new CusTabBar();
     myTabWidget* zu1_para_widget = new myTabWidget(myTabBar);
     CigVisionParams params;
-    
+
     machineStateStruct machineState;//用于记录机车状态
     QThreadPool pool;//线程池
 
@@ -111,5 +118,25 @@ public:
 
     bool initCamera();//初始化相机
     bool initIOCard();//初始化IO板卡
+    bool beginCameraCallback();
+    void endCameraCallback();
+
+private:
+    bool configureCamera(MyCamera* camera, const QString& cameraKey);
+    bool startCameras();
+    bool stopCameras();
+    void attachCameraCallbacks();
+    void detachCameraCallbacks();
+    void stopIOReading();
+    void waitForCameraCallbacks();
+    void shutdownCameras();
+    void clearFrameQueues();
+
+    readIOTask* ioTask = nullptr;
+    QMutex runtimeMutex;
+    QMutex callbackMutex;
+    QWaitCondition callbackIdle;
+    int activeCameraCallbacks = 0;
+    bool cameraLifecycleFault = false;
 
 };

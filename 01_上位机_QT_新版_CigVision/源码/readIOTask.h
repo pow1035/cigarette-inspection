@@ -1,19 +1,18 @@
 #pragma once
 #include <QObject>
 #include <QRunnable>
+#include <atomic>
 
-#include "CigVision.h"
 //#include <opencv2/opencv.hpp>
 //#include <opencv2/core.hpp>
-#include <Windows.h>//¼ÆËãÓÃÊ±
+#include <Windows.h>//è®¡ç®—ç”¨æ—¶
 #include <vector>
 //#include"USB5841.h"
 #include <qthread.h>
-#include "testWrite.h"
 #include <ctime>
 
 
-#include"C:/Advantech/DAQNavi/Inc/bdaqctrl.h"
+#include <bdaqctrl.h>
 #define  deviceDescription  L"PCIE-1730,BID#0"
 //using namespace Automation::BDaq;
 
@@ -23,27 +22,35 @@ class readIOTask : public QObject, public QRunnable
 	Q_OBJECT
 public:
 	readIOTask(CigVision* pUser);
+	~readIOTask();
+	bool initialize();
+	bool prepareStart();
+	void requestStop();
+signals:
+	void fatalReadError();
 protected:
 	void run();
 private:
-	//HANDLE artCard;//IO¿¨¾ä±ú
-	Automation::BDaq::InstantDiCtrl* instantDiCtrl;//ÑĞ»ª¿¨¾ä±ú
+	//HANDLE artCard;//IOå¡å¥æŸ„
+	Automation::BDaq::InstantDiCtrl* instantDiCtrl = nullptr;//ç ”åå¡å¥æŸ„
 	Automation::BDaq::ErrorCode  cardRet = Automation::BDaq::ErrorCode::Success;
-	CigVision* mainDlg;//´°Ìå¾ä±ú
-	bool readEnable;
+	CigVision* mainDlg;//çª—ä½“å¥æŸ„
+	std::atomic_bool readEnable{ false };
+	std::atomic_bool initialized{ false };
+	int component1ToReject = 0;
+	int component2ToReject = 0;
 	Automation::BDaq::uint8  bufferForReading[2] = { 0 };//the first element of this array is used for start port
 	//BYTE byte_PA[8];
 	//BYTE byte_PB[8];
 	int sidPicture;
 	int number_Camera;
 	unsigned long readErrorTimes = 0;
-	//Ê±¼ä²âÊÔ
+	//æ—¶é—´æµ‹è¯•
 	LARGE_INTEGER litmp;
-	LONGLONG QStartCount, expendTime;//ºÁÃëms
-	double dfFreq;//CPUÆµÂÊ
-	
+	LONGLONG QStartCount, expendTime;//æ¯«ç§’ms
+	double dfFreq;//CPUé¢‘ç‡
+
 	LONGLONG initTime();
 	LONGLONG getExpendTime(LONGLONG startQpart);
 
 };
-

@@ -1,130 +1,199 @@
 #include "readIOTask.h"
+#include "CigVision.h"
 #include <qthread.h>
+#include <QMutexLocker>
+
+namespace
+{
+Automation::BDaq::uint8 reverseBits(Automation::BDaq::uint8 value)
+{
+	Automation::BDaq::uint8 reversed = 0;
+	for (int bit = 0; bit < 8; ++bit)
+	{
+		reversed = static_cast<Automation::BDaq::uint8>((reversed << 1) | (value & 0x01));
+		value = static_cast<Automation::BDaq::uint8>(value >> 1);
+	}
+	return reversed;
+}
+
+Automation::BDaq::uint8 wrapPictureNumber(int value)
+{
+	value %= 100;
+	if (value < 0)
+	{
+		value += 100;
+	}
+	return static_cast<Automation::BDaq::uint8>(value);
+}
+}
+
 readIOTask::readIOTask(CigVision* pUser)
 {
 	mainDlg = pUser;
 	sidPicture=0;
 	number_Camera=0;
-	
-	readEnable = 1;
-}
-void readIOTask::run()
-{
-	int last_sidPicture = 0;
-	bool last_enable = false;
-	bool enable = false;
-	//clock_t t1 = clock();//¿ªÊ¼Ê±¼ä
-	QStartCount =initTime();
-	instantDiCtrl = Automation::BDaq::InstantDiCtrl::Create();
-	Automation::BDaq::DeviceInformation devInfo(deviceDescription);
 
+}
+
+readIOTask::~readIOTask()
+{
+	requestStop();
+	if (instantDiCtrl != nullptr)
+	{
+		instantDiCtrl->Dispose();
+		instantDiCtrl = nullptr;
+	}
+}
+
+bool readIOTask::initialize()
+{
+	if (initialized.load())
+	{
+		return true;
+	}
+	instantDiCtrl = Automation::BDaq::InstantDiCtrl::Create();
+	if (instantDiCtrl == nullptr)
+	{
+		qDebug() << "IOCardRead_create_fail" << endl;
+		return false;
+	}
+	Automation::BDaq::DeviceInformation devInfo(deviceDescription);
 	cardRet = instantDiCtrl->setSelectedDevice(devInfo);
 	if (cardRet != Automation::BDaq::Success)
 	{
-		qDebug() << "IOCardRead_setSelectedDevice_fail"<< endl;
+		qDebug() << "IOCardRead_setSelectedDevice_fail" << endl;
+		instantDiCtrl->Dispose();
+		instantDiCtrl = nullptr;
+		return false;
+	}
+	initialized.store(true);
+	return true;
+}
+
+bool readIOTask::prepareStart()
+{
+	if (!initialized.load() || readEnable.load())
+	{
+		return false;
+	}
+	const int configuredComponent1 = mainDlg->params.systemParams.component1ToReject;
+	const int configuredComponent2 = mainDlg->params.systemParams.component2ToReject;
+	if (configuredComponent1 < 10 || configuredComponent1 > 30 ||
+		configuredComponent2 < 20 || configuredComponent2 > 40 ||
+		configuredComponent2 <= configuredComponent1)
+	{
+		qDebug() << "invalid component reject positions" << endl;
+		return false;
+	}
+	component1ToReject = configuredComponent1;
+	component2ToReject = configuredComponent2;
+	readErrorTimes = 0;
+	readEnable.store(true);
+	return true;
+}
+
+void readIOTask::requestStop()
+{
+	readEnable.store(false);
+}
+
+void readIOTask::run()
+{
+	bool last_enable = false;
+	bool enable = false;
+	const int runComponent1ToReject = component1ToReject;
+	const int runComponent2ToReject = component2ToReject;
+	//clock_t t1 = clock();//å¼€å§‹æ—¶é—´
+	QStartCount =initTime();
+	if (!initialized.load() || instantDiCtrl == nullptr)
+	{
+		readEnable.store(false);
+		return;
 	}
 	//LONGLONG expendTime = getExpendTime(QStartCount);
 	//qDebug() << "task readIOTaskInitExpend expend" << expendTime << endl;
-	while (readEnable)
+	while (readEnable.load())
 	{
-		//QThread::usleep(20);//20us
+		QThread::usleep(50);
 
 		if (instantDiCtrl->Read(0, 2, bufferForReading))
 		{
-			//Èç¹ûÊ§°Ü
+			//å¦‚æœå¤±è´¥
 			readErrorTimes = readErrorTimes + 1;
 			qDebug() << "readIOError" << readErrorTimes << endl;
+			if (readErrorTimes >= 100)
+			{
+				qDebug() << "IOCardRead_stopped_after_consecutive_errors" << endl;
+				readEnable.store(false);
+				emit fatalReadError();
+			}
 			continue;
 		}
-		enable = bufferForReading[1] & 0x01;//µ±Ç°´¥·¢×´Ì¬
-		if (last_enable)//ÒÑÔÚ´¥·¢³ÌĞòÖĞ
+		readErrorTimes = 0;
+		enable = bufferForReading[1] & 0x01;//å½“å‰è§¦å‘çŠ¶æ€
+		if (last_enable)//å·²åœ¨è§¦å‘ç¨‹åºä¸­
 		{
-			if (enable)//ÒÑÔÚ´¥·¢³ÌĞòÖĞ£¬´¥·¢£¬ÎŞ²Ù×÷
+			if (enable)//å·²åœ¨è§¦å‘ç¨‹åºä¸­ï¼Œè§¦å‘ï¼Œæ— æ“ä½œ
 			{
 				continue;
 			}
-			else {//ÒÑÔÚ´¥·¢³ÌĞòÖĞ£¬ÎŞ´¥·¢£¬¸´Î»´¥·¢×´Ì¬
+			else {//å·²åœ¨è§¦å‘ç¨‹åºä¸­ï¼Œæ— è§¦å‘ï¼Œå¤ä½è§¦å‘çŠ¶æ€
 				last_enable = false;
 				continue;
 			}
 		}
-		else {//Î´ÔÚ´¥·¢×´Ì¬
-			
-			if (enable)//Î´ÔÚ´¥·¢×´Ì¬£¬´¥·¢£¬ÖÃÎ»´¥·¢×´Ì¬£¬±àºÅÖ´ĞĞ¸üĞÂ
+		else {//æœªåœ¨è§¦å‘çŠ¶æ€
+
+			if (enable)//æœªåœ¨è§¦å‘çŠ¶æ€ï¼Œè§¦å‘ï¼Œç½®ä½è§¦å‘çŠ¶æ€ï¼Œç¼–å·æ‰§è¡Œæ›´æ–°
 			{
 				////QThread::usleep(20);//20us
-				//if (instantDiCtrl->Read(0, 2, bufferForReading))//ÑÓÊ±ºóÖØĞÂ¶ÁÈë£¬Ïû¶¶
+				//if (instantDiCtrl->Read(0, 2, bufferForReading))//å»¶æ—¶åé‡æ–°è¯»å…¥ï¼Œæ¶ˆæŠ–
 				//{
-				//	//Èç¹ûÊ§°Ü£¬²»ÖÃÎ»ÉÏ´ÎÊ¹ÄÜlast_enableÖØĞÂ¶Á
+				//	//å¦‚æœå¤±è´¥ï¼Œä¸ç½®ä½ä¸Šæ¬¡ä½¿èƒ½last_enableé‡æ–°è¯»
 				//	continue;
 				//}
 				last_enable = true;
 				//sidPicture = bufferForReading[0];
-				//mainDlg->nowPictureNumber= sidPicture;//¸üĞÂ±àºÅ
+				//mainDlg->nowPictureNumber= sidPicture;//æ›´æ–°ç¼–å·
 				//uchar temp = 255 - bufferForReading[0];
-				mainDlg->machineState.nowShowPicReadIO1 = bufferForReading[0];//×é¼şI/O±àºÅ£¨IOÖ±·¢£©
-				//×é¼ş1ÑÌÖ§±àºÅ
-				Automation::BDaq::uint8 tempChar=0;
-				//int i = 8;
-				Automation::BDaq::uint8 moveRight = 0x80;
-				Automation::BDaq::uint8 moveLeft = 0x01;
-				while (moveRight)
+				const Automation::BDaq::uint8 tempChar = reverseBits(bufferForReading[0]);
+				if (tempChar > 99)
 				{
-					if (moveRight & bufferForReading[0])
-					{
-						tempChar = tempChar | moveLeft;
-					}
-					moveRight = moveRight >> 1;
-					moveLeft = moveLeft << 1;
+					qDebug() << "invalid picture number" << tempChar << endl;
+					continue;
 				}
-				mainDlg->machineState.nowPictureNumber1 = tempChar;//Ê×Î²µßµ¹ºó±àºÅ
-				//×é¼ş2_1ÑÌÖ§±àºÅ
+				//ç»„ä»¶2_1çƒŸæ”¯ç¼–å·
 				Automation::BDaq::uint8 temp2_1Char;
-				int zu2ToZu1Steps = 0;//×é¼ş2µ½×é¼ş1¾àÀë¹¤Î»Êı
-				if (mainDlg->params.systemParams.component2ToReject > mainDlg->params.systemParams.component1ToReject)
+				int zu2ToZu1Steps = 0;//ç»„ä»¶2åˆ°ç»„ä»¶1è·ç¦»å·¥ä½æ•°
+				if (runComponent2ToReject > runComponent1ToReject)
 				{
-					zu2ToZu1Steps = mainDlg->params.systemParams.component2ToReject - mainDlg->params.systemParams.component1ToReject;
+					zu2ToZu1Steps = runComponent2ToReject - runComponent1ToReject;
 				}
+				else
+				{
+					qDebug() << "invalid component reject positions" << endl;
+					continue;
+				}
+				temp2_1Char = wrapPictureNumber(static_cast<int>(tempChar) + zu2ToZu1Steps);
+				//ç»„ä»¶2_2çƒŸæ”¯ç¼–å·
+				Automation::BDaq::uint8 temp2_2Char =
+					wrapPictureNumber(static_cast<int>(tempChar) + zu2ToZu1Steps - 1);
 
-				if (tempChar + zu2ToZu1Steps > 99)
-				{
-					temp2_1Char = tempChar + zu2ToZu1Steps - 100;
-				}
-				else {
-					temp2_1Char = tempChar + zu2ToZu1Steps;
-				}
-				//×é¼ş2_2ÑÌÖ§±àºÅ
-				Automation::BDaq::uint8 temp2_2Char;
-				if (tempChar + zu2ToZu1Steps -1 > 99)
-				{
-					temp2_2Char = tempChar + zu2ToZu1Steps - 100 - 1;
-				}
-				else {
-					temp2_2Char = tempChar + zu2ToZu1Steps - 1;
-				}
+				//ç»„ä»¶2_1çƒŸæ”¯IOç¼–å·
+				const Automation::BDaq::uint8 tempZu2_1IO = reverseBits(temp2_1Char);
+				const Automation::BDaq::uint8 tempZu2_2IO = reverseBits(temp2_2Char);
 
-				mainDlg->machineState.nowPictureNumber2_1 = temp2_1Char;//2_1×é¼ş±àºÅ
-				mainDlg->machineState.nowPictureNumber2_2 = temp2_2Char;//2_2×é¼ş±àºÅ
-				//×é¼ş2_1ÑÌÖ§IO±àºÅ
-				Automation::BDaq::uint8 tempZu2_1IO=0;//2_1Êä³ö
-				Automation::BDaq::uint8 tempZu2_2IO=0;//2_2Êä³ö
-				moveLeft = 0x01;
-				moveRight = 0x80;
-				while (moveRight)
+				machineStateStruct::PictureNumberSnapshot snapshot;
+				snapshot.nowShowPicReadIO1 = bufferForReading[0];
+				snapshot.nowShowPicReadIO2_1 = tempZu2_1IO;
+				snapshot.nowShowPicReadIO2_2 = tempZu2_2IO;
+				snapshot.nowPictureNumber1 = tempChar;
+				snapshot.nowPictureNumber2_1 = temp2_1Char;
+				snapshot.nowPictureNumber2_2 = temp2_2Char;
 				{
-					if (moveRight & temp2_1Char)
-					{
-						tempZu2_1IO = tempZu2_1IO | moveLeft;
-					}
-					if (moveRight & temp2_2Char)
-					{
-						tempZu2_2IO = tempZu2_2IO | moveLeft;
-					}
-					moveRight = moveRight >> 1;
-					moveLeft = moveLeft << 1;
+					QMutexLocker locker(&mainDlg->machineState.mutexPictureNumbers);
+					mainDlg->machineState.pictureNumbers = snapshot;
 				}
-				mainDlg->machineState.nowShowPicReadIO2_1 = tempZu2_1IO;//×é¼ş2_1 I/O±àºÅ£¨IOÖ±·¢£©
-				mainDlg->machineState.nowShowPicReadIO2_2 = tempZu2_2IO;//×é¼ş2_2 I/O±àºÅ£¨IOÖ±·¢£©
 
 				//qDebug() << "  picNumber" << tempChar << endl;
 				//qDebug() << "  nowShowPicReadIO2_1" << tempZu2_1IO << endl;
@@ -133,23 +202,25 @@ void readIOTask::run()
 
 				continue;
 			}
-			else {//Î´ÔÚ´¥·¢×´Ì¬£¬ÎŞ´¥·¢£¬ÎŞ²Ù×÷
+			else {//æœªåœ¨è§¦å‘çŠ¶æ€ï¼Œæ— è§¦å‘ï¼Œæ— æ“ä½œ
 				continue;
 			}
 		}
 
 	}
+
+	readEnable.store(false);
 	//while (readEnable)
 	//{
 	//	QThread::usleep(10);//100us
 	//	if (!USB5841_GetDeviceDI_PA(artCard, byte_PA))
 	//	{
-	//		QMessageBox::warning(NULL, "", "¶ÁÈ¡Ê§°Ü", QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes);
+	//		QMessageBox::warning(NULL, "", "è¯»å–å¤±è´¥", QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes);
 	//		return;
 	//	}
 	//	if (!USB5841_GetDeviceDI_PB(artCard, byte_PB))
 	//	{
-	//		QMessageBox::warning(NULL, "", "¶ÁÈ¡Ê§°Ü", QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes);
+	//		QMessageBox::warning(NULL, "", "è¯»å–å¤±è´¥", QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes);
 	//		return;
 	//	}
 	//	sidPicture = byte_PA[0]; sidPicture += byte_PA[1] * 2; sidPicture += byte_PA[2] * 4; sidPicture += byte_PA[3] * 8;
@@ -164,18 +235,18 @@ void readIOTask::run()
 	//			clock_t t2 = clock();
 	//			double t21 = 1000 * (t2 - t1) / (double)CLOCKS_PER_SEC;
 	//			t1 = t2;
-	//			QString tempString(QString::fromLocal8Bit("Ã¿°ÙÖ§ÑÌÊ±¼ä¼ä¸ô:"));
+	//			QString tempString(QString::fromLocal8Bit("æ¯ç™¾æ”¯çƒŸæ—¶é—´é—´éš”:"));
 	//			tempString.append(QString::number(t21));
 	//			//mainDlg->ui.listWidget__information->clear();
 	//			mainDlg->ui.listWidget__information->addItem(tempString);
-	//			//writeEnable = 0;//·¢Ò»´Î
+	//			//writeEnable = 0;//å‘ä¸€æ¬¡
 	//		}
 	//		if (sidPicture > 0 && sidPicture < 101)
 	//		{
 	//			mainDlg->pool.start(new testWrite(mainDlg, sidPicture));
 	//		}
 	//		//last_number_Camera = number_Camera;
-	//		
+	//
 	//		/*QString tempString(QString::fromLocal8Bit("camera:"));
 	//		tempString.append(QString::number(number_Camera));
 	//		tempString.append(QString::fromLocal8Bit(" picture:"));
@@ -203,21 +274,21 @@ void readIOTask::run()
 LONGLONG readIOTask::initTime() {
 	LONGLONG Qpart1;
 	//LARGE_INTEGER litmp;
-	//double dfFreq;//CPUÆµÂÊ
+	//double dfFreq;//CPUé¢‘ç‡
 	QueryPerformanceFrequency(&litmp);
 	dfFreq = (double)litmp.QuadPart;
 	QueryPerformanceCounter(&litmp);
-	Qpart1 = litmp.QuadPart;//¿ªÊ¼¼ÆÊ±
+	Qpart1 = litmp.QuadPart;//å¼€å§‹è®¡æ—¶
 	return Qpart1;
 }
 LONGLONG readIOTask::getExpendTime(LONGLONG startQpart)
 {
-	LONGLONG expendTime, Qpart2;//ºÁÃëms
+	LONGLONG expendTime, Qpart2;//æ¯«ç§’ms
 	double dfMins, dfTime;
 	QueryPerformanceCounter(&litmp);
-	Qpart2 = litmp.QuadPart;//½áÊø¼ÆÊ±
+	Qpart2 = litmp.QuadPart;//ç»“æŸè®¡æ—¶
 	dfMins = (double)(Qpart2 - startQpart);
 	dfTime = dfMins / dfFreq;
-	expendTime = dfTime * 1000000;//usÃë
+	expendTime = dfTime * 1000000;//usç§’
 	return expendTime;
 }

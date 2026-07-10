@@ -1,5 +1,6 @@
 ﻿#include "CigVision.h"
 #include <QTableView>
+#include "readIOTask.h"
 #include <QStandardItemModel>
 #include<qdebug.h>
 #include <QTableWidget>
@@ -7,139 +8,221 @@
 #include <QToolButton>
 #include<qtabbar.h>
 #include <QLineEdit>
+#include <QMutexLocker>
+#include <QSet>
+#include <vector>
 
 
+
+namespace
+{
+constexpr int kMaxPendingFrames = 10;
+
+class CameraCallbackContext
+{
+public:
+    void attach(CigVision* owner)
+    {
+        QMutexLocker locker(&mutex_);
+        owner_ = owner;
+    }
+
+    CigVision* acquire()
+    {
+        QMutexLocker locker(&mutex_);
+        if (owner_ == nullptr)
+        {
+            return nullptr;
+        }
+        ++activeCallbacks_;
+        return owner_;
+    }
+
+    void release()
+    {
+        QMutexLocker locker(&mutex_);
+        --activeCallbacks_;
+        if (activeCallbacks_ == 0)
+        {
+            idle_.wakeAll();
+        }
+    }
+
+    void detach(CigVision* owner)
+    {
+        QMutexLocker locker(&mutex_);
+        if (owner_ == owner)
+        {
+            owner_ = nullptr;
+        }
+        while (activeCallbacks_ > 0)
+        {
+            idle_.wait(&mutex_);
+        }
+    }
+
+private:
+    QMutex mutex_;
+    QWaitCondition idle_;
+    CigVision* owner_ = nullptr;
+    int activeCallbacks_ = 0;
+};
+
+// MVS owns the callback user pointer. Keep these tiny guards alive until process exit
+// so a late SDK callback can only observe a detached owner, never freed memory.
+CameraCallbackContext* const callbackContext1_1 = new CameraCallbackContext;
+CameraCallbackContext* const callbackContext2_1 = new CameraCallbackContext;
+CameraCallbackContext* const callbackContext2_2 = new CameraCallbackContext;
+
+CameraCallbackContext* callbackContextForKey(const QString& cameraKey)
+{
+    if (cameraKey == "1-1")
+    {
+        return callbackContext1_1;
+    }
+    if (cameraKey == "2-1")
+    {
+        return callbackContext2_1;
+    }
+    if (cameraKey == "2-2")
+    {
+        return callbackContext2_2;
+    }
+    return nullptr;
+}
+
+class CameraCallbackScope
+{
+public:
+    explicit CameraCallbackScope(void* userContext)
+        : context_(static_cast<CameraCallbackContext*>(userContext))
+    {
+        owner_ = context_ == nullptr ? nullptr : context_->acquire();
+        if (owner_ != nullptr && !owner_->beginCameraCallback())
+        {
+            context_->release();
+            owner_ = nullptr;
+        }
+    }
+
+    ~CameraCallbackScope()
+    {
+        if (owner_ != nullptr)
+        {
+            owner_->endCameraCallback();
+            context_->release();
+        }
+    }
+
+    CigVision* owner() const { return owner_; }
+
+private:
+    CameraCallbackContext* context_ = nullptr;
+    CigVision* owner_ = nullptr;
+};
+
+bool enqueueGrayFrame(unsigned char* pData,
+    MV_FRAME_OUT_INFO* pFrameInfo,
+    QQueue<picStruct>& queue,
+    QMutex& mutex,
+    uchar pictureNumber,
+    uchar pictureIo)
+{
+    if (pData == nullptr || pFrameInfo == nullptr || pFrameInfo->nWidth == 0 || pFrameInfo->nHeight == 0)
+    {
+        return false;
+    }
+
+    const size_t width = static_cast<size_t>(pFrameInfo->nWidth);
+    const size_t height = static_cast<size_t>(pFrameInfo->nHeight);
+    const size_t pixelCount = width * height;
+    const size_t expectedFrameLength = pixelCount * 3;
+    if (pixelCount == 0 || pFrameInfo->nFrameLen < expectedFrameLength)
+    {
+        return false;
+    }
+
+    try
+    {
+        std::vector<unsigned char> dataGray(pixelCount);
+        for (size_t i = 0; i < pixelCount; ++i)
+        {
+            dataGray[i] = static_cast<unsigned char>(
+                pData[3 * i] * 0.299 + pData[3 * i + 1] * 0.587 + pData[3 * i + 2] * 0.114);
+        }
+
+        HObject temporaryImage;
+        HObject grayImage;
+        GenImage1(&temporaryImage, "byte", pFrameInfo->nWidth, pFrameInfo->nHeight,
+            reinterpret_cast<Hlong>(dataGray.data()));
+        CopyImage(temporaryImage, &grayImage);
+
+        picStruct frame;
+        frame.ho_Cam_Image = grayImage;
+        frame.mv_frame = *pFrameInfo;
+        frame.uchar_pic_number = pictureNumber;
+        frame.uchar_pic_IO = pictureIo;
+
+        QMutexLocker locker(&mutex);
+        while (queue.size() >= kMaxPendingFrames)
+        {
+            queue.dequeue();
+        }
+        queue.enqueue(frame);
+        return true;
+    }
+    catch (...)
+    {
+        qDebug() << "camera callback frame conversion failed";
+        return false;
+    }
+}
+}
 
 bool addQQueue1_1(unsigned char* pData, MV_FRAME_OUT_INFO* pFrameInfo, CigVision* pDlg)//图像需要是RGB
 {
-    if (pDlg->machineState.grayPicQueList1.size() > 10)
+    machineStateStruct::PictureNumberSnapshot snapshot;
     {
-        pDlg->machineState.grayPicQueList1.dequeue();
+        QMutexLocker locker(&pDlg->machineState.mutexPictureNumbers);
+        snapshot = pDlg->machineState.pictureNumbers;
     }
-    /*if (pDlg->machineState->rgbPicQueList1_1.size() > 10)
-    {
-        pDlg->machineState->rgbPicQueList1_1.dequeue();
-    }*/
-    int picHeght = pFrameInfo->nHeight;
-    int picWidth = pFrameInfo->nWidth;
-    HObject ho_image;
-    picStruct picstruct1;
-    unsigned char* dataGray = new unsigned char[picWidth * picHeght];
-
-    /*unsigned char* data = new unsigned char[picWidth * picHeght * 3];
-
-    memcpy(data, in_pData, picWidth * picHeght * 3);*/
-
-    for (int i = 0; i < picWidth * picHeght; i++)
-    {
-        dataGray[i] = (pData[3 * i]) * 0.299 + pData[3 * i + 1] * 0.587 + pData[3 * i + 2] * 0.114;
-
-    }
-    GenImage1(&ho_image, "byte", picWidth, picHeght, (Hlong)(dataGray));
-    picstruct1.ho_Cam_Image = ho_image;
-    picstruct1.mv_frame = pFrameInfo;
-    picstruct1.uchar_pic_number = pDlg->machineState.nowPictureNumber1;
-    picstruct1.uchar_pic_IO = pDlg->machineState.nowPicReadIO;
-    if (pDlg->machineState.grayPicQueList1.size() != 0)
-    {
-        pDlg->machineState.grayPicQueList1.enqueue(picstruct1);
-    }
-    else//为了避免最后一张未插完就处理的BUG
-    {
-        pDlg->machineState.mutexGrayPicQueList1.lock();
-        pDlg->machineState.grayPicQueList1.enqueue(picstruct1);
-        pDlg->machineState.mutexGrayPicQueList1.unlock();
-    }
-
-    //内存释放
-    //delete data;
-    delete dataGray;
-    return true;
+    return enqueueGrayFrame(pData, pFrameInfo, pDlg->machineState.grayPicQueList1,
+        pDlg->machineState.mutexGrayPicQueList1, snapshot.nowPictureNumber1,
+        snapshot.nowShowPicReadIO1);
 }
+
 bool addQQueue2_1(unsigned char* pData, MV_FRAME_OUT_INFO* pFrameInfo, CigVision* pDlg)//图像需要是RGB
 {
-    if (pDlg->machineState.grayPicQueList2_1.size() > 10)
+    machineStateStruct::PictureNumberSnapshot snapshot;
     {
-        pDlg->machineState.grayPicQueList2_1.dequeue();
+        QMutexLocker locker(&pDlg->machineState.mutexPictureNumbers);
+        snapshot = pDlg->machineState.pictureNumbers;
     }
-    int picHeght = pFrameInfo->nHeight;
-    int picWidth = pFrameInfo->nWidth;
-    HObject ho_image;
-    picStruct picstruct1;
-    unsigned char* dataGray = new unsigned char[picWidth * picHeght];
-
-    /*unsigned char* data = new unsigned char[picWidth * picHeght * 3];
-
-    memcpy(data, in_pData, picWidth * picHeght * 3);*/
-
-    for (int i = 0; i < picWidth * picHeght; i++)
-    {
-        dataGray[i] = (pData[3 * i]) * 0.299 + pData[3 * i + 1] * 0.587 + pData[3 * i + 2] * 0.114;
-
-    }
-    GenImage1(&ho_image, "byte", picWidth, picHeght, (Hlong)(dataGray));
-    picstruct1.ho_Cam_Image = ho_image;
-    picstruct1.mv_frame = pFrameInfo;
-    picstruct1.uchar_pic_number = pDlg->machineState.nowPictureNumber2_1;
-    picstruct1.uchar_pic_IO = pDlg->machineState.nowPicReadIO;
-    //pDlg->picQueList2_1.enqueue(picstruct1);
-    if (pDlg->machineState.grayPicQueList2_1.size() != 0)
-    {
-        pDlg->machineState.grayPicQueList2_1.enqueue(picstruct1);
-    }
-    else//为了避免最后一张未插完就处理的BUG
-    {
-        pDlg->machineState.mutexGrayPicQueList2_1.lock();
-        pDlg->machineState.grayPicQueList2_1.enqueue(picstruct1);
-        pDlg->machineState.mutexGrayPicQueList2_1.unlock();
-    }
-    //内存释放
-    //delete data;
-    delete dataGray;
-    return true;
+    return enqueueGrayFrame(pData, pFrameInfo, pDlg->machineState.grayPicQueList2_1,
+        pDlg->machineState.mutexGrayPicQueList2_1, snapshot.nowPictureNumber2_1,
+        snapshot.nowShowPicReadIO2_1);
 }
+
 bool addQQueue2_2(unsigned char* pData, MV_FRAME_OUT_INFO* pFrameInfo, CigVision* pDlg)//图像需要是RGB
 {
-    if (pDlg->machineState.grayPicQueList2_2.size() > 10)
+    machineStateStruct::PictureNumberSnapshot snapshot;
     {
-        pDlg->machineState.grayPicQueList2_2.dequeue();
+        QMutexLocker locker(&pDlg->machineState.mutexPictureNumbers);
+        snapshot = pDlg->machineState.pictureNumbers;
     }
-    int picHeght = pFrameInfo->nHeight;
-    int picWidth = pFrameInfo->nWidth;
-    HObject ho_image;
-    picStruct picstruct1;
-    unsigned char* dataGray = new unsigned char[picWidth * picHeght];
-
-    /*unsigned char* data = new unsigned char[picWidth * picHeght * 3];
-
-    memcpy(data, in_pData, picWidth * picHeght * 3);*/
-
-    for (int i = 0; i < picWidth * picHeght; i++)
-    {
-        dataGray[i] = (pData[3 * i]) * 0.299 + pData[3 * i + 1] * 0.587 + pData[3 * i + 2] * 0.114;
-
-    }
-    GenImage1(&ho_image, "byte", picWidth, picHeght, (Hlong)(dataGray));
-    picstruct1.ho_Cam_Image = ho_image;
-    picstruct1.mv_frame = pFrameInfo;
-    picstruct1.uchar_pic_number = pDlg->machineState.nowPictureNumber2_2;
-    picstruct1.uchar_pic_IO = pDlg->machineState.nowPicReadIO;
-    pDlg->machineState.grayPicQueList2_2.enqueue(picstruct1);
-    //内存释放
-    //delete data;
-    delete dataGray;
-    return true;
+    return enqueueGrayFrame(pData, pFrameInfo, pDlg->machineState.grayPicQueList2_2,
+        pDlg->machineState.mutexGrayPicQueList2_2, snapshot.nowPictureNumber2_2,
+        snapshot.nowShowPicReadIO2_2);
 }
 void __stdcall workProcedure1_1(unsigned char* pData, MV_FRAME_OUT_INFO* pFrameInfo, void* pUser)
 {
-
-    CigVision* pCam = (CigVision*)pUser;//CigVison类
-
-    if (NULL == pCam)
+    if (NULL == pData || NULL == pFrameInfo)
     {
         return;
     }
-    if (NULL == pData)
+    CameraCallbackScope callbackScope(pUser);
+    CigVision* pCam = callbackScope.owner();
+    if (pCam == nullptr)
     {
         return;
     }
@@ -176,13 +259,13 @@ void __stdcall workProcedure1_1(unsigned char* pData, MV_FRAME_OUT_INFO* pFrameI
 }
 void __stdcall workProcedure2_1(unsigned char* pData, MV_FRAME_OUT_INFO* pFrameInfo, void* pUser)
 {
-
-    CigVision* pCam = (CigVision*)pUser;//testQT类
-    if (NULL == pCam)
+    if (NULL == pData || NULL == pFrameInfo)
     {
         return;
     }
-    if (NULL == pData)
+    CameraCallbackScope callbackScope(pUser);
+    CigVision* pCam = callbackScope.owner();
+    if (pCam == nullptr)
     {
         return;
     }
@@ -193,13 +276,13 @@ void __stdcall workProcedure2_1(unsigned char* pData, MV_FRAME_OUT_INFO* pFrameI
 }
 void __stdcall workProcedure2_2(unsigned char* pData, MV_FRAME_OUT_INFO* pFrameInfo, void* pUser)
 {
-
-    CigVision* pCam = (CigVision*)pUser;//testQT类
-    if (NULL == pCam)
+    if (NULL == pData || NULL == pFrameInfo)
     {
         return;
     }
-    if (NULL == pData)
+    CameraCallbackScope callbackScope(pUser);
+    CigVision* pCam = callbackScope.owner();
+    if (pCam == nullptr)
     {
         return;
     }
@@ -221,7 +304,11 @@ CigVision::CigVision(QWidget *parent)
     {
         QString tempString(QString::fromLocal8Bit("成功：相机初始化"));
         qDebug() << tempString;
-    };
+    }
+    else
+    {
+        qDebug() << QString::fromLocal8Bit("错误：相机初始化未完成，运行按钮将保持安全停止");
+    }
     if (initIOCard())//IO板卡初始化
     {
         QString tempString(QString::fromLocal8Bit("成功：IO板卡初始化"));
@@ -230,10 +317,10 @@ CigVision::CigVision(QWidget *parent)
     //参数设置界面
     initParaView();
     ui.label_brandName->setText(params.getCurrentBrand());
-    //统计查询界面 
-    
+    //统计查询界面
+
     //系统设置 界面
-    
+
     //ui.stackedWidget->setCurrentIndex(1);//调试用
 
     // 连接系统参数窗口退出信号
@@ -242,12 +329,24 @@ CigVision::CigVision(QWidget *parent)
 }
 
 CigVision::~CigVision()
-{}
+{
+    QMutexLocker runtimeLock(&runtimeMutex);
+    machineState.systemRun.store(false);
+    stopCameras();
+    detachCameraCallbacks();
+    waitForCameraCallbacks();
+    stopIOReading();
+    clearFrameQueues();
+
+    delete ioTask;
+    ioTask = nullptr;
+    shutdownCameras();
+}
 
 //运行界面
 void CigVision::initRunView()
 {
-    
+
     //参数
     int stackedWidgetWidth = ui.stackedWidget->size().width();//窗体宽度
     int stackedWidgetHeight = ui.stackedWidget->size().height();//窗体高度
@@ -398,7 +497,7 @@ void CigVision::initRunView()
     v1_zu2TreeTable->setColumnWidth(1, 150);
     v1_zu2TreeTable->setColumnWidth(2, 150);
     //v1_zu1TreeTable->setStyleSheet("QTableView{font-size:14px; color: white;}");
-    
+
 
     ui.stackedWidget->addWidget(run_page);
 }
@@ -421,15 +520,44 @@ void CigVision::initParaView() {
 
 void CigVision::on_btn_run_clicked()
 {
+    QMutexLocker runtimeLock(&runtimeMutex);
     qDebug() << "run clicked";
-  
-    if (!machineState.systemRun)
+
+    if (!machineState.systemRun.load())
     {
-        machineState.systemRun = true;
+        if (ioTask == nullptr)
+        {
+            qDebug() << QString::fromLocal8Bit("错误：IO板卡未就绪，系统未进入运行状态");
+            btnColorUpdate();
+            return;
+        }
+        if (!startCameras())
+        {
+            qDebug() << QString::fromLocal8Bit("错误：相机未全部就绪，系统未进入运行状态");
+            machineState.systemRun.store(false);
+            btnColorUpdate();
+            return;
+        }
+        if (!ioTask->prepareStart())
+        {
+            qDebug() << QString::fromLocal8Bit("错误：IO读取任务无法启动，正在回滚相机");
+            stopCameras();
+            detachCameraCallbacks();
+            waitForCameraCallbacks();
+            btnColorUpdate();
+            return;
+        }
+        machineState.systemRun.store(true);
+        pool.start(ioTask);
     }
     else
     {
-        machineState.systemRun = false;
+        machineState.systemRun.store(false);
+        stopCameras();
+        detachCameraCallbacks();
+        waitForCameraCallbacks();
+        stopIOReading();
+        clearFrameQueues();
     }
     btnColorUpdate();
 }
@@ -449,7 +577,7 @@ void CigVision::on_btn_edit_clicked()
 void CigVision::on_btn_log_clicked()
 {
     qDebug() << "log clicked";
- 
+
 }
 void CigVision::on_btn_alarm_clicked()
 {
@@ -527,7 +655,7 @@ void CigVision::btnColorUpdate()//按钮颜色更新
     default:
         break;
     }
-    if (machineState.systemRun)
+    if (machineState.systemRun.load())
     {
         ui.btn_run->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-filling (green).png")));
     }
@@ -549,20 +677,246 @@ void CigVision::onBrandComboBoxChanged() {
     ui.label_brandName->setText(params.currentBrandLabel->text());
 }
 
+bool CigVision::configureCamera(MyCamera* camera, const QString& cameraKey)
+{
+    if (camera == nullptr)
+    {
+        return false;
+    }
+
+    unsigned int width = 0;
+    unsigned int height = 0;
+    unsigned int offsetX = 0;
+    unsigned int offsetY = 0;
+    float exposureTime = 0.0f;
+
+    if (cameraKey == "1-1")
+    {
+        width = 992;
+        height = 300;
+        offsetX = 176;
+        offsetY = 332;
+        exposureTime = 50.0f;
+    }
+    else if (cameraKey == "2-1" || cameraKey == "2-2")
+    {
+        width = 1200;
+        height = 600;
+        offsetX = 96;
+        offsetY = (cameraKey == "2-1") ? 160 : 168;
+        exposureTime = 100.0f;
+    }
+    else
+    {
+        return false;
+    }
+
+    auto applySetting = [&cameraKey](int result, const char* settingName)
+    {
+        if (result != MV_OK)
+        {
+            qDebug() << QString::fromLocal8Bit("错误：相机参数设置失败")
+                << cameraKey << settingName << result;
+            return false;
+        }
+        return true;
+    };
+
+    if (!applySetting(camera->SetEnumValue("TriggerMode", MV_TRIGGER_MODE_ON), "TriggerMode") ||
+        !applySetting(camera->SetEnumValue("TriggerSource", MV_TRIGGER_SOURCE_LINE0), "TriggerSource") ||
+        !applySetting(camera->SetEnumValue("TriggerActivation", 0), "TriggerActivation") ||
+        !applySetting(camera->SetFloatValue("ExposureTime", exposureTime), "ExposureTime") ||
+        !applySetting(camera->SetIntValue("Width", width), "Width") ||
+        !applySetting(camera->SetIntValue("Height", height), "Height") ||
+        !applySetting(camera->SetIntValue("OffsetX", offsetX), "OffsetX") ||
+        !applySetting(camera->SetIntValue("OffsetY", offsetY), "OffsetY") ||
+        !applySetting(camera->SetFloatValue("Gain", 0.0f), "Gain") ||
+        !applySetting(camera->SetEnumValue("PixelFormat", PixelType_Gvsp_RGB8_Packed), "PixelFormat") ||
+        !applySetting(camera->SetFloatValue("AcquisitionFrameRate", 200.0f), "AcquisitionFrameRate"))
+    {
+        return false;
+    }
+
+    CameraCallbackContext* callbackContext = callbackContextForKey(cameraKey);
+    if (callbackContext == nullptr)
+    {
+        return false;
+    }
+    if (cameraKey == "1-1")
+    {
+        return applySetting(camera->RegisterImageCallBack(workProcedure1_1, callbackContext), "RegisterImageCallBack");
+    }
+    if (cameraKey == "2-1")
+    {
+        return applySetting(camera->RegisterImageCallBack(workProcedure2_1, callbackContext), "RegisterImageCallBack");
+    }
+    return applySetting(camera->RegisterImageCallBack(workProcedure2_2, callbackContext), "RegisterImageCallBack");
+}
+
+bool CigVision::startCameras()
+{
+    if (cameraLifecycleFault || machineState.cameraCount != machineState.cameraMatchMap.size())
+    {
+        return false;
+    }
+
+    attachCameraCallbacks();
+
+    for (int i = 0; i < machineState.cameraCount; ++i)
+    {
+        MyCamera* camera = machineState.m_pcMyCamera[i];
+        if (camera == nullptr || camera->StartGrabbing() != MV_OK)
+        {
+            for (int started = 0; started < i; ++started)
+            {
+                const int stopRet = machineState.m_pcMyCamera[started]->StopGrabbing();
+                if (stopRet != MV_OK)
+                {
+                    cameraLifecycleFault = true;
+                    qDebug() << QString::fromLocal8Bit("错误：相机启动回滚时停止失败")
+                        << started << stopRet;
+                }
+            }
+            detachCameraCallbacks();
+            waitForCameraCallbacks();
+            return false;
+        }
+    }
+    return true;
+}
+
+bool CigVision::stopCameras()
+{
+    bool allStopped = true;
+    for (int i = 0; i < machineState.cameraCount; ++i)
+    {
+        if (machineState.m_pcMyCamera[i] != nullptr)
+        {
+            const int stopRet = machineState.m_pcMyCamera[i]->StopGrabbing();
+            if (stopRet != MV_OK)
+            {
+                allStopped = false;
+                cameraLifecycleFault = true;
+                qDebug() << QString::fromLocal8Bit("错误：相机停止失败") << i << stopRet;
+            }
+        }
+    }
+    return allStopped;
+}
+
+void CigVision::attachCameraCallbacks()
+{
+    callbackContext1_1->attach(this);
+    callbackContext2_1->attach(this);
+    callbackContext2_2->attach(this);
+}
+
+void CigVision::detachCameraCallbacks()
+{
+    callbackContext1_1->detach(this);
+    callbackContext2_1->detach(this);
+    callbackContext2_2->detach(this);
+}
+
+bool CigVision::beginCameraCallback()
+{
+    QMutexLocker locker(&callbackMutex);
+    if (!machineState.systemRun.load())
+    {
+        return false;
+    }
+    ++activeCameraCallbacks;
+    return true;
+}
+
+void CigVision::endCameraCallback()
+{
+    QMutexLocker locker(&callbackMutex);
+    --activeCameraCallbacks;
+    if (activeCameraCallbacks == 0)
+    {
+        callbackIdle.wakeAll();
+    }
+}
+
+void CigVision::waitForCameraCallbacks()
+{
+    QMutexLocker locker(&callbackMutex);
+    while (activeCameraCallbacks > 0)
+    {
+        callbackIdle.wait(&callbackMutex);
+    }
+}
+
+void CigVision::stopIOReading()
+{
+    if (ioTask == nullptr)
+    {
+        return;
+    }
+    ioTask->requestStop();
+    if (!pool.waitForDone(2000))
+    {
+        qDebug() << QString::fromLocal8Bit("错误：IO读取线程未在2秒内退出，继续等待以避免释放竞态");
+        pool.waitForDone();
+    }
+}
+
+void CigVision::shutdownCameras()
+{
+    const bool allStopped = stopCameras();
+    detachCameraCallbacks();
+    waitForCameraCallbacks();
+    for (int i = 0; i < machineState.cameraCount; ++i)
+    {
+        delete machineState.m_pcMyCamera[i];
+        machineState.m_pcMyCamera[i] = nullptr;
+    }
+    machineState.cameraCount = 0;
+    cameraLifecycleFault = !allStopped;
+}
+
+void CigVision::clearFrameQueues()
+{
+    QMutexLocker lock1(&machineState.mutexGrayPicQueList1);
+    QMutexLocker lock2(&machineState.mutexGrayPicQueList2_1);
+    QMutexLocker lock3(&machineState.mutexGrayPicQueList2_2);
+    machineState.grayPicQueList1.clear();
+    machineState.grayPicQueList2_1.clear();
+    machineState.grayPicQueList2_2.clear();
+}
+
 bool CigVision::initCamera()
 {
     int nRet = -1;
-    void* m_handle = NULL;
-
 
     //组件相机对应初始化
-    QString cameraTempS;
+    shutdownCameras();
+    if (cameraLifecycleFault)
+    {
+        qDebug() << QString::fromLocal8Bit("错误：相机未安全关闭，拒绝重新初始化");
+        return false;
+    }
+    machineState.cameraMatchMap.clear();
     //1组件
     machineState.cameraMatchMap.insert("1-1", params.cameraParams.camera1SerialNum);
     //2组件1相机(内)
     machineState.cameraMatchMap.insert("2-1", params.cameraParams.camera2OuterSerialNum);
     //2组件2相机(外)
-    machineState.cameraMatchMap.insert("2-1", params.cameraParams.camera2InnerSerialNum);
+    machineState.cameraMatchMap.insert("2-2", params.cameraParams.camera2InnerSerialNum);
+
+    QSet<QString> expectedSerialNumbers;
+    for (auto it = machineState.cameraMatchMap.constBegin(); it != machineState.cameraMatchMap.constEnd(); ++it)
+    {
+        const QString serialNumber = it.value().trimmed();
+        if (serialNumber.isEmpty() || expectedSerialNumbers.contains(serialNumber))
+        {
+            qDebug() << QString::fromLocal8Bit("错误：相机序列号为空或重复") << it.key();
+            return false;
+        }
+        expectedSerialNumbers.insert(serialNumber);
+    }
+    QSet<QString> matchedCameraKeys;
 
     //int nCanOpenDeviceNum = 0;
     memset(&machineState.m_stDevList, 0, sizeof(MV_CC_DEVICE_INFO_LIST));
@@ -575,8 +929,12 @@ bool CigVision::initCamera()
         return false;
     }
     //
-    for (unsigned int i = 0, j = 0; j < machineState.m_stDevList.nDeviceNum; j++, i++)
+    int cameraIndex = 0;
+    for (unsigned int j = 0;
+        j < machineState.m_stDevList.nDeviceNum && cameraIndex < MAX_DEVICE_NUM;
+        ++j)
     {
+        const int i = cameraIndex;
         unsigned char deviceGUID[INFO_MAX_BUFFER_SIZE] = { 0 };
         machineState.m_pcMyCamera[i] = new MyCamera;
         machineState.m_pcMyCamera[i]->m_pBufForDriver = NULL;
@@ -590,14 +948,15 @@ bool CigVision::initCamera()
         {
             delete(machineState.m_pcMyCamera[i]);
             machineState.m_pcMyCamera[i] = NULL;
-            i--;
             continue;
         }
         else
         {
+            machineState.cameraCount = cameraIndex + 1;
             memcpy(deviceGUID, machineState.m_stDevList.pDeviceInfo[j]->SpecialInfo.stUsb3VInfo.chSerialNumber, INFO_MAX_BUFFER_SIZE);
             QString deviceGUIDString = QString::fromLocal8Bit((char*)deviceGUID);
 
+            bool matchedCurrentCamera = false;
             QMap<QString, QString>::const_iterator it = machineState.cameraMatchMap.constBegin();
             while (it != machineState.cameraMatchMap.constEnd())//配置map遍历，找到对应相机的设置
             {
@@ -605,70 +964,15 @@ bool CigVision::initCamera()
                 if (!QString::compare(it.value(), deviceGUIDString))//相机ID匹配到设置中ID
                 {
                     cameraKey = it.key();//设置Key
-                    if (cameraKey == "1-1")//1组件相机1
+                    if (matchedCameraKeys.contains(cameraKey))
                     {
-                        nRet = machineState.m_pcMyCamera[i]->SetEnumValue("TriggerMode", MV_TRIGGER_MODE_ON);//上升沿
-                        nRet = machineState.m_pcMyCamera[i]->SetEnumValue("TriggerSource", MV_TRIGGER_SOURCE_LINE0);//触发源Line0
-
-                        nRet = machineState.m_pcMyCamera[i]->SetEnumValue("TriggerActivation", 0);//激活方式0:RisingEdge 1:FallingEdge2.LevelHigh3.LevelLow
-                        nRet = machineState.m_pcMyCamera[i]->SetFloatValue("ExposureTime", 50.0);//曝光时间us
-                        nRet = machineState.m_pcMyCamera[i]->SetIntValue("Width", 992);//画面宽度
-                        nRet = machineState.m_pcMyCamera[i]->SetIntValue("Height", 300);//画面高度
-                        nRet = machineState.m_pcMyCamera[i]->SetIntValue("OffsetX", 176);//画面水平偏移
-                        nRet = machineState.m_pcMyCamera[i]->SetIntValue("OffsetY", 332);//画面垂直偏移，运动时400，手动盘340
-                        nRet = machineState.m_pcMyCamera[i]->SetFloatValue("ExposureTime", 50);//曝光时间设置
-                        nRet = machineState.m_pcMyCamera[i]->SetFloatValue("Gain", 0.0);//增益值设置
-                        //nRet = m_pcMyCamera[i]->CommandExecute("TriggerSoftware");//单次软触发
-                        //nRet = m_pcMyCamera[i]->SetEnumValue("TriggerSource", SOFTWAREMODE);//软件触发
-                        nRet = machineState.m_pcMyCamera[i]->SetEnumValue("PixelFormat", PixelType_Gvsp_RGB8_Packed);//0x02180014 RGB8Packed
-
-                        nRet = machineState.m_pcMyCamera[i]->SetFloatValue("AcquisitionFrameRate", 200);//相机帧率
-                        //unsigned int enValue = PixelType_Gvsp_RGB8_Packed;
-                        //MV_CC_SetPixelFormat(m_pcMyCamera[i]->m_hDevHandle, enValue);//设置图片格式RGB
-                        nRet = machineState.m_pcMyCamera[i]->RegisterImageCallBack(workProcedure1_1, this);
+                        qDebug() << QString::fromLocal8Bit("错误：同一相机配置被重复匹配") << cameraKey;
+                        shutdownCameras();
+                        return false;
                     }
-                    if (cameraKey == "2-1")//2组件相机1
-                    {
-                        nRet = machineState.m_pcMyCamera[i]->SetEnumValue("TriggerMode", MV_TRIGGER_MODE_ON);//上升沿
-                        nRet = machineState.m_pcMyCamera[i]->SetEnumValue("TriggerSource", MV_TRIGGER_SOURCE_LINE0);//触发源Line0
-
-                        nRet = machineState.m_pcMyCamera[i]->SetEnumValue("TriggerActivation", 0);//激活方式0:RisingEdge 1:FallingEdge2.LevelHigh3.LevelLow
-                        nRet = machineState.m_pcMyCamera[i]->SetFloatValue("ExposureTime", 100.0);//曝光时间us
-                        nRet = machineState.m_pcMyCamera[i]->SetIntValue("Width", 1200);//画面宽度
-                        nRet = machineState.m_pcMyCamera[i]->SetIntValue("Height", 600);//画面高度
-                        nRet = machineState.m_pcMyCamera[i]->SetIntValue("OffsetX", 96);//画面水平偏移
-                        nRet = machineState.m_pcMyCamera[i]->SetIntValue("OffsetY", 160);//画面垂直偏移，运动时400，手动盘340
-                        nRet = machineState.m_pcMyCamera[i]->SetFloatValue("Gain", 0.0);//增益值设置
-                        //nRet = m_pcMyCamera[i]->CommandExecute("TriggerSoftware");//单次软触发
-                        //nRet = m_pcMyCamera[i]->SetEnumValue("TriggerSource", SOFTWAREMODE);//软件触发
-                        nRet = machineState.m_pcMyCamera[i]->SetEnumValue("PixelFormat", PixelType_Gvsp_RGB8_Packed);//0x02180014 RGB8Packed
-
-                        nRet = machineState.m_pcMyCamera[i]->SetFloatValue("AcquisitionFrameRate", 200);//相机帧率
-                        //unsigned int enValue = PixelType_Gvsp_RGB8_Packed;
-                        //MV_CC_SetPixelFormat(m_pcMyCamera[i]->m_hDevHandle, enValue);//设置图片格式RGB
-                        nRet = machineState.m_pcMyCamera[i]->RegisterImageCallBack(workProcedure2_1, this);
-                    }
-                    if (cameraKey == "2-2")//2组件相机1
-                    {
-                        nRet = machineState.m_pcMyCamera[i]->SetEnumValue("TriggerMode", MV_TRIGGER_MODE_ON);//上升沿
-                        nRet = machineState.m_pcMyCamera[i]->SetEnumValue("TriggerSource", MV_TRIGGER_SOURCE_LINE0);//触发源Line0
-
-                        nRet = machineState.m_pcMyCamera[i]->SetEnumValue("TriggerActivation", 0);//激活方式0:RisingEdge 1:FallingEdge2.LevelHigh3.LevelLow
-                        nRet = machineState.m_pcMyCamera[i]->SetFloatValue("ExposureTime", 100);//曝光时间us
-                        nRet = machineState.m_pcMyCamera[i]->SetIntValue("Width", 1200);//画面宽度
-                        nRet = machineState.m_pcMyCamera[i]->SetIntValue("Height", 600);//画面高度
-                        nRet = machineState.m_pcMyCamera[i]->SetIntValue("OffsetX", 96);//画面水平偏移
-                        nRet = machineState.m_pcMyCamera[i]->SetIntValue("OffsetY", 168);//画面垂直偏移
-                        nRet = machineState.m_pcMyCamera[i]->SetFloatValue("Gain", 0.0);//增益值设置
-                        //nRet = m_pcMyCamera[i]->CommandExecute("TriggerSoftware");//单次软触发
-                        //nRet = m_pcMyCamera[i]->SetEnumValue("TriggerSource", SOFTWAREMODE);//软件触发
-                        nRet = machineState.m_pcMyCamera[i]->SetEnumValue("PixelFormat", PixelType_Gvsp_RGB8_Packed);//0x02180014 RGB8Packed
-
-                        nRet = machineState.m_pcMyCamera[i]->SetFloatValue("AcquisitionFrameRate", 200);//相机帧率
-                        //unsigned int enValue = PixelType_Gvsp_RGB8_Packed;
-                        //MV_CC_SetPixelFormat(m_pcMyCamera[i]->m_hDevHandle, enValue);//设置图片格式RGB
-                        nRet = machineState.m_pcMyCamera[i]->RegisterImageCallBack(workProcedure2_2, this);
-                    }
+                    matchedCurrentCamera = true;
+                    matchedCameraKeys.insert(cameraKey);
+                    nRet = configureCamera(machineState.m_pcMyCamera[i], cameraKey) ? MV_OK : MV_E_PARAMETER;
                     QString tempString(QString::fromLocal8Bit("找到相机"));
                     tempString.append(cameraKey);
                     tempString.append(QString::fromLocal8Bit("编号："));
@@ -679,33 +983,77 @@ bool CigVision::initCamera()
                     {
                         QString tempString(QString::fromLocal8Bit("相机"));
                         tempString.append(cameraKey);
-                        tempString.append(QString::fromLocal8Bit(" 回调函数设置失败"));
+                        tempString.append(QString::fromLocal8Bit(" 参数或回调设置失败"));
                         qDebug() << tempString;
                         //ui.listWidget__information->addItem(tempString);
+                        shutdownCameras();
                         return false;
                     }
 
-                    nRet = machineState.m_pcMyCamera[i]->StartGrabbing();
-                    if (MV_OK != nRet)
-                    {
-                        QString tempString(QString::fromLocal8Bit("错误：第 "));
-                        tempString.append(QString::number(i + 1));
-                        tempString.append(QString::fromLocal8Bit(" 个相机启动抓拍失败"));
-                        qDebug() << tempString;
-                        //ui.listWidget__information->addItem(tempString);
-                        return false;
-                    }
                 }
                 it++;
             }
+
+            if (!matchedCurrentCamera)
+            {
+                machineState.m_pcMyCamera[i]->Close();
+                delete machineState.m_pcMyCamera[i];
+                machineState.m_pcMyCamera[i] = nullptr;
+                machineState.cameraCount = cameraIndex;
+            }
+            else
+            {
+                ++cameraIndex;
+                machineState.cameraCount = cameraIndex;
+            }
         }
     }
-    return TRUE;
+
+    if (matchedCameraKeys.size() != machineState.cameraMatchMap.size())
+    {
+        qDebug() << QString::fromLocal8Bit("错误：未找到全部配置相机")
+            << matchedCameraKeys << machineState.cameraMatchMap.keys();
+        shutdownCameras();
+        return false;
+    }
+
+    return true;
 }
 
 bool CigVision::initIOCard()
 {
-    pool.start(new readIOTask(this));//开始读IO线程
+    if (ioTask != nullptr)
+    {
+        return true;
+    }
 
-    return 1;
+    ioTask = new readIOTask(this);
+    ioTask->setAutoDelete(false);
+    connect(ioTask, &readIOTask::fatalReadError, this, &CigVision::onIOReadFailure,
+        Qt::QueuedConnection);
+    if (!ioTask->initialize())
+    {
+        delete ioTask;
+        ioTask = nullptr;
+        return false;
+    }
+    return true;
+}
+
+void CigVision::onIOReadFailure()
+{
+    QMutexLocker runtimeLock(&runtimeMutex);
+    if (!machineState.systemRun.load())
+    {
+        return;
+    }
+
+    qDebug() << QString::fromLocal8Bit("错误：IO连续读取失败，系统进入安全停止状态");
+    machineState.systemRun.store(false);
+    stopCameras();
+    detachCameraCallbacks();
+    waitForCameraCallbacks();
+    stopIOReading();
+    clearFrameQueues();
+    btnColorUpdate();
 }

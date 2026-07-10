@@ -72,7 +72,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile />
     <ClCompile>
-      <AdditionalIncludeDirectories>C:\Program Files (x86)\MVS\Development\Includes;c:\Program Files\MVTec\HALCON-25.05-Progress\include;c:\Program Files\MVTec\HALCON-25.05-Progress\include\halconcpp;$(MVCAM_COMMON_RUNENV)\Includes;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Program Files (x86)\MVS\Development\Includes;C:\Advantech\DAQNavi\Inc;c:\Program Files\MVTec\HALCON-25.05-Progress\include;c:\Program Files\MVTec\HALCON-25.05-Progress\include\halconcpp;$(MVCAM_COMMON_RUNENV)\Includes;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
     <Link>
@@ -83,11 +83,11 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
-      <AdditionalIncludeDirectories>C:\Program Files\MVTec\HALCON-22.11-Steady\include;C:\Program Files\MVTec\HALCON-22.11-Steady\include\halconcpp;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Program Files (x86)\MVS\Development\Includes;C:\Advantech\DAQNavi\Inc;C:\Program Files\MVTec\HALCON-22.11-Steady\include;C:\Program Files\MVTec\HALCON-22.11-Steady\include\halconcpp;$(MVCAM_COMMON_RUNENV)\Includes;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <AdditionalLibraryDirectories>C:\Program Files\MVTec\HALCON-22.11-Steady\lib\x64-win64;C:\Program Files\MVTec\HALCON-22.11-Steady\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>halconcpp.lib;halcon.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>C:\Program Files\MVTec\HALCON-22.11-Steady\lib\x64-win64;C:\Program Files\MVTec\HALCON-22.11-Steady\lib;C:\Program Files (x86)\MVS\Development\Libraries\win64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>halconcpp.lib;halcon.lib;MvCameraControl.lib;$(Qt_LIBS_);%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'" Label="Configuration">
@@ -125,7 +125,6 @@
     <ClCompile Include="MyCamera.cpp" />
     <ClCompile Include="myTabWidget.cpp" />
     <ClCompile Include="readIOTask.cpp" />
-    <ClCompile Include="testWrite.cpp" />
     <QtRcc Include="CigVision.qrc" />
     <QtUic Include="CigVision.ui" />
     <QtMoc Include="CigVision.h" />
@@ -147,11 +146,16 @@
     <ClInclude Include="MultipleCameraDefine.h" />
     <ClInclude Include="MyCamera.h" />
     <ClInclude Include="paramStructs.h" />
-    <QtMoc Include="testWrite.h" />
     <QtMoc Include="readIOTask.h" />
   </ItemGroup>
   <ItemGroup>
     <Library Include="MvCameraControl.lib" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="process\process.vcxproj">
+      <Project>{98b8349a-3375-4fdb-8fc4-07b5fb021f14}</Project>
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Condition="Exists('$(QtMsBuild)\qt.targets')">

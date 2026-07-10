@@ -58,9 +58,6 @@
     <ClCompile Include="readIOTask.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="testWrite.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <QtMoc Include="CusTabBar.h">
@@ -76,9 +73,6 @@
       <Filter>Header Files</Filter>
     </QtMoc>
     <QtMoc Include="readIOTask.h">
-      <Filter>Header Files</Filter>
-    </QtMoc>
-    <QtMoc Include="testWrite.h">
       <Filter>Header Files</Filter>
     </QtMoc>
   </ItemGroup>

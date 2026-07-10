@@ -2,88 +2,88 @@
 #include "MvCameraControl.h"
 #include<string.h>
 
-class MyCamera 
+class MyCamera
 {
 public:
     MyCamera();
     ~MyCamera();
     static int EnumDevices(MV_CC_DEVICE_INFO_LIST* pstDevList);
-    
 
-    // ch:´ò¿ªÉè±¸ | en:Open Device
+
+    // ch:æ‰“å¼€è®¾å¤‡ | en:Open Device
     int     Open(MV_CC_DEVICE_INFO* pstDeviceInfo);
 
-    // ch:¹Ø±ÕÉè±¸ | en:Close Device
+    // ch:å…³é—­è®¾å¤‡ | en:Close Device
     int     Close();
 
-    // ch:¿ªÆô×¥Í¼ | en:Start Grabbing
+    // ch:å¼€å¯æŠ“å›¾ | en:Start Grabbing
     int     StartGrabbing();
 
-    // ch:Í£Ö¹×¥Í¼ | en:Stop Grabbing
+    // ch:åœæ­¢æŠ“å›¾ | en:Stop Grabbing
     int     StopGrabbing();
 
-    // ch:Ö÷¶¯»ñÈ¡Ò»Ö¡Í¼ÏñÊı¾İ | en:Get one frame initiatively
+    // ch:ä¸»åŠ¨è·å–ä¸€å¸§å›¾åƒæ•°æ® | en:Get one frame initiatively
     int     GetOneFrameTimeout(unsigned char* pData, unsigned int* pnDataLen, unsigned int nDataSize, MV_FRAME_OUT_INFO_EX* pFrameInfo, int nMsec);
 
-    // ch:ÉèÖÃÏÔÊ¾´°¿Ú¾ä±ú | en:Set Display Window Handle
+    // ch:è®¾ç½®æ˜¾ç¤ºçª—å£å¥æŸ„ | en:Set Display Window Handle
     int     Display(void* hWnd);
 
-    // ch:±£´æÍ¼Æ¬ | en:save image
+    // ch:ä¿å­˜å›¾ç‰‡ | en:save image
     int     SaveImage(MV_SAVE_IMAGE_PARAM_EX* pstParam);
 
-    // ch:×¢²áÍ¼ÏñÊı¾İ»Øµ÷ | en:Register Image Data CallBack
+    // ch:æ³¨å†Œå›¾åƒæ•°æ®å›è°ƒ | en:Register Image Data CallBack
     int     RegisterImageCallBack(void(__stdcall* cbOutput)(unsigned char* pData, MV_FRAME_OUT_INFO* pFrameInfo, void* pUser),
         void* pUser);
 
-    // ch:×¢²áÏûÏ¢Òì³£»Øµ÷ | en:Register Message Exception CallBack
+    // ch:æ³¨å†Œæ¶ˆæ¯å¼‚å¸¸å›è°ƒ | en:Register Message Exception CallBack
     int     RegisterExceptionCallBack(void(__stdcall* cbException)(unsigned int nMsgType, void* pUser),
         void* pUser);
 
-    // ch:»ñÈ¡IntĞÍ²ÎÊı£¬Èç WidthºÍHeight£¬ÏêÏ¸ÄÚÈİ²Î¿¼SDK°²×°Ä¿Â¼ÏÂµÄ MvCameraNode.xlsx ÎÄ¼ş
+    // ch:è·å–Intå‹å‚æ•°ï¼Œå¦‚ Widthå’ŒHeightï¼Œè¯¦ç»†å†…å®¹å‚è€ƒSDKå®‰è£…ç›®å½•ä¸‹çš„ MvCameraNode.xlsx æ–‡ä»¶
     // en:Get Int type parameters, such as Width and Height, for details please refer to MvCameraNode.xlsx file under SDK installation directory
     int     GetIntValue(IN const char* strKey, OUT unsigned int* pnValue);
     int     SetIntValue(IN const char* strKey, IN unsigned int nValue);
 
-    // ch:»ñÈ¡FloatĞÍ²ÎÊı£¬Èç ExposureTimeºÍGain£¬ÏêÏ¸ÄÚÈİ²Î¿¼SDK°²×°Ä¿Â¼ÏÂµÄ MvCameraNode.xlsx ÎÄ¼ş
+    // ch:è·å–Floatå‹å‚æ•°ï¼Œå¦‚ ExposureTimeå’ŒGainï¼Œè¯¦ç»†å†…å®¹å‚è€ƒSDKå®‰è£…ç›®å½•ä¸‹çš„ MvCameraNode.xlsx æ–‡ä»¶
     // en:Get Float type parameters, such as ExposureTime and Gain, for details please refer to MvCameraNode.xlsx file under SDK installation directory
     int     GetFloatValue(IN const char* strKey, OUT float* pfValue);
     int     SetFloatValue(IN const char* strKey, IN float fValue);
 
-    // ch:»ñÈ¡EnumĞÍ²ÎÊı£¬Èç PixelFormat£¬ÏêÏ¸ÄÚÈİ²Î¿¼SDK°²×°Ä¿Â¼ÏÂµÄ MvCameraNode.xlsx ÎÄ¼ş
+    // ch:è·å–Enumå‹å‚æ•°ï¼Œå¦‚ PixelFormatï¼Œè¯¦ç»†å†…å®¹å‚è€ƒSDKå®‰è£…ç›®å½•ä¸‹çš„ MvCameraNode.xlsx æ–‡ä»¶
     // en:Get Enum type parameters, such as PixelFormat, for details please refer to MvCameraNode.xlsx file under SDK installation directory
     int     GetEnumValue(IN const char* strKey, OUT unsigned int* pnValue);
     int     SetEnumValue(IN const char* strKey, IN unsigned int nValue);
 
-    // ch:»ñÈ¡BoolĞÍ²ÎÊı£¬Èç ReverseX£¬ÏêÏ¸ÄÚÈİ²Î¿¼SDK°²×°Ä¿Â¼ÏÂµÄ MvCameraNode.xlsx ÎÄ¼ş
+    // ch:è·å–Boolå‹å‚æ•°ï¼Œå¦‚ ReverseXï¼Œè¯¦ç»†å†…å®¹å‚è€ƒSDKå®‰è£…ç›®å½•ä¸‹çš„ MvCameraNode.xlsx æ–‡ä»¶
     // en:Get Bool type parameters, such as ReverseX, for details please refer to MvCameraNode.xlsx file under SDK installation directory
     int     GetBoolValue(IN const char* strKey, OUT bool* pbValue);
     int     SetBoolValue(IN const char* strKey, IN bool bValue);
 
-    // ch:»ñÈ¡StringĞÍ²ÎÊı£¬Èç DeviceUserID£¬ÏêÏ¸ÄÚÈİ²Î¿¼SDK°²×°Ä¿Â¼ÏÂµÄ MvCameraNode.xlsx ÎÄ¼şUserSetSave
+    // ch:è·å–Stringå‹å‚æ•°ï¼Œå¦‚ DeviceUserIDï¼Œè¯¦ç»†å†…å®¹å‚è€ƒSDKå®‰è£…ç›®å½•ä¸‹çš„ MvCameraNode.xlsx æ–‡ä»¶UserSetSave
     // en:Get String type parameters, such as DeviceUserID, for details please refer to MvCameraNode.xlsx file under SDK installation directory
     int     GetStringValue(IN const char* strKey, IN OUT char* strValue, IN unsigned int nSize);
     int     SetStringValue(IN const char* strKey, IN const char* strValue);
 
-    // ch:Ö´ĞĞÒ»´ÎCommandĞÍÃüÁî£¬Èç UserSetSave£¬ÏêÏ¸ÄÚÈİ²Î¿¼SDK°²×°Ä¿Â¼ÏÂµÄ MvCameraNode.xlsx ÎÄ¼ş
+    // ch:æ‰§è¡Œä¸€æ¬¡Commandå‹å‘½ä»¤ï¼Œå¦‚ UserSetSaveï¼Œè¯¦ç»†å†…å®¹å‚è€ƒSDKå®‰è£…ç›®å½•ä¸‹çš„ MvCameraNode.xlsx æ–‡ä»¶
     // en:Execute Command once, such as UserSetSave, for details please refer to MvCameraNode.xlsx file under SDK installation directory
     int     CommandExecute(IN const char* strKey);
 
-    // ch:Ì½²âÍøÂç×î¼Ñ°ü´óĞ¡(Ö»¶ÔGigEÏà»úÓĞĞ§) | en:Detection network optimal package size(It only works for the GigE camera)
+    // ch:æ¢æµ‹ç½‘ç»œæœ€ä½³åŒ…å¤§å°(åªå¯¹GigEç›¸æœºæœ‰æ•ˆ) | en:Detection network optimal package size(It only works for the GigE camera)
     int     GetOptimalPacketSize();
 
-    // »ñÈ¡Í³¼Æ²ÎÊı
+    // è·å–ç»Ÿè®¡å‚æ•°
     int     GetAllMatchInfo(IN void* hDevHandle, IN unsigned int nTLayerTpye, OUT unsigned int* nLostFrame, OUT unsigned int* nFrameCount);
 
 public:
     void* m_hDevHandle;
     unsigned int     m_nTLayerType;
-    bool             isStartGrabbing;    //×Ô¶¨Òå£¬Ïà»úÕıÔÚÅÄÕÕ
+    bool             isStartGrabbing;    //è‡ªå®šä¹‰ï¼Œç›¸æœºæ­£åœ¨æ‹ç…§
 
 public:
-    unsigned char* m_pBufForSaveImage;         // ÓÃÓÚ±£´æÍ¼ÏñµÄ»º´æ
+    unsigned char* m_pBufForSaveImage;         // ç”¨äºä¿å­˜å›¾åƒçš„ç¼“å­˜
     unsigned int    m_nBufSizeForSaveImage;
 
-    unsigned char* m_pBufForDriver;            // ÓÃÓÚ´ÓÇı¶¯»ñÈ¡Í¼ÏñµÄ»º´æ
+    unsigned char* m_pBufForDriver;            // ç”¨äºä»é©±åŠ¨è·å–å›¾åƒçš„ç¼“å­˜
     unsigned int    m_nBufSizeForDriver;
 
 };

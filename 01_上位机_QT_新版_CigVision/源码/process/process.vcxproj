@@ -71,12 +71,20 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>C:\Program Files\MVTec\HALCON-25.05-Progress\include\halconcpp;C:\Program Files\MVTec\HALCON-25.05-Progress\include;E:\王伟工作文件\烟支外观检测项目\CigVision\process;$(IncludePath)</IncludePath>
+    <OutDir>$(SolutionDir)$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(Platform)\$(Configuration)\process\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <OutDir>$(SolutionDir)$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(Platform)\$(Configuration)\process\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <IncludePath>C:\Program Files\MVTec\HALCON-25.05-Progress\include\halconcpp;C:\Program Files\MVTec\HALCON-25.05-Progress\include;$(ProjectDir)..;$(ProjectDir);$(IncludePath)</IncludePath>
     <ExternalIncludePath>C:\Program Files\MVTec\HALCON-25.05-Progress\lib;$(ExternalIncludePath)</ExternalIncludePath>
     <ReferencePath>C:\Program Files\MVTec\HALCON-25.05-Progress\lib;$(ReferencePath)</ReferencePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>C:\Program Files\MVTec\HALCON-22.11-Steady\include;C:\Program Files\MVTec\HALCON-22.11-Steady\include\halconcpp;$(IncludePath)</IncludePath>
+    <IncludePath>C:\Program Files\MVTec\HALCON-22.11-Steady\include;C:\Program Files\MVTec\HALCON-22.11-Steady\include\halconcpp;$(ProjectDir)..;$(ProjectDir);$(IncludePath)</IncludePath>
     <ExternalIncludePath>C:\Program Files\MVTec\HALCON-22.11-Steady\lib;$(ExternalIncludePath)</ExternalIncludePath>
     <ReferencePath>C:\Program Files\MVTec\HALCON-22.11-Steady\lib;$(ReferencePath)</ReferencePath>
   </PropertyGroup>
@@ -122,7 +130,7 @@
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>C:\Program Files\MVTec\HALCON-25.05-Progress\include;C:\Program Files\MVTec\HALCON-25.05-Progress\include\halconcpp</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..;C:\Program Files\MVTec\HALCON-25.05-Progress\include;C:\Program Files\MVTec\HALCON-25.05-Progress\include\halconcpp;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -142,7 +150,7 @@
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>C:\Program Files\MVTec\HALCON-22.11-Steady\include\halconcpp;C:\Program Files\MVTec\HALCON-22.11-Steady\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..;C:\Program Files\MVTec\HALCON-22.11-Steady\include\halconcpp;C:\Program Files\MVTec\HALCON-22.11-Steady\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
