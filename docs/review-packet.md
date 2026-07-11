@@ -1,13 +1,90 @@
 # 评审包
 
+## 当前评审入口
+
+最新关闭的技术切片是 **P5-02C1 localhost 首标工作台**；完整范围、三轮返修 48/48、Browser 证据、限制和最终独立门禁见本文末尾同名章节。下一项是尚未开始的 P5-02C2 责任人员人工首标；P5-02A/B、P5-01 与 P0-P4 以下内容均为归档评审记录。
+
+## P5-02 试标集与复核包评审包（2026-07-11）
+
+状态：P5-02A/B 和 P5-02C1 的独立 reviewer/QA 均 gate PASS，技术切片关闭。P5-02C2/C3 人工首标、独立复核和授权真值未开始，P5 整体不关闭，不声明准确率。
+
+### 评审范围
+
+- `scripts/p5_dataset_tools.py` 新增 `select-pilot`，生成确定性 30 图选择、派生 split manifest、COCO 预标注和复核 CSV。
+- `scripts/run_windows_p5_pilot.ps1` 复跑单测、生成 30 原图/30 预览、校验源图哈希和证据 manifest。
+- `tests/p5/test_p5_dataset_tools.py` 新增确定性、覆盖、边界、canonical 和真值安全门测试。
+- 不在范围：人工标签正确性、实际准确率、阈值/NMS 优化、模型训练、Qt UI、相机、DAQNavi、真实剔除。
+
+### 正式验证
+
+- 命令：`powershell -ExecutionPolicy Bypass -File .\scripts\run_windows_p5_pilot.ps1`
+- 最终返修结果：exit 0；代码冻结证据 `artifacts/p5-pilot-20260711-192148`；29/29；30 canonical；30 原图；30 预览；71 个证据文件；源图/源码稳定；0 uncovered feature。
+- 新证据门：拒绝既有 split、伪造 source_group、重复 canonical hash、悬空 alias、真值输入、catalog/COCO/P4 布尔标量和畸形 bbox；30 份 P4 JSON 与 COCO 的双向严格类型、尺寸/判定/缺陷数量/类别/bbox/置信度/defect detector version/frame parameterVersion 匹配；frame/preview 源及副本、工具/脚本/测试/目录/输入均哈希绑定。
+- 覆盖：4 来源组、2 尺寸、12 OK/18 NG、class 0/1/2/3/4/5/7；11 个含未确认类别样本强制 REVIEW。
+- 自查：`python -m py_compile` PASS；PowerShell parser PASS；`git diff --check` PASS（仅 CRLF 转换提示）。
+
+### 请求独立检查
+
+- reviewer：算法确定性、特征覆盖、重复/split、防泄漏、预测 provenance、错误路径、证据假绿与文档一致性。
+- QA：从当前工作树独立复跑、复算输入/输出哈希、攻击无效 size/不完整 COCO、抽查原图/预览，并确认无真实硬件/剔除/准确率声明。
+
+### 当前限制
+
+- 30 图只是人工试标入口，授权均未批准，CSV 人工字段均 pending。
+- `wuzi/jietou` 业务映射未确认；含 `wuzi` 的 11 图保持 REVIEW。
+- 视觉抽查仍见大框、低置信框、重叠框和疑似误报，记录为 KI-035，不转换为误检率。
+
+### 最终独立门禁
+
+- reviewer `019f50b8-2d80-7e10-af4a-cdbd9b12cddc`：多轮可复现 finding 全部 resolved；正式 `192148` 的 29/29、6 个源码/输入哈希、71 个证据哈希、30 个 binding 和文档指针一致，最终 PASS。
+- QA `019f50ef-db01-7cb0-b37a-f1af708b8cde`：新建 `artifacts/p5-pilot-20260711-192926`，29/29、fresh manifest passed，最终 PASS；代理额外报告对抗/哈希/视觉检查，但无单独逐项 transcript，故本包不声明额外检查数量。
+- 这两个 PASS 只覆盖工具、选样与复核包证据完整性，不覆盖人工标签正确性、授权、准确率或硬件。
+
+## P5-01 数据与效果基线评审包（2026-07-11）
+
+状态：实现自查、独立 reviewer 返修复核和独立 QA 最终 gate 均 PASS；P5-01 工具切片关闭。P5 整体仍进行中，不声明实际准确率。
+
+### 范围
+
+- `config/p5-class-catalog.json`：九类机器目录，前七类来源支持但待业务批准，`wuzi/jietou` 禁止正式标注。
+- `docs/p5-source-inventory.md`、`docs/p5-labeling-guide.md`：全仓资料用途、许可风险、COCO 扩展和标注规则。
+- `scripts/p5_dataset_tools.py`：audit、preannotate、validate-annotations、evaluate。
+- `scripts/run_windows_p5_data_baseline.ps1`：单测、真实数据审计、假真值负门、P4 预标注、源码/证据哈希。
+- `tests/p5/test_p5_dataset_tools.py`：重复、边界、未确认类、假真值、框匹配、错类、FP/FN、烟支级误报漏报。
+
+### 正式证据
+
+```text
+powershell -ExecutionPolicy Bypass -File .\scripts\run_windows_p5_data_baseline.ps1 -P4Results .\artifacts\p4-tensorrt-20260711-150510\batch-output
+
+exit 0；20/20 tests；failures=0；sourceFilesStable=true
+116 source files；113 unique SHA-256；3 duplicate groups；116 legacy pairs
+dimensions: 992x300=60, 1200x600=56
+unreviewed ground truth: expected exit 2
+preannotations: 113 images, 236 boxes, is_ground_truth=false
+boundary normalization: 1 sub-millipixel float overrun, original bbox retained
+unconfirmed class boxes: wuzi=99；jietou=0
+manifest SHA-256: FD6EEFC9D4BD60C888F491B5108950FD7FFF5500BFD19CAD7AE781A7E64B733F
+independent QA: artifacts/p5-qa-independent-20260711-170802
+QA manifest SHA-256: 2CD0872196017385765C53EB2A5C7B32EEF740706D0AE4037AFF93AC3C0F7F87
+```
+
+### 评审重点
+
+1. 类别目录、预测 provenance、授权、双人复核声明和哈希绑定是否能拒绝未经复核的数据直接进入准确率；不得把本地声明说成不可伪造签名。
+2. 重复图 canonical/split 规则、尺寸/哈希/授权字段是否完整。
+3. 框级逐类匹配、含背景混淆矩阵和烟支级 missed-NG/false-NG 是否数学正确。
+4. 浮点边界只在 0.001 像素内显式裁剪，实质越界是否继续拒绝。
+5. 脚本是否只读源图、无硬件、无真实剔除，并绑定当前源码哈希。
+
 ## P5 路线文档维护评审包（2026-07-11）
 
-状态：文档维护完成，P5 仍为待开始；本轮没有实现 P5 代码、没有修改脚本、没有提交或推送。
+状态：该轮文档维护发生在 P5 实现开始前，当时没有实现 P5 代码、没有修改脚本、没有提交或推送；当前状态以上方 P5-02 评审包为准。
 
 ### 范围与结论
 
 - 维护 `README.md`、`AGENTS.md`、需求、架构、计划、验收、问题、QA、可观测性、证据和评审记录。
-- 当前唯一阶段为 `CURRENT_PHASE:P5`；P0-P4 历史结论保留，P4 仅声明 TensorRT 技术集成通过，不声明商业准确率。
+- 当前唯一阶段为 P5；P0-P4 历史结论保留，P4 仅声明 TensorRT 技术集成通过，不声明商业准确率。
 - P5-P8 统一为本地数据效果、本地实时流与模拟剔除、沿用现有风格的 Qt 产品化、本地稳定性/部署/交付预验收。
 - 真实相机、MVS 采集、DAQNavi 输入输出、卷烟机同步和真实剔除冻结，不是 P5-P8 的待补验收项。
 - 老版 Qt/Halcon 与仓库历史资料保留为业务、算法和时序参考；历史结论不能覆盖当前 `docs/` 状态或直接进入产品构建。
@@ -28,7 +105,7 @@ PowerShell 等价文档结构检查：必需文件、关键 ID、未跟踪文件
 
 `scripts/validate_project_docs.sh` 可由 `D:\git\Git\bin\bash.exe` 启动，但其未跟踪文件 `git diff --no-index --check` 在当前 Windows CRLF 工作树中会把换行转换提示或 CR 字节判为 whitespace；已读取脚本并逐项用 PowerShell 等价复核。此项记录为 degraded validator compatibility，不冒充原命令已通过。
 
-## P3 当前评审
+## P3 归档评审
 
 状态：P4 TensorRT 技术集成提交门 PASS 并已关闭；阶段指针切换到 P5 本地数据与算法效果闭环待开始。模型效果无人工 ground truth，准确率和真实硬件均不在 P4 通过声明内。用户已决定当前 P5-P8 全部在本地推进，现场硬件工作冻结。
 
@@ -83,7 +160,7 @@ git diff --check: exit 0 before docs synchronization; must rerun after review fi
 - 输入 manifest 与逐帧 JSON 现含源路径哈希、station/source/cigarette/capturedAt、尺寸、框和 detector version；严格拒绝缺失/非法/重复 manifest 字段，正式脚本验证 exit 2。
 - Computer Use 已在 `--offline` 下完成单图文件选择、输出目录、预览、统计与文件落盘；未初始化硬件、未触发剔除。
 
-## P2 当前评审
+## P2 归档评审
 
 状态：P2 实现、本机验证及同一 reviewer/QA 返修复核均 PASS，P2 已关闭；P3 仅切换为待开始。
 
@@ -333,3 +410,24 @@ P0 是文档引导阶段，代码测试不在范围内，未运行代码测试�
 - 独立 QA `019f4ff6-9972-7b73-83a5-a288e6714ab5`：返修后独立复跑 gate PASS，证据 `artifacts/p4-qa-independent-postfix-20260711`；364 个证据文件、10 个 P4 source hash 全部一致。
 - 串行 P3 最终回归：`artifacts/p3-offline-20260711-151220` PASS。此前 `150846` 因与 QA 同时 Rebuild 发生默认输出目录竞争而失败，保留为失败证据，不用于通过声明。
 - 当前提交建议仅覆盖 P1-P4 累积源码/脚本/文档；不包含 artifacts、engine、构建产物、依赖包或根目录临时 config。
+
+## P5-02C1 localhost 首标工作台评审包
+
+### 范围与安全边界
+
+- 新增 `tools/p5_review_workbench/`、`scripts/run_windows_p5_review_workbench.ps1` 和对应测试；只服务显式 30 图 package 与独立 workspace。
+- 只允许 loopback，不接相机、DAQNavi、真实剔除或 Qt 产品主流程；`rejectEnabled=false` 未改变。
+- 首轮导出只能是 `annotated`/`is_ground_truth=false`；reviewed 导出固定 409，人工首标、复核和授权不在本切片完成声明内。
+
+### 验证与运行证据
+
+- `python -m unittest discover -s tests/p5 -p "test_*.py" -v`：三轮返修 48/48；超限拒绝目标测试连续 10/10。
+- 超限 JSON Windows 拒绝路径返修后目标测试连续 10/10；`node --check`、`py_compile`、PowerShell parser 和 `git diff --check` 通过。
+- Browser：30 图加载；模型预览禁用编辑；1 张 OK 保存后 revision=1，重载保持；剩余 29 张时导出拒绝；console warning/error=0；1280x720 三栏无页面滚动溢出。
+- 二轮返修正式技术证据：`artifacts/p5-review-workbench-20260711-203902`，包含测试日志、超限重复日志、health/state、package 清单、Browser QA、两张截图、QA 草稿、9 个源码快照、dirty diff 和 20 项 SHA-256 manifest；预览键盘 Delete 实测框数 4→4。
+
+### 请求独立门禁
+
+- reviewer 检查身份/路径/状态/原子性/revision/导出 provenance、超限体处理、loopback 边界和文档声明。
+- QA 从当前工作树独立运行测试/API/浏览器或等价用户流程，确认没有把 Codex QA 草稿、`annotated` 或预测框提升为 ground truth。
+- 最终状态：三轮针对性返修后，独立 reviewer/QA 均 PASS；AC-05-05/P5-02C1 技术切片提交门关闭。P5-02C2/C3 仍未开始，不建议把 P5 整体作为完成提交。

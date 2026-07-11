@@ -4,12 +4,13 @@
 
 ## 当前状态
 
-当前阶段是 **P5：本地数据与算法效果闭环（待开始）**。
+当前阶段是 **P5：本地数据与算法效果闭环（进行中）**。
 
 - P0-P3 已完成项目控制、Windows Release 构建基线、核心契约和离线检测闭环。
 - P4 已完成 TensorRT 10 技术集成：新版 Qt/C++ 可在本机使用 GPU 批量推理并保存结构化结果和带框图。
 - P4 没有人工 ground truth，只证明推理链和证据链可运行，不证明商业准确率；重叠框、大框和标签遮挡等效果问题由 P5 处理。
 - P5-P8 全部在本地执行：数据与算法效果、本地实时流与模拟剔除、Qt 产品功能/UI 重构、稳定性/部署/交付预验收。
+- P5 已完成数据工具基线、30 图确定性试标包和 localhost 首标工作台技术切片；当前仍等待真实人工首标、数据授权、业务类别确认和独立 reviewed 真值，因此不声明准确率。
 
 当前无法到现场。真实相机、卷烟机同步、DAQNavi 输入输出和真实剔除全部冻结，不属于 P5-P8 的完成声明；`rejectEnabled=false` 必须保持默认值。
 
@@ -17,7 +18,7 @@
 
 | 阶段 | 目标 | 当前状态 |
 | --- | --- | --- |
-| P5 | 建立标注真值、冻结测试集和量化效果基线，优化阈值、NMS、异常框，必要时受控训练 | 待开始 |
+| P5 | 建立标注真值、冻结测试集和量化效果基线，优化阈值、NMS、异常框，必要时受控训练 | 进行中 |
 | P6 | 用文件/录制流模拟多相机、编号、节拍、积压、异常和模拟剔除 | 未开始 |
 | P7 | 沿用现有 Qt UI 风格，精简旧功能，增强检测、复核、统计、配置和诊断 | 未开始 |
 | P8 | 本地长时运行、性能优化、故障恢复、D 盘部署和商业交付预验收 | 未开始 |
@@ -29,6 +30,7 @@
 3. `docs/architecture.md`：新版、老版和 TensorRT 原型的职责边界。
 4. `docs/known-issues.md`：尚未解决的风险和证据缺口。
 5. `docs/windows-build-baseline.md`：Windows 构建环境与取证步骤。
+6. `docs/p5-source-inventory.md`、`docs/p5-labeling-guide.md`：P5 可用资料、类别边界、真值门和效果指标。
 
 ## 主要目录
 
@@ -63,5 +65,15 @@ P1-P4 的阶段验证脚本仍可用于回归。Windows 构建基线命令为：
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\run_windows_p1_build.ps1 -Configuration All
 ```
+
+P5 数据基线和 30 图试标包可分别用以下命令复现，输出只进入忽略的 `artifacts/`：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\run_windows_p5_data_baseline.ps1 -P4Results .\artifacts\p4-tensorrt-20260711-150510\batch-output
+powershell -ExecutionPolicy Bypass -File .\scripts\run_windows_p5_pilot.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\run_windows_p5_review_workbench.ps1 -Package .\artifacts\p5-pilot-20260711-192148\review-package -Workspace .\artifacts\p5-review-workspace
+```
+
+工作台只允许绑定 localhost，首轮导出为 `annotated` 且 `is_ground_truth=false`；reviewed 真值导出当前受控拒绝，必须由不同人员完成复核并取得授权后另行实现和验收。
 
 构建产物、IDE 缓存、依赖安装包、模型/engine、大测试数据和 `artifacts/` 证据目录不得提交。不要提交账号、许可证、设备序列号、客户资料、密钥或含机器身份的未脱敏日志。

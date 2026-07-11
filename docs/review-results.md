@@ -145,12 +145,47 @@ P0 已通过独立评审和提交门，可以关闭；Windows、GPU、相机、I
 - QA 再次视觉确认 frame 1/3/6/12 的重叠框、大框和标签遮挡。无 ground truth，因此这类观察转入 KI-030/P5 的本地标注、量化和优化闭环，不转换成未经证实的误检率或漏检率。
 
 P4 关闭后的路线调整属于用户产品规划决定，不改变 P4 reviewer/QA 结论，也不被计为新的实现通过声明。P5-P8 的代码、效果、UI 和稳定性必须在各自阶段重新接受独立评审与 QA。
+
+## P5-01 评审状态
+
+- 实现 worker 自查不计独立评审；编排代理完成类别目录、真值 provenance、授权/复核声明、证据绑定、匹配守恒、macro 口径、REVIEW、测试发现和源码稳定性返修。
+- 首轮独立 reviewer `019f505a-151e-79a3-8384-fadca72c4e4d`：gate FAIL，8 项发现覆盖真值 provenance、匹配守恒、证据绑定、REVIEW、类别元数据、macro 口径、PowerShell 假绿和 README 漂移。
+- 首轮独立 QA `019f505a-3ef0-7ea3-830f-a320d7a7c3c0` 在返修前工作树 PASS；因源码随后改变，该结论只保留过程证据，不作为最终门禁。
+- 返修后正式证据 `artifacts/p5-data-20260711-170640` 20/20、源码运行前后 7/7 稳定、顶层 PASS。
+- 同一 reviewer 逐项确认首轮 8 项全部 resolved，独立 reviewer gate PASS。
+- 同一 QA 最终证据 `artifacts/p5-qa-independent-20260711-170802`：主脚本/独立单测 20/20、对抗 12/12、证据门 12/12、源图哈希不变，QA gate PASS。
+- P5-01 工具切片提交门关闭；P5 整体继续进行，人工真值、冻结 split、实际准确率、类别业务确认和许可仍为开放项。
 - P4 最终结论：技术集成与可复现效果审查通过；不声明准确率，不证明相机、DAQNavi、HALCON 许可、在线节拍或真实剔除。
+
+## P5-02 评审状态
+
+- 实现自查：返修后 29/29，30 canonical、30 原图、30 预览，所有覆盖特征满足，源图/源码哈希稳定，30 个 preview 语义和哈希绑定；纯函数与一键脚本均通过。
+- 视觉自查：复核包可读，但仍见大框、低置信框、重叠框和疑似误报；KI-035 开放。
+- 独立 reviewer `019f50b8-2d80-7e10-af4a-cdbd9b12cddc`：首轮 gate FAIL 后多轮构造边界，所有可复现 finding 最终 resolved；`192148` 的 29/29、6 个源码/输入哈希、71 个证据哈希、30 个 frame/preview binding 和文档指针均复核一致，最终 gate PASS。
+- 首轮独立 QA `019f50b8-417d-7653-8200-0a82c6991cfd`：早期结论因源码多轮返修过期；最终改由全新 QA `019f50ef-db01-7cb0-b37a-f1af708b8cde` 对代码冻结快照重跑。
+- reviewer 首次返修复核确认原六项 resolved，但随后依次构造 frame `parameterVersion`、畸形标量、P4/COCO/catalog 布尔 ID 绕过，gate 持续 FAIL；全链严格类型门和最终证据已由同一 reviewer 复核，无新增 blocker，最终 gate PASS。
+- 最终 QA `019f50ef-db01-7cb0-b37a-f1af708b8cde`：独立生成 `artifacts/p5-pilot-20260711-192926`，29/29、fresh manifest passed，gate PASS；额外对抗/视觉检查由代理报告但无独立逐项落盘 transcript，故不作数量声明。
+- P5-02A/B 技术复核包门关闭；P5-02C 人工授权、业务映射和双人 reviewed 真值未开始，P5 整体继续进行且无准确率声明。
+- 人工双人试标：未开始；P5-02 和 P5 整体均不能关闭，不声明实际准确率。
 
 ## 2026-07-11 P5 路线 documentation maintenance
 
 - documentation maintenance agent 已检查 README、AGENTS 和完整记录系统，确认此前只有主计划部分完成路线切换，README、可观测性和后续 QA 场景仍存在旧 P1/P5/P6 表述。
 - 已统一为 P5 数据与算法效果、P6 本地实时流与模拟剔除、P7 沿用现有风格的 Qt 产品功能/UI 重构、P8 本地稳定性/部署/交付预验收；历史 P0-P4 条目保留并标注历史边界。
-- `CURRENT_PHASE:P5` 唯一；P5 仍为未开始，未虚构标注、准确率、UI、实时流、稳定性或硬件证据。
+- 当前阶段标记唯一且为 P5；该 documentation maintenance 条目发生在 P5 实现开始前，当前已进入 P5-02，仍未虚构标注、准确率、UI、实时流、稳定性或硬件证据。
 - `light_gate.py`、全工作树 `git diff --check`、旧路线扫描和 PowerShell 等价文档结构检查通过。`validate_project_docs.sh` 可由 Git Bash 启动，但其未跟踪文件检查与当前 Windows CRLF 工作树不兼容，明确记录为 degraded validator compatibility。
 - 本轮只维护文档，不是 P5 实现评审，也不改变 P4 reviewer/QA 的既有结论。未提交、未推送。
+
+## P5-02C1 首标工作台评审状态
+
+- 首轮独立 reviewer：gate FAIL。阻断/高风险为 annotated 真值标志假绿、pass1 reviewed/approved provenance 污染、类别目录/持久化状态未绑定、预览/完成态编辑门不足和证据未绑定源码。
+- 另一独立 reviewer/QA 首轮同为 FAIL：package/workspace/preview 未绑定、operator 可整批重署名、导出缺 state/revision、REVIEW 空备注、Host rebinding 和非原子工具输出。类别篡改与源码证据 finding 已在第一轮返修解决。
+- 三轮返修自查：48/48；超限 JSON 拒绝目标测试连续 10/10；前端语法、Python 编译、PowerShell parser 和 diff 门通过。
+- Browser 二轮返修自查：30 图可加载；模型预览四类编辑全只读；Alice 完成 1 张后 Bob 只改全局 operator，逐图仍为 Alice/completed_revision 1；29 张未完成时导出拒绝；console 0 warning/error。证据为 `artifacts/p5-review-workbench-20260711-203902`。
+- 当前只证明本地工作台技术行为；一次性 QA workspace 中完成的 1 张 OK 不是责任人员人工标注、人工 QA 或 ground truth。
+- 独立 reviewer/QA：首轮 FAIL 后三轮返修，最终均 PASS。
+- reviewer 返修复核唯一残留 blocker 为预览态键盘 Delete 绕过；已加双层 original-mode 守卫并用 Browser 实测框数 4→4，等待同一 reviewer 最终确认。
+- 深度 reviewer 新发现启动后替换同尺寸源图/preview 的运行期身份漂移；GET/save/export 现对 65 个绑定文件执行受控哈希门，畸形 Host 转为 400，原 reviewer 最终确认 resolved。
+- 独立 reviewer `019f4fd0-7aa5-7af3-b82b-7b7ebb14ed55` 与 `019f511d-c5ed-7571-86e5-71372fd9d220`：最终 gate PASS，无开放 blocker。
+- 独立 QA `019f4fd0-8ec7-7801-a493-e2d6797aea23`：48/48、运行期替换/Host、20/20 manifest、9/9 source、65/65 package，最终 gate PASS。
+- 提交门：P5-02C1 技术切片关闭；P5-02C2/C3 未开始，P5 整体不声明准确率。

@@ -65,6 +65,33 @@
 | 独立 QA | 通过 | `019f4ff6-9972-7b73-83a5-a288e6714ab5`；返修后独立证据目录 gate PASS |
 | 相机/DAQ/剔除 QA | 未请求/不声明 | P4 入口在主窗口前运行，不接硬件，不生成 RejectCommand |
 
+## P5-01 数据与评估工具
+
+| 检查 | 状态 | 证据 |
+| --- | --- | --- |
+| 116 图审计、重复和尺寸 | 通过（工具切片） | `artifacts/p5-data-20260711-170640`：116/113、3 重复组、60 张 992x300、56 张 1200x600 |
+| 预标注不是真值 | 通过 | 113 图/236 框全部 `is_ground_truth=false`；99 个未确认 `wuzi` 框不进入正式真值 |
+| 未复核/未授权/预测 provenance/缺 attestation 拒绝 | 通过 | 正式 20/20；reviewer 攻击复算；QA 对抗 12/12 |
+| split、area、类别目录与证据哈希 | 通过（工具能力） | manifest/image 一致性；8 项证据 binding；源码运行前后 7/7 稳定 |
+| 混淆矩阵、macro、烟支级指标 | 通过（合成测试） | 同类匹配守恒、背景 FP/FN、active-union macro、missed-NG/false-NG |
+| 实际准确率 | 未验证/不声明 | 没有 approved、双人 reviewed、冻结 test split 真值 |
+| 独立 reviewer | 通过 | `019f505a-151e-79a3-8384-fadca72c4e4d`；首轮 8 项 resolved |
+| 独立 QA | 通过 | `artifacts/p5-qa-independent-20260711-170802`；20/20、对抗 12/12、证据门 12/12 |
+
+## P5-02 试标集与复核包
+
+| 检查 | 状态 | 证据 |
+| --- | --- | --- |
+| 确定性选样与非法输入 | 通过（返修自查） | P5 单测 29/29；相同输入一致；非法 size、不完整/真值输入、既有 split、伪造 source_group、重复 canonical hash、悬空 alias、catalog/COCO/P4 布尔 ID 均拒绝 |
+| canonical、重复与 split | 通过（实现自查） | 30 canonical；1 个重复别名仅继承 pilot，不复制、不计入 30 |
+| 来源/尺寸/判定/类别覆盖 | 通过（实现自查） | `pilot-selection.json` uncovered_features=[]；完整计数见证据 manifest |
+| 原图只读与复核包完整性 | 通过（返修自查） | 116 源图与 6 个源码/输入哈希稳定；30 原图+30 预览+COCO+manifest+CSV；30 个 preview 源/副本绑定 |
+| P4 预览与 COCO 语义一致 | 通过（返修自查） | 30 份 frame JSON 的尺寸、原预测判定、缺陷数量、类别、bbox、置信度和 detector version 全匹配 |
+| 未确认类别和真值安全门 | 通过（实现自查） | 11 图强制 REVIEW；全部 `is_ground_truth=false`；无准确率声明 |
+| 独立 reviewer | 通过 | `019f50b8-2d80-7e10-af4a-cdbd9b12cddc`；全部 finding resolved，`192148` 最终 gate PASS |
+| 独立 QA | 通过 | `019f50ef-db01-7cb0-b37a-f1af708b8cde`；`artifacts/p5-pilot-20260711-192926`；29/29，fresh manifest passed，gate PASS；额外对抗计数未单独落盘故不声明数量 |
+| 人工双人标注 | 未开始 | 需要授权、标注人、不同复核人和业务类别确认 |
+
 以下项目在相应阶段开始前均为“未开始”，不代表已验证：
 
 | 场景 | 最早阶段 | 必需证据 |
@@ -85,3 +112,16 @@
 | D 盘部署、升级与回滚 | P8 | 干净部署清单、哈希、启动/恢复转录 |
 
 真实相机、DAQNavi 和真实剔除 QA 当前冻结。未来恢复时只能由用户或现场人员报告通过；Codex 不代填人工结果，也不使用上述本地 QA 替代。
+
+## P5-02C1 localhost 首标工作台
+
+| 检查 | 状态 | 证据 |
+| --- | --- | --- |
+| 30 图 package 加载和身份绑定 | 通过（实现/Browser 自查） | `/api/state`、Browser DOM、`state-after-browser-qa.json` |
+| 保存、revision 和重载恢复 | 通过（实现/Browser 自查） | QA workspace revision=1；1 张 OK 重载保持 |
+| 未完成、未确认类别和非法状态拒绝 | 通过（三轮返修自查） | 48/48；Browser 剩余 29 张导出拒绝；GT/类别/package/preview/运行期替换/署名/provenance 均有对抗测试 |
+| 模型预览只读和三栏布局 | 通过（二轮返修 Browser 自查） | select/draw/delete/category 均禁用；预览键盘 Delete 框数 4→4；console 0 warning/error |
+| 首轮/真值 provenance 门 | 通过（实现自查） | pass1 为 `annotated`/false；reviewed endpoint 固定 409 |
+| 独立 reviewer | 通过 | `019f4fd0-7aa5-7af3-b82b-7b7ebb14ed55` 最终复现 48/48、65/65、20/20，无新 blocker；gate PASS |
+| 独立 QA | 通过 | `019f4fd0-8ec7-7801-a493-e2d6797aea23` 最终独立复跑运行期替换/Host/证据；gate PASS |
+| 责任人员人工首标/复核 | 未开始/不声明 | P5-02C2/C3；Codex QA 草稿不计人工结果 |

@@ -143,6 +143,53 @@
 - 用户确认当前无法到现场，要求后续规划先在本地把商业项目做好：深度学习识别要有准确性证据、推理时间要短、效果要好，并允许优化 Qt 功能和 UI、清理无用功能、增加产品化能力。
 - P5-P8 已重排为本地数据与算法效果闭环、本地实时流与模拟剔除、Qt 产品功能与 UI 重构、本地稳定性/部署/交付预验收。真实相机、DAQNavi、卷烟机同步和真实剔除移出当前排期并保持冻结。
 - 老版 Qt/Halcon 传统算法只作业务规则和可选兜底参考；新版 Qt + TensorRT 深度学习继续作为唯一产品主线。功能移除必须先做清单、依赖分析和回归，不直接删除可能仍有业务价值的能力。
+
+## 2026-07-11 - P5-01 数据与效果基线启动
+
+- 检查点提交 `6e5f640`（P2-P4 离线闭环与 TensorRT 技术集成、README 和全本地路线）已推送 `origin/main`，随后才开始 P5，避免阶段成果混杂。
+- 独立只读资料代理盘点了模型、116 图/113 唯一哈希、历史带框图、79.5 秒视频、传统算法规则、Qt UI 和技术报告；可用性与风险写入 `p5-source-inventory.md`。
+- Qt 源码可支持前七类中文映射；`wuzi`、`jietou` 无可靠业务定义，已在机器目录中禁止正式标注。技术报告中的刺破、黄斑、长短、双层水松纸等九类外缺陷先进入 REVIEW。
+- P5-01 采用 COCO JSON + 真值状态门：模型/P4 结果只能是 preannotated，只有人工 reviewed 且 `is_ground_truth=true` 才允许输出准确率。
+- P5-01 实现自查后正式运行 `scripts/run_windows_p5_data_baseline.ps1`，最终证据 `artifacts/p5-data-20260711-164806` 顶层 exit 0：12/12 单测、116 文件/113 唯一/3 重复组/116 历史图配对，空真值 expected exit 2，P4 转换为 113 图/236 框 preannotation，1 个 0.000053 像素浮点边界框被保留原值并显式裁剪；评估只允许 manifest 中冻结的目标 split。
+- 数据实际包含 60 张 992x300 和 56 张 1200x600，纠正了前置盘点“全部 992x300”的错误。236 个候选框中 99 个为未确认 `wuzi`，因此 P5 继续阻断准确率和自动阈值结论。
+- 独立 reviewer 首轮 gate FAIL：预测 provenance 可被简单改状态绕过、逐类指标与混淆矩阵不守恒、报告缺模型/engine/配置/真值哈希、缺 REVIEW、类别目录绑定不全、FP-only 类宏平均遗漏、测试发现数/源码稳定性可能假绿、README 状态漂移。
+- 返修增加 manifest/image 双重 approved 授权、不同标注/复核人、prediction 字段拒绝、双人复核 attestation 与 ground truth/prediction/manifest/catalog/model/engine/config/attestation 证据哈希绑定；混淆矩阵复用同类匹配并对剩余框做错类匹配；增加 REVIEW 排除计数、类别元数据/hash、active-union macro、测试数和运行前后源码哈希门。最终正式证据 `artifacts/p5-data-20260711-170640`：20/20、sourceFilesStable=true、failures=0。
+- 同一 reviewer 返修复核确认首轮 8 项全部 resolved，reviewer gate PASS。最终独立 QA `artifacts/p5-qa-independent-20260711-170802`：主脚本 20/20、独立 20/20、对抗 12/12、证据门 12/12，116 张源图哈希不变，最终 gate PASS。
+- P5-01 工具切片关闭；P5 整体保持进行中。下一切片仍需人工 20-30 图试标、业务确认 `wuzi/jietou`、数据授权和冻结 split，当前没有实际准确率。
 - documentation maintenance agent 随后完整检查并维护 README、AGENTS 与 `docs/*.md`：清除 README 停在 P1、P5/P6 现场路线、P7/P8 归属漂移等当前计划误导；P0-P4 历史证据保持不变。
 - 验证：长期任务 `light_gate.py` 无 warning；全工作树 `git diff --check` exit 0；唯一阶段标记为 P5；旧路线扫描无命中；PowerShell 等价执行文档结构、关键 ID、未跟踪文件空白和 P5 受限目录检查通过。
-- 已通过 `D:\git\Git\bin\bash.exe` 启动 `scripts/validate_project_docs.sh`，但脚本的未跟踪文件 `git diff --no-index --check` 在当前 Windows CRLF 工作树中会把换行转换提示或 CR 字节判为 whitespace，不能形成可信的原命令通过证据；已用 PowerShell 等价复核并记录 degraded validator compatibility。本轮文档维护未修改源码/脚本，P5 仍为待开始。
+- 已通过 `D:\git\Git\bin\bash.exe` 启动 `scripts/validate_project_docs.sh`，但脚本的未跟踪文件 `git diff --no-index --check` 在当前 Windows CRLF 工作树中会把换行转换提示或 CR 字节判为 whitespace，不能形成可信的原命令通过证据；已用 PowerShell 等价复核并记录 degraded validator compatibility。该条记录发生在 P5 实现开始前；当前已进入 P5-02。
+
+## 2026-07-11 - P5-02 本地试标集与人工复核入口
+
+- `p5_dataset_tools.py select-pilot` 使用 `p5-pilot-greedy-cover-v1`：先按特征稀有度覆盖来源组、尺寸、预测判定和已出现类别，再按当前入选计数做确定性分层填充；平局由 SHA-256 和文件名裁定。
+- 派生 `pilot-manifest.json` 只对入选 canonical 设置 `pilot`，重复别名继承 split 但不重复计数/复制；源 manifest 和 116 张源图保持只读。
+- 首轮正式命令 exit 0，证据 `artifacts/p5-pilot-20260711-182436`；独立 reviewer 随后 gate FAIL，发现既有 split 覆盖、source_group 可伪造、canonical/alias 约束不足、代码/preview 未绑定、真值输入可混入和 manifest/CSV 门不足六项。
+- 集中返修后 reviewer 确认原六项 resolved，又发现 frame `parameterVersion`、畸形标量和证据指针三项边界；继续补齐全局 detector version、`null bbox`/布尔 score 受控拒绝，并更新记录系统。
+- reviewer 再次构造 `classId=true/confidence=true` 利用 Python `True == 1` 的严格类型绕过；已对 P4 classId/confidence/detectorVersion 增加非 bool、有限数、非空字符串门并补对抗测试。
+- reviewer 进一步验证 COCO `category_id=true` 仍可与 P4 class 1 相等；现已把 category/image/annotation ID 和类别目录 ID 全部改为严格整数且非 bool，并在 preview 双向比较中严格校验 pilot category。
+- reviewer 最后发现 class catalog 的 `false/true` 仍可借 Python 相等规则冒充 0/1；已在排序前增加 strict int/non-bool 校验和目录级对抗测试。
+- 最终正式命令 `powershell -ExecutionPolicy Bypass -File .\scripts\run_windows_p5_pilot.ps1` exit 0，代码冻结证据 `artifacts/p5-pilot-20260711-192148`：29/29、30 canonical、30 原图、30 预览、71 个证据文件、6 个源码/输入文件绑定、30 个 preview binding、源图/源码前后稳定，catalog/COCO/P4 全链严格类型及 30 份逐框语义/frame detector version 一致。
+- 原 reviewer `019f50b8-2d80-7e10-af4a-cdbd9b12cddc` 最终确认所有 finding resolved，无新 blocker，技术 gate PASS。
+- 早期 QA 因多轮代码冻结更新失去时效；新 QA `019f50ef-db01-7cb0-b37a-f1af708b8cde` 从当前工作树独立生成 `artifacts/p5-pilot-20260711-192926`：29/29、fresh manifest passed，最终 gate PASS。代理还报告了额外对抗/哈希/视觉检查，但未单独持久化逐项 transcript，因此文档不声明额外检查数量。
+- P5-02A/B 确定性选样与人工复核包技术切片关闭；P5-02C 人工授权、业务映射、双人标注/复核仍未开始，故 P5 保持进行中，KI-035/KI-036 保持开放，不声明准确率。
+- 覆盖结果：source 1/21/22/unprefixed 为 8/4/10/8，992x300/1200x600 为 16/14，预测 OK/NG 为 12/18；class 0/1/2/3/4/5/7 为 3/10/1/8/6/6/11，稀有 class 2 唯一样本入选。
+- 11 张含未确认 `wuzi` 的样本在派生 COCO 中强制为 REVIEW，并保留 `predicted_decision`；所有 image/annotation 继续为 `is_ground_truth=false`，不输出准确率。
+- 视觉抽查确认标注包可读，同时仍见大范围框、低置信框、重叠框和疑似误报；已记 KI-035。独立 reviewer/QA 已完成，人工授权和双人复核仍未开始。
+
+## 2026-07-11 - P5-02C1 localhost 首标工作台技术验收与返修
+
+- 新增 Python 标准库 localhost 服务、显式 package/workspace Windows 启动器和沿用现有灰色工业风格的三栏标注界面；不改 Qt 产品 UI，不连接硬件。
+- 服务端绑定 30 图文件名、SHA-256、尺寸、category/box ID 和 revision；原子保存草稿，拒绝遍历、畸形/超限 JSON、陈旧 revision、越界框、非法完成状态及含 7/8 未确认类别的 NG。
+- 首轮导出统一为 `annotation_status=annotated`、`is_ground_truth=false` 并清除预测字段；`reviewed` 导出固定 409，要求授权和不同复核人。
+- Browser QA 在一次性 workspace 只完成 1 张模型预测 OK 样本，验证保存、重载和 revision；29 张未完成时导出被拒绝，模型预览为只读，控制台 0 warning/error。该操作不是人工标注或真值。
+- Windows 超限请求测试曾因未消费请求体触发 WinError 10053；服务端现只对不超过 2 MB 的超限体排空后返回 413，目标测试连续 10/10。
+- 独立 reviewer 首轮 gate FAIL：`annotated + is_ground_truth=true` 可假绿、pass1 可继承伪造 reviewed/approved 字段且类别未绑定、持久化类别可篡改、预览/完成态编辑约束不足、证据未绑定源码。
+- 返修建立 status/ground-truth 双向一致门；类别绑定本地 catalog/hash；状态类别严格只读；pass1 改为白名单重建且授权固定 unverified；预览禁用全部编辑；任何已完成框修改退回 pending；源码/dirty diff 纳入证据。
+- 另一独立 reviewer/QA 对首轮快照还发现 package/workspace 未绑定、预览未校验、全局 operator 可整批重署名、导出未绑定 state/revision、REVIEW 空备注、Host rebinding 面和数据工具非原子输出。
+- 二轮返修增加五个 package 文件指纹、30 preview provenance/hash/尺寸、workspace package_fingerprint、逐图服务端 annotated_by/completed_revision、防重署名、导出 state/package bindings、后端 REVIEW notes、Host allowlist，以及 JSON/CSV 原子替换/故障注入。
+- reviewer 返修复核时发现预览态键盘 Delete 可绕过禁用按钮；现已在键盘分派和删除命令双层要求 original 模式，Browser 实际复现框数 4→4、无 console error。
+- 深度 reviewer 又发现服务启动后同尺寸替换源图/preview 会造成显示内容与声明 SHA 不一致；现将 5 个 package 元文件、30 原图、30 preview 全部加入运行期绑定表，图片响应、save、export 均复核哈希，替换后受控 409；畸形 Host 受控 400。
+- 三轮返修正式技术证据为 `artifacts/p5-review-workbench-20260711-203902`：48/48、超限 10/10、Browser console 0 warning/error、package 清单和 20 项 manifest。
+- 独立 reviewer `019f4fd0-7aa5-7af3-b82b-7b7ebb14ed55` 最终复现运行期替换 GET/save/export 409、畸形 Host 400、48/48、65/65、20/20，gate PASS；独立 reviewer `019f511d-c5ed-7571-86e5-71372fd9d220` 复核预览键盘删除与最终 manifest，gate PASS。
+- 独立 QA `019f4fd0-8ec7-7801-a493-e2d6797aea23` 用临时正式 package 复跑同类路径并确认最终 manifest hash，gate PASS。P5-02C1 技术切片关闭；P5-02C2/C3 仍未开始，P5 不关闭、不声明准确率。

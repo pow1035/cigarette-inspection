@@ -7,7 +7,7 @@
 | AC-00-01 | 项目入口可导航到记录系统 | `AGENTS.md`；`scripts/validate_project_docs.sh` 输出；独立 reviewer 结论 | 通过 | 仅证明入口与文件存在 |
 | AC-00-02 | 需求被拆分并记录 | `docs/requirements.md`；独立 reviewer 结论 | 通过 | P5-P8 本地门槛仍需逐阶段冻结；现场参数已移出当前排期 |
 | AC-00-03 | 架构边界和安全门被记录 | `docs/architecture.md`；独立 reviewer 结论 | 通过 | 尚未通过代码或运行验证 |
-| AC-00-04 | 当前阶段唯一 | `docs/task-plan.md` 唯一 CURRENT_PHASE 标记（现为 P5 待开始）；验证脚本输出；独立 reviewer 结论 | 通过 | 只覆盖文档状态；P5 尚未实施 |
+| AC-00-04 | 当前阶段唯一 | `docs/task-plan.md` 唯一 CURRENT_PHASE 标记（现为 P5 进行中）；验证脚本输出；独立 reviewer 结论 | 通过 | 只覆盖阶段指针，不代表 P5 已完成 |
 | AC-00-05 | 已知问题和验证边界可见且事实经复核 | `docs/known-issues.md`；`docs/code-audit.md`；三名 explorer 审计；独立 reviewer 首轮发现与最终复核 | 通过 | 只证明静态代码现状，不证明运行行为 |
 | AC-00-06 | P0 有验证和独立评审 | `docs/review-packet.md`、`docs/review-results.md`；reviewer `019f49b6-62f7-7320-8f43-228c21bfca93` 最终复核；documentation maintenance `019f49b6-62b5-7511-9b1c-93f055de83bc` 复核 | 通过 | 不包含 Windows/硬件 QA |
 | AC-00-07 | P0 未修改业务源码 | 增强后的 `scripts/validate_project_docs.sh` exit 0；限定业务目录的 `git status` 输出为空 | 通过 | P0 新增项仅为 `AGENTS.md`、`docs/`、`scripts/` |
@@ -30,6 +30,11 @@
 | AC-04-01 | TensorRT 10.x 检测器通过 JSON 配置 engine、张量名、992 输入、阈值、9 类映射和禁用类别 | `adapters/tensorrt/TensorRtDetector.*`；`artifacts/p4-tensorrt-20260711-150510/detector-config.json`、`manifest.json`；engine/尺寸 exit 4，残缺/冲突 CLI exit 2；reviewer 最终复核 | 通过 | 中文业务名、逐类阈值仍未确认，不影响适配器可配置性证明 |
 | AC-04-02 | 116 图固定清单生成逐图结果、带框图、汇总分布和 detector latency | 同目录 `fixed-input-manifest.json`、`batch-output`、`effect-summary.json`；`artifacts/p4-audit-20260711-141545`；独立 QA `artifacts/p4-qa-independent-postfix-20260711` | 通过 | 116 文件含 113 个唯一哈希；无人工 ground truth，不声明准确率 |
 
+| AC-05-01 | P5 数据清单、重复关系、来源组、类别目录和真值规则可审计 | `docs/p5-source-inventory.md`、`docs/p5-labeling-guide.md`、`config/p5-class-catalog.json`；`artifacts/p5-data-20260711-170640`；reviewer/QA 最终 PASS | 进行中 | 工具基线通过；授权审批、人工 reviewed 真值和冻结 split 尚未完成 |
+| AC-05-02 | 评估工具拒绝未复核、未授权、带预测 provenance 或缺哈希声明的数据，并可计算框级/烟支级指标 | 正式 20/20；reviewer PASS；QA `artifacts/p5-qa-independent-20260711-170802` 对抗 12/12、证据门 12/12 | 进行中 | 工具能力通过但没有实际真值报告；本地声明不是不可伪造签名，99 个 `wuzi` 框仍待业务确认 |
+| AC-05-04 | 30 图试标集可确定性复现且不修改源图 | 正式 `artifacts/p5-pilot-20260711-192148`；reviewer `019f50b8-2d80-7e10-af4a-cdbd9b12cddc` PASS；独立 QA `019f50ef-db01-7cb0-b37a-f1af708b8cde`、`artifacts/p5-pilot-20260711-192926`：29/29、30 原图/预览/绑定，gate PASS | 通过 | QA 额外对抗检查未单独持久化，故不作数量声明；11 图 REVIEW，授权/双人真值/准确率仍未验证 |
+| AC-05-05 | localhost 首标工作台的身份、状态、保存和导出门可重复验证 | `artifacts/p5-review-workbench-20260711-203902`：48/48、超限 10/10、Browser QA、20/20 manifest、9/9 源码、65/65 package；reviewer/QA 最终 PASS | 通过（技术切片） | Codex QA 不是人工 QA/ground truth；P5-02C2/C3 未开始 |
+
 P5-P8 已按用户决定重排为全本地阶段，当前均保持未验证：P5 需要标注/指标/优化对照，P6 需要本地实时流与模拟剔除证据，P7 需要沿用现有风格的 Qt UI/功能运行证据，P8 需要稳定性、性能和部署预验收证据。真实相机、DAQNavi 和真实剔除冻结且不在这些阶段声明内。
 
-路线文档一致性证据（2026-07-11）：`README.md`、`AGENTS.md`、`docs/task-plan.md` 及相关记录系统；`light_gate.py` 无 warning；`git diff --check` exit 0；唯一 `CURRENT_PHASE:P5`；旧 P5/P6 现场路线扫描无命中；PowerShell 等价文档结构检查通过。原 Bash 验证脚本因 Bash 不可用未原样执行，该能力明确标为 degraded，不影响“P5 尚未实施”的状态。
+路线文档一致性证据（2026-07-11）：`README.md`、`AGENTS.md`、`docs/task-plan.md` 及相关记录系统；`light_gate.py` 无 warning；`git diff --check` exit 0；唯一阶段标记为 P5；旧 P5/P6 现场路线扫描无命中；PowerShell 等价文档结构检查通过。Git Bash 可用，但原脚本的未跟踪文件检查与当前 Windows CRLF 工作树不兼容，记录为 degraded validator compatibility。

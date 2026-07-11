@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "modelFamily": "yanzhi20260120",
+  "mappingStatus": "provisional",
+  "classes": [
+    {
+      "id": 0,
+      "name": "dakoucuoya",
+      "displayNameZh": "搭口错牙",
+      "aliasesZh": ["搭口搓牙", "水松纸错牙"],
+      "mappingStatus": "source-backed-needs-business-approval"
+    },
+    {
+      "id": 1,
+      "name": "feiyan",
+      "displayNameZh": "飞烟",
+      "aliasesZh": [],
+      "mappingStatus": "source-backed-needs-business-approval"
+    },
+    {
+      "id": 2,
+      "name": "jiamo",
+      "displayNameZh": "夹末",
+      "aliasesZh": ["烟支夹末", "水松纸夹末"],
+      "mappingStatus": "source-backed-needs-business-approval"
+    },
+    {
+      "id": 3,
+      "name": "lvzuizhezhou",
+      "displayNameZh": "滤嘴皱褶",
+      "aliasesZh": ["滤嘴褶皱", "水松纸泡皱"],
+      "mappingStatus": "source-backed-needs-business-approval"
+    },
+    {
+      "id": 4,
+      "name": "quezui",
+      "displayNameZh": "缺滤嘴",
+      "aliasesZh": ["缺嘴"],
+      "mappingStatus": "source-backed-needs-business-approval"
+    },
+    {
+      "id": 5,
+      "name": "yanbangposun",
+      "displayNameZh": "烟棒破损",
+      "aliasesZh": ["烟支刺破"],
+      "mappingStatus": "source-backed-needs-business-approval"
+    },
+    {
+      "id": 6,
+      "name": "yanbangzangwu",
+      "displayNameZh": "烟棒脏污",
+      "aliasesZh": ["烟支污渍", "烟支黄斑"],
+      "mappingStatus": "source-backed-needs-business-approval"
+    },
+    {
+      "id": 7,
+      "name": "wuzi",
+      "displayNameZh": "待业务确认（wuzi）",
+      "aliasesZh": [],
+      "mappingStatus": "unconfirmed-do-not-label"
+    },
+    {
+      "id": 8,
+      "name": "jietou",
+      "displayNameZh": "待业务确认（jietou）",
+      "aliasesZh": [],
+      "mappingStatus": "unconfirmed-do-not-label"
+    }
+  ]
+}

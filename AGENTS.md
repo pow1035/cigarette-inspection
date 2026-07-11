@@ -13,7 +13,7 @@
 5. 未通过提交门时，不声称阶段完成，不提交、合并或发布。
 6. 当前 `CURRENT_PHASE` 是 P5；P5-P8 只做本地数据效果、实时仿真、Qt 产品化和交付预验收。不得擅自恢复现场硬件路线。
 
-文档导航：需求与边界见 `requirements.md`、`architecture.md`、`decisions.md`；执行与风险见 `task-plan.md`、`known-issues.md`、`code-audit.md`；当前 Windows 基线见 `windows-build-baseline.md`；验收与证据见 `acceptance-criteria.md`、`qa-checklist.md`、`evidence-matrix.md`、`review-packet.md`、`review-results.md`；一致性与运行证据见 `golden-principles.md`、`observability.md`、`progress-log.md`。以上文件均位于 `docs/`。
+文档导航：需求与边界见 `requirements.md`、`architecture.md`、`decisions.md`；执行与风险见 `task-plan.md`、`known-issues.md`、`code-audit.md`；P5 资料与真值规则见 `p5-source-inventory.md`、`p5-labeling-guide.md`；当前 Windows 基线见 `windows-build-baseline.md`；验收与证据见 `acceptance-criteria.md`、`qa-checklist.md`、`evidence-matrix.md`、`review-packet.md`、`review-results.md`；一致性与运行证据见 `golden-principles.md`、`observability.md`、`progress-log.md`。以上文件均位于 `docs/`。
 
 ## 不可破坏的边界
 

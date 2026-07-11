@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CigVision - P5 Review Workbench</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand-block">
+        <span class="brand-mark" aria-hidden="true">CV</span>
+        <div>
+          <h1>CigVision Review</h1>
+          <p id="sessionMeta">Loading annotation session...</p>
+        </div>
+      </div>
+      <div class="progress-block" aria-label="Review progress">
+        <div class="progress-copy">
+          <span id="progressText">0 / 0 complete</span>
+          <span id="progressPercent">0%</span>
+        </div>
+        <div class="progress-track"><span id="progressBar"></span></div>
+      </div>
+      <div class="header-actions">
+        <label class="operator-field" for="operatorId">
+          <span>Operator ID</span>
+          <input id="operatorId" type="text" maxlength="64" autocomplete="off" placeholder="Required">
+        </label>
+        <button id="saveBtn" class="button primary" type="button" title="Save changes (Ctrl+S)">Save</button>
+        <button id="exportBtn" class="button" type="button" title="Export first-pass annotations">Export pass 1</button>
+      </div>
+    </header>
+
+    <main class="workbench">
+      <aside class="image-panel" aria-label="Image queue">
+        <div class="panel-heading">
+          <div>
+            <h2>Image queue</h2>
+            <span id="imageCount">0 images</span>
+          </div>
+        </div>
+        <div class="list-tools">
+          <label class="search-field" for="imageSearch">
+            <span aria-hidden="true">Search</span>
+            <input id="imageSearch" type="search" placeholder="File name or SHA-256">
+          </label>
+          <label for="statusFilter" class="sr-only">Filter by status</label>
+          <select id="statusFilter" title="Filter images by review status">
+            <option value="ALL">All statuses</option>
+            <option value="PENDING">Pending</option>
+            <option value="COMPLETE">Complete</option>
+            <option value="OK">OK</option>
+            <option value="NG">NG</option>
+            <option value="REVIEW">Review</option>
+          </select>
+        </div>
+        <div id="imageList" class="image-list" role="listbox" aria-label="Images"></div>
+        <div class="queue-nav">
+          <button id="prevBtn" class="icon-button" type="button" title="Previous image (Left arrow)" aria-label="Previous image">&lt;</button>
+          <span id="queuePosition">0 of 0</span>
+          <button id="nextBtn" class="icon-button" type="button" title="Next image (Right arrow)" aria-label="Next image">&gt;</button>
+        </div>
+      </aside>
+
+      <section class="viewport-panel" aria-label="Annotation viewport">
+        <div class="viewport-toolbar">
+          <div class="tool-group" role="group" aria-label="Annotation tool">
+            <button class="tool-button active" id="selectTool" type="button" data-tool="select" aria-pressed="true" title="Select, move, or resize boxes (V)">Select</button>
+            <button class="tool-button" id="drawTool" type="button" data-tool="draw" aria-pressed="false" title="Draw a new defect box (B)">Draw box</button>
+          </div>
+          <div class="tool-separator"></div>
+          <div class="tool-group" role="group" aria-label="Image scale">
+            <button class="tool-button active" id="fitBtn" type="button" aria-pressed="true" title="Fit image to viewport">Fit</button>
+            <button class="tool-button" id="actualBtn" type="button" aria-pressed="false" title="Show image at 100 percent">100%</button>
+          </div>
+          <div class="tool-separator"></div>
+          <div class="tool-group" role="group" aria-label="Image source">
+            <button class="tool-button active" id="originalBtn" type="button" aria-pressed="true" title="Show original image">Original</button>
+            <button class="tool-button" id="previewBtn" type="button" aria-pressed="false" title="Show model preview">Model preview</button>
+          </div>
+          <span class="viewport-info" id="viewportInfo">No image selected</span>
+          <button id="deleteBoxBtn" class="tool-button danger" type="button" title="Delete selected box (Delete)" disabled>Delete</button>
+        </div>
+        <div id="canvasStage" class="canvas-stage" tabindex="0" aria-label="Image annotation canvas. Use Draw box to create boxes and Select to edit them.">
+          <canvas id="annotationCanvas"></canvas>
+          <div id="emptyViewport" class="viewport-message">Select an image from the queue</div>
+          <div id="imageLoading" class="viewport-message hidden">Loading image...</div>
+        </div>
+        <div class="viewport-status">
+          <span><i class="legend-box human"></i>Human annotation</span>
+          <span><i class="legend-box prediction"></i>Model prediction</span>
+          <span id="selectedBoxReadout">No box selected</span>
+        </div>
+      </section>
+
+      <aside class="inspector-panel" aria-label="Image inspector">
+        <section class="inspector-section decision-section">
+          <div class="section-heading">
+            <h2>Image decision</h2>
+            <span id="predictedDecision" class="prediction-label">Model: -</span>
+          </div>
+          <div class="segmented decision-control" role="group" aria-label="Image decision">
+            <button type="button" data-decision="OK" aria-pressed="false">OK</button>
+            <button type="button" data-decision="NG" aria-pressed="false">NG</button>
+            <button type="button" data-decision="REVIEW" aria-pressed="false">Review</button>
+          </div>
+        </section>
+
+        <section class="inspector-section class-section">
+          <div class="section-heading">
+            <label for="categorySelect">Active class</label>
+            <span id="categoryState"></span>
+          </div>
+          <select id="categorySelect" title="Class assigned to selected or newly drawn boxes"></select>
+        </section>
+
+        <section class="inspector-section box-section">
+          <div class="section-heading">
+            <h2>Defect boxes</h2>
+            <span id="boxCount">0</span>
+          </div>
+          <div id="boxList" class="box-list" role="listbox" aria-label="Defect boxes"></div>
+        </section>
+
+        <section class="inspector-section notes-section">
+          <label for="notes">Review notes</label>
+          <textarea id="notes" rows="4" maxlength="2000" placeholder="Required when the image remains uncertain"></textarea>
+          <div class="field-meta"><span id="noteHint"></span><span id="noteCount">0 / 2000</span></div>
+        </section>
+
+        <section class="inspector-section image-detail-section">
+          <h2>Image details</h2>
+          <dl class="detail-grid">
+            <dt>File</dt><dd id="detailFile">-</dd>
+            <dt>Size</dt><dd id="detailSize">-</dd>
+            <dt>SHA-256</dt><dd id="detailSha" title="">-</dd>
+            <dt>State</dt><dd id="detailState">-</dd>
+          </dl>
+        </section>
+
+        <div class="completion-area">
+          <label class="completion-check" for="completeToggle">
+            <input id="completeToggle" type="checkbox">
+            <span>Mark image complete</span>
+          </label>
+          <p id="completionHint">Choose a decision before completing this image.</p>
+        </div>
+      </aside>
+    </main>
+
+    <footer class="statusbar">
+      <div id="saveStatus" class="save-status" role="status" aria-live="polite">
+        <span class="status-dot"></span><span>Connecting...</span>
+      </div>
+      <div class="shortcut-hints" aria-hidden="true">
+        <span>Arrows navigate</span><span>Delete removes box</span><span>Ctrl+S saves</span>
+      </div>
+      <div id="revisionStatus">Revision -</div>
+    </footer>
+  </div>
+
+  <div id="toastRegion" class="toast-region" aria-live="polite" aria-atomic="true"></div>
+  <script src="/static/app.js" defer></script>
+</body>
+</html>

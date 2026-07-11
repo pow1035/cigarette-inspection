@@ -58,3 +58,15 @@ P1 需保存 Windows 环境检查输出、MSBuild 完整日志、退出码、生
 ## P4 TensorRT 证据
 
 `artifacts/p4-audit-20260711-141545` 保存模型/engine 哈希、旧 TRT 8.6 engine 反序列化错误、TRT 10.15 FP16/FP32 engine 构建日志、层信息、随机输入 trtexec 基准、ONNX 参考图和精度模式对照。返修后正式证据 `artifacts/p4-tensorrt-20260711-150510` 保存 Release 构建、116 图输入哈希、显式 detector config、逐图 JSON/原图/带框图、类别/置信度/时延汇总、3 组重复图确定性、engine/尺寸/CLI 负路径、10 个 P4 输入源码哈希和完整 SHA-256 manifest。当前 `elapsedMicros` 是 detector latency，包含 mutex 等待、OpenCV 预处理、H2D、TensorRT、D2H 和后处理，不包含图片读取/解码或 JSON/PNG 保存，也不等同于纯 GPU latency。当前没有 ground truth，准确率指标明确不声明。
+
+## P5-01 数据与评估工具证据
+
+`artifacts/p5-data-20260711-170640` 保存 20 项单测、116 图 manifest、113 个 canonical、3 个重复组、尺寸/来源/授权统计、空 COCO 模板、预期失败的未复核真值门、113 图/236 框 preannotation、运行前后 7 个源码/规范哈希和完整 manifest。`artifacts/p5-qa-independent-20260711-170802` 保存独立复跑、12 项对抗场景、证据哈希和 116 张源图前后哈希。两者只证明工具和数据基线，不产生实际准确率；真实评估必须绑定 approved manifest、双人 reviewed 真值、attestation、模型、engine、detector config 和 prediction 哈希。
+
+## P5-02 试标复核包证据
+
+最终返修证据 `artifacts/p5-pilot-20260711-192148` 保存选样命令、29 项单测、选样特征/原因、派生 manifest、COCO 预标注、UTF-8 CSV、30 张原图、30 张带框预览、catalog/COCO/P4 全链严格标量类型、30 份 P4 frame JSON 与 COCO 的尺寸/判定/框/类别/置信度/defect detector version 及 frame parameterVersion 核验，以及源码、输入、frame、preview 源/副本 SHA-256。该证据支持“复核入口可重复生成”，不支持“预测正确”；大框、低置信框、重叠框和疑似误报作为困难样本观察进入 KI-035，必须由人工真值和后续指标裁定。
+
+## P5-02C1 首标工作台证据
+
+三轮返修冻结 `artifacts/p5-review-workbench-20260711-203902` 保存 48 项单测、超限拒绝 10 次重复、localhost health/state、完整 package 文件清单、Browser 交互记录、一次性 QA 草稿、两张界面截图、9 个源码快照、dirty diff 和 20 项 SHA-256 manifest。Browser 证据覆盖 30 图加载、模型预览四类编辑控件只读、预览态键盘 Delete 后框数 4→4、Alice 完成 1 张 OK 后 Bob 修改全局操作员仍保留逐图 Alice/revision 1、剩余 29 张时导出拒绝、控制台 0 warning/error 和三栏视口边界；自动测试还覆盖服务启动后的源图/preview 替换对 GET/save/export 受控 409。该 QA 草稿只验证软件行为，不是责任人员首标、人工 QA 或 ground truth；reviewed 导出仍固定拒绝。

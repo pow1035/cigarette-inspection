@@ -22,6 +22,8 @@ artifacts/
 *.tlog
 *.lastbuildstate
 *.recipe
+__pycache__/
+*.py[cod]
 
 # Local-only large runtime/install packages.
 # These files are kept on this machine but should not enter normal GitHub history.

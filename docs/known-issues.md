@@ -35,5 +35,11 @@
 | KI-029 | 高 | P3 固定样本的 OK/NG 是链路 fixture 期望，不是人工 ground truth，也不能用于准确率评估 | `tests/fixtures/p3-samples.json`；偶数 frame_id 固定 NG、奇数固定 OK；P4 必须建立真实标签/授权/模型评估清单 | 接受限制 | P4 |
 | KI-030 | 高 | P4 样本没有人工 ground truth，视觉抽查可见重叠框、超大框、空检候选和标签遮挡，不能判定误检/漏检 | 正式及独立 QA frame 1/3/6/12 抽查；P5 必须建立真值、指标和优化前后对照 | 开放 | P5 |
 | KI-031 | 中 | TensorRT engine 与 GPU/TRT 版本绑定，当前候选 engine 仅存 artifacts，不可作为跨机器部署包 | TRT 8.6 旧 engine 在 TRT 10.15 反序列化失败；当前 engine 由 RTX 4060/TRT 10.15 本机构建 | 接受限制 | P4/P7 |
+| KI-032 | 阻断 | 烟支模型缺少人工标签、训练 YAML、训练日志、数据划分和测试独立性证明 | P5-01 先冻结数据 manifest、真值规则和评估入口；没有 reviewed 真值时拒绝准确率 | 开放 | P5 |
+| KI-033 | 阻断 | `wuzi`、`jietou` 无源码支持的正式中文业务定义，现有 Qt 也没有对应逐类阈值 | 类别目录标为 `unconfirmed-do-not-label`，等待业务确认，不靠拼音猜测 | 开放 | P5 |
+| KI-034 | 阻断 | ONNX 元数据/原型资料包含 AGPL 或研究用途提示，商业许可与第三方代码合规未确认 | 当前只做内部本地评估；商用交付前需形成模型、Ultralytics 和第三方代码许可清单 | 开放 | P5/P8 |
+| KI-035 | 高 | P5-02 视觉抽查仍见大范围框、低置信框、重叠框和疑似类别误报，当前模型效果不能按截图判定为商业可用 | `artifacts/p5-pilot-20260711-192148/review-package/previews`；必须先完成人工双人真值，再量化阈值/NMS/过滤或训练前后效果 | 开放 | P5 |
+| KI-036 | 阻断 | 30 图 pilot 目前只有预测预标注，授权仍为 unverified，人工标注人/复核人为空 | `pilot-review.csv` 全部 pending；11 图含未确认 `wuzi` 被强制 REVIEW | 开放 | P5 |
+| KI-037 | 高 | P5 首标工作台是无账号体系的 localhost 单机工具，reviewed 真值导出尚未实现 | 启动器强制显式 package 并仅绑定 loopback；`/api/export-reviewed` 固定 409；不得暴露到局域网或把首轮 `annotated` 当真值 | 接受限制 | P5-02C3 |
 
 详细审计摘要见 `docs/code-audit.md`。代码检查不能替代 Windows、GPU 或真实硬件运行证据。

@@ -1,0 +1,12 @@
+{
+  "schema_version": "p5-ground-truth-attestation-v1",
+  "review_method": "human-double-review",
+  "authorization_status": "approved",
+  "evaluation_split": "test",
+  "annotated_by": "REPLACE_WITH_ANNOTATOR_ID",
+  "reviewed_by": "REPLACE_WITH_DISTINCT_REVIEWER_ID",
+  "reviewed_at": "REPLACE_WITH_ISO_8601_TIMESTAMP",
+  "ground_truth_sha256": "REPLACE_WITH_64_HEX_SHA256",
+  "manifest_sha256": "REPLACE_WITH_64_HEX_SHA256",
+  "class_catalog_sha256": "REPLACE_WITH_64_HEX_SHA256"
+}
