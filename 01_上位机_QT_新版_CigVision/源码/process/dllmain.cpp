@@ -1,7 +1,6 @@
 ﻿// dllmain.cpp : 定义 DLL 应用程序的入口点。
 #include "pch.h"
 #include "ImageProcess.h"
-#include "paramStructs.h"
 // 全局变量（如果需要）
 static bool g_isInitialized = false;
 

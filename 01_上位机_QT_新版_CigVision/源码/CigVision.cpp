@@ -10,6 +10,13 @@
 #include <QLineEdit>
 #include <QMutexLocker>
 #include <QSet>
+#include <QDateTime>
+#include <QDir>
+#include <QFileDialog>
+#include <QStandardPaths>
+#include <QThread>
+#include <QVariantMap>
+#include "adapters/qt/QtOfflineInspection.h"
 #include <vector>
 
 
@@ -292,27 +299,33 @@ void __stdcall workProcedure2_2(unsigned char* pData, MV_FRAME_OUT_INFO* pFrameI
     return;
 }
 
-CigVision::CigVision(QWidget *parent)
-    : QWidget(parent)
+CigVision::CigVision(QWidget *parent, bool offlineOnly)
+    : QWidget(parent), offlineOnlyMode(offlineOnly)
 {
     ui.setupUi(this);
     //初始化参数类
     //CigVisionParams params;
     //运行界面
     initRunView();
-    if (initCamera())//相机初始化
-    {
-        QString tempString(QString::fromLocal8Bit("成功：相机初始化"));
-        qDebug() << tempString;
-    }
-    else
-    {
-        qDebug() << QString::fromLocal8Bit("错误：相机初始化未完成，运行按钮将保持安全停止");
-    }
-    if (initIOCard())//IO板卡初始化
-    {
-        QString tempString(QString::fromLocal8Bit("成功：IO板卡初始化"));
-        //ui.listWidget__information->addItem(tempString);
+    if (!offlineOnlyMode) {
+        if (initCamera())//相机初始化
+        {
+            QString tempString(QString::fromLocal8Bit("成功：相机初始化"));
+            qDebug() << tempString;
+        }
+        else
+        {
+            qDebug() << QString::fromLocal8Bit("错误：相机初始化未完成，运行按钮将保持安全停止");
+        }
+        if (initIOCard())//IO板卡初始化
+        {
+            QString tempString(QString::fromLocal8Bit("成功：IO板卡初始化"));
+            //ui.listWidget__information->addItem(tempString);
+        }
+    } else {
+        ui.btn_run->setEnabled(false);
+        ui.btn_run->setToolTip(QStringLiteral("离线模式不初始化相机或 IO"));
+        qDebug() << "offline-only mode: camera and IO initialization skipped";
     }
     //参数设置界面
     initParaView();
@@ -326,10 +339,14 @@ CigVision::CigVision(QWidget *parent)
     // 连接系统参数窗口退出信号
     connect(&params, &CigVisionParams::systemParaWidgetQuit, this, &CigVision::onSystemParaWidgetQuit);
     connect(&params, &CigVisionParams::selectNewBrand, this, &CigVision::onBrandComboBoxChanged);
+    ui.btn_switch->setText(QStringLiteral("离线检测"));
+    ui.btn_switch->setToolTip(QStringLiteral("使用链路测试检测器，不连接相机、IO 或 TensorRT"));
+    connect(ui.btn_switch, &QToolButton::clicked, this, &CigVision::onOfflineButtonClicked);
 }
 
 CigVision::~CigVision()
 {
+    stopOfflineInspection();
     QMutexLocker runtimeLock(&runtimeMutex);
     machineState.systemRun.store(false);
     stopCameras();
@@ -368,6 +385,7 @@ void CigVision::initRunView()
 
     //运行画面——左侧显示实时图
     QLabel* v1_zu1_label = new QLabel(run_page);
+    offlineImageLabel = v1_zu1_label;
     QLabel* v1_zu1_title_label = new QLabel(run_page);
     v1_zu1_title_label->setFixedSize(v1_titleLabelWidth, v1_title_labelHeight);
     v1_zu1_title_label->setText(QStringLiteral("组件1（检测轮）实时显示"));
@@ -402,6 +420,7 @@ void CigVision::initRunView()
     v1_layout1->addWidget(v1_zu2n_label);
 
     QLabel* v1_bug_label = new QLabel(run_page);
+    offlineDefectLabel = v1_bug_label;
     QLabel* v1_bug_title_label = new QLabel(run_page);
     v1_bug_title_label->setFixedSize(v1_titleLabelWidth, v1_title_labelHeight);
     v1_bug_title_label->setFont(title_font);
@@ -413,6 +432,10 @@ void CigVision::initRunView()
 
     v1_layout2->addWidget(v1_bug_title_label);
     v1_layout2->addWidget(v1_bug_label);
+    offlineStatusLabel = new QLabel(QStringLiteral("离线链路测试：未运行"), run_page);
+    offlineStatusLabel->setStyleSheet("color: white; font-size: 16px;");
+    offlineStatusLabel->setWordWrap(true);
+    v1_layout2->addWidget(offlineStatusLabel);
 
     //运行图像——右侧统计表
     QHBoxLayout* v1_hlayout2 = new QHBoxLayout(run_page);
@@ -423,7 +446,8 @@ void CigVision::initRunView()
     NG_class_stringlist << QStringLiteral("定位失败(外形缺陷)") << QStringLiteral("烟棒缺陷") << QStringLiteral("滤嘴缺陷") << QStringLiteral("拼接缺陷") << QStringLiteral("搭口错牙(DL)") << QStringLiteral("滤嘴破损(DL)") << QStringLiteral("滤嘴皱褶(DL)") << QStringLiteral("缺滤嘴(DL)") << QStringLiteral("烟棒破损(DL)") << QStringLiteral("烟棒脏污(DL)");
 
     // 创建QStandardItemModel对象并设置行数和列数
-    QStandardItemModel* model1 = new QStandardItemModel(6, 2);
+    QStandardItemModel* model1 = new QStandardItemModel(NG_class_stringlist.size(), 2, run_page);
+    offlineStatsModel = model1;
     QStringList v1_zu1_bug_show_h_heads, v1_zu1_bug_show_v_heads;
     v1_zu1_bug_show_h_heads << QStringLiteral("流程") << QStringLiteral("组1统计");//行
 
@@ -445,6 +469,7 @@ void CigVision::initRunView()
         QStandardItem* item1 = new QStandardItem(QString(NG_class_stringlist[i]));
         QStandardItem* item2 = new QStandardItem(QString(NG_class_stringlist[i]));
         model1->setItem(i, 0, item1);
+        model1->setItem(i, 1, new QStandardItem(QStringLiteral("0")));
         model2->setItem(i, 0, item2);
         model1->setData(model1->index(i, 0), Qt::AlignCenter, Qt::TextAlignmentRole);
         model2->setData(model2->index(i, 0), Qt::AlignCenter, Qt::TextAlignmentRole);
@@ -626,6 +651,108 @@ void CigVision::on_btn_count_clicked()
 void CigVision::on_btn_search_clicked()
 {
     qDebug() << "search clicked";
+}
+
+void CigVision::onOfflineButtonClicked()
+{
+    if (offlineWorker != nullptr) {
+        offlineWorker->requestStop();
+        ui.btn_switch->setText(QStringLiteral("正在停止"));
+        ui.btn_switch->setEnabled(false);
+        return;
+    }
+    if (machineState.systemRun.load()) {
+        offlineStatusLabel->setText(QStringLiteral("请先停止在线运行，再启动离线检测"));
+        return;
+    }
+
+    const QStringList files = QFileDialog::getOpenFileNames(this,
+        QStringLiteral("选择离线图片"), QString(),
+        QStringLiteral("图像 (*.jpg *.jpeg *.png *.bmp)"));
+    if (files.isEmpty()) {
+        return;
+    }
+    QString outputRoot = QFileDialog::getExistingDirectory(this,
+        QStringLiteral("选择结果保存目录"),
+        QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation));
+    if (outputRoot.isEmpty()) {
+        return;
+    }
+    outputRoot = QDir(outputRoot).filePath(QStringLiteral("CigVisionOffline-%1")
+        .arg(QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd-HHmmss"))));
+    if (!QDir().mkpath(outputRoot)) {
+        offlineStatusLabel->setText(QStringLiteral("无法创建结果目录"));
+        return;
+    }
+
+    offlineThread = new QThread(this);
+    offlineWorker = new cigvision::OfflineInspectionWorker(files, outputRoot);
+    offlineWorker->moveToThread(offlineThread);
+    connect(offlineThread, &QThread::started, offlineWorker,
+        &cigvision::OfflineInspectionWorker::run);
+    connect(offlineWorker, &cigvision::OfflineInspectionWorker::frameProcessed, this,
+        &CigVision::onOfflineFrameProcessed);
+    connect(offlineWorker, &cigvision::OfflineInspectionWorker::finished, this,
+        &CigVision::onOfflineFinished);
+    connect(offlineWorker, &cigvision::OfflineInspectionWorker::finished,
+        offlineThread, &QThread::quit, Qt::DirectConnection);
+    connect(offlineThread, &QThread::finished, offlineWorker, &QObject::deleteLater);
+    connect(offlineThread, &QThread::finished, this, [this] {
+        offlineWorker = nullptr;
+        QThread* finishedThread = offlineThread;
+        offlineThread = nullptr;
+        ui.btn_switch->setText(QStringLiteral("离线检测"));
+        ui.btn_switch->setEnabled(true);
+        finishedThread->deleteLater();
+    });
+    ui.btn_switch->setText(QStringLiteral("停止离线"));
+    offlineStatusLabel->setText(QStringLiteral("离线链路测试运行中（非生产算法）"));
+    offlineThread->start();
+}
+
+void CigVision::onOfflineFrameProcessed(const QImage& image, const QString& resultText,
+    const QVariantMap& statistics)
+{
+    const QPixmap preview = QPixmap::fromImage(image).scaled(offlineImageLabel->size(),
+        Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    offlineImageLabel->setPixmap(preview);
+    if (resultText == QStringLiteral("NG")) {
+        offlineDefectLabel->setPixmap(QPixmap::fromImage(image).scaled(
+            offlineDefectLabel->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    } else {
+        offlineDefectLabel->clear();
+    }
+    const qulonglong processed = statistics.value(QStringLiteral("processed")).toULongLong();
+    const qulonglong ok = statistics.value(QStringLiteral("ok")).toULongLong();
+    const qulonglong ng = statistics.value(QStringLiteral("ng")).toULongLong();
+    const qulonglong errors = statistics.value(QStringLiteral("error")).toULongLong();
+    ui.label_19->setText(QStringLiteral("合格：%1").arg(ok));
+    ui.label_20->setText(QStringLiteral("缺陷：%1 错误：%2").arg(ng).arg(errors));
+    ui.label_14->setText(processed == 0 ? QStringLiteral("0.0%") :
+        QStringLiteral("%1%").arg(100.0 * static_cast<double>(ng) / processed, 0, 'f', 1));
+    if (offlineStatsModel != nullptr && offlineStatsModel->rowCount() > 0) {
+        offlineStatsModel->setData(offlineStatsModel->index(0, 1), ng);
+    }
+    offlineStatusLabel->setText(QStringLiteral("帧 %1：%2（链路测试检测器）")
+        .arg(processed).arg(resultText));
+}
+
+void CigVision::onOfflineFinished(const QString& message, bool success)
+{
+    offlineStatusLabel->setText(message);
+    offlineStatusLabel->setStyleSheet(success
+        ? "color: #7CFC90; font-size: 16px;" : "color: #FF6B6B; font-size: 16px;");
+}
+
+void CigVision::stopOfflineInspection()
+{
+    if (offlineWorker != nullptr) {
+        offlineWorker->requestStop();
+    }
+    if (offlineThread != nullptr) {
+        offlineThread->quit();
+        offlineThread->wait();
+    }
 }
 
 void CigVision::btnColorUpdate()//按钮颜色更新

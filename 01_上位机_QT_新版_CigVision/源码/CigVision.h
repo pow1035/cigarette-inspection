@@ -10,6 +10,8 @@
 #include <atomic>
 #include <QMutex>//内存锁
 #include <QWaitCondition>
+#include <QVariant>
+#include <QPointer>
 #include <QThreadPool>//线程池
 #include<qqueue.h>
 #include "MvCameraControl.h"
@@ -17,6 +19,11 @@
 #include"MultipleCameraDefine.h"
 #include<qdebug.h>
 
+class QLabel;
+class QStandardItemModel;
+class QThread;
+class QImage;
+namespace cigvision { class OfflineInspectionWorker; }
 
 using namespace HalconCpp;
 class readIOTask;
@@ -79,7 +86,7 @@ class CigVision : public QWidget
     Q_OBJECT
 
 public:
-    CigVision(QWidget *parent = nullptr);
+    explicit CigVision(QWidget *parent = nullptr, bool offlineOnly = false);
     ~CigVision();
 private slots:
     void on_btn_run_clicked();
@@ -97,6 +104,10 @@ private slots:
     void onSystemParaWidgetQuit();
     void onBrandComboBoxChanged();
     void onIOReadFailure();
+    void onOfflineButtonClicked();
+    void onOfflineFrameProcessed(const QImage& image, const QString& resultText,
+        const QVariantMap& statistics);
+    void onOfflineFinished(const QString& message, bool success);
 
 
 public:
@@ -131,6 +142,7 @@ private:
     void waitForCameraCallbacks();
     void shutdownCameras();
     void clearFrameQueues();
+    void stopOfflineInspection();
 
     readIOTask* ioTask = nullptr;
     QMutex runtimeMutex;
@@ -138,5 +150,12 @@ private:
     QWaitCondition callbackIdle;
     int activeCameraCallbacks = 0;
     bool cameraLifecycleFault = false;
+    bool offlineOnlyMode = false;
+    QThread* offlineThread = nullptr;
+    QPointer<cigvision::OfflineInspectionWorker> offlineWorker;
+    QLabel* offlineImageLabel = nullptr;
+    QLabel* offlineDefectLabel = nullptr;
+    QLabel* offlineStatusLabel = nullptr;
+    QStandardItemModel* offlineStatsModel = nullptr;
 
 };

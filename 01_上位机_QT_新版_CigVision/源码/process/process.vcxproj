@@ -24,6 +24,8 @@
     <ProjectGuid>{98b8349a-3375-4fdb-8fc4-07b5fb021f14}</ProjectGuid>
     <RootNamespace>process</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <CIGVISION_HALCON_DEBUG_ROOT Condition="'$(CIGVISION_HALCON_DEBUG_ROOT)'==''">C:\Program Files\MVTec\HALCON-25.05-Progress</CIGVISION_HALCON_DEBUG_ROOT>
+    <CIGVISION_HALCON_RELEASE_ROOT Condition="'$(CIGVISION_HALCON_RELEASE_ROOT)'==''">C:\Program Files\MVTec\HALCON-22.11-Steady</CIGVISION_HALCON_RELEASE_ROOT>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -79,14 +81,14 @@
     <IntDir>$(Platform)\$(Configuration)\process\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>C:\Program Files\MVTec\HALCON-25.05-Progress\include\halconcpp;C:\Program Files\MVTec\HALCON-25.05-Progress\include;$(ProjectDir)..;$(ProjectDir);$(IncludePath)</IncludePath>
-    <ExternalIncludePath>C:\Program Files\MVTec\HALCON-25.05-Progress\lib;$(ExternalIncludePath)</ExternalIncludePath>
-    <ReferencePath>C:\Program Files\MVTec\HALCON-25.05-Progress\lib;$(ReferencePath)</ReferencePath>
+    <IncludePath>$(CIGVISION_HALCON_DEBUG_ROOT)\include\halconcpp;$(CIGVISION_HALCON_DEBUG_ROOT)\include;$(ProjectDir)..;$(ProjectDir);$(IncludePath)</IncludePath>
+    <ExternalIncludePath>$(CIGVISION_HALCON_DEBUG_ROOT)\lib;$(ExternalIncludePath)</ExternalIncludePath>
+    <ReferencePath>$(CIGVISION_HALCON_DEBUG_ROOT)\lib;$(ReferencePath)</ReferencePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>C:\Program Files\MVTec\HALCON-22.11-Steady\include;C:\Program Files\MVTec\HALCON-22.11-Steady\include\halconcpp;$(ProjectDir)..;$(ProjectDir);$(IncludePath)</IncludePath>
-    <ExternalIncludePath>C:\Program Files\MVTec\HALCON-22.11-Steady\lib;$(ExternalIncludePath)</ExternalIncludePath>
-    <ReferencePath>C:\Program Files\MVTec\HALCON-22.11-Steady\lib;$(ReferencePath)</ReferencePath>
+    <IncludePath>$(CIGVISION_HALCON_RELEASE_ROOT)\include;$(CIGVISION_HALCON_RELEASE_ROOT)\include\halconcpp;$(ProjectDir)..;$(ProjectDir);$(IncludePath)</IncludePath>
+    <ExternalIncludePath>$(CIGVISION_HALCON_RELEASE_ROOT)\lib;$(ExternalIncludePath)</ExternalIncludePath>
+    <ReferencePath>$(CIGVISION_HALCON_RELEASE_ROOT)\lib;$(ReferencePath)</ReferencePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -130,14 +132,14 @@
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>$(ProjectDir)..;C:\Program Files\MVTec\HALCON-25.05-Progress\include;C:\Program Files\MVTec\HALCON-25.05-Progress\include\halconcpp;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..;$(CIGVISION_HALCON_DEBUG_ROOT)\include;$(CIGVISION_HALCON_DEBUG_ROOT)\include\halconcpp;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
       <AdditionalDependencies>halconcpp.lib;halcon.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>C:\Program Files\MVTec\HALCON-25.05-Progress\lib\x64-win64;C:\Program Files\MVTec\HALCON-25.05-Progress\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(CIGVISION_HALCON_DEBUG_ROOT)\lib\x64-win64;$(CIGVISION_HALCON_DEBUG_ROOT)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -150,7 +152,7 @@
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>$(ProjectDir)..;C:\Program Files\MVTec\HALCON-22.11-Steady\include\halconcpp;C:\Program Files\MVTec\HALCON-22.11-Steady\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..;$(CIGVISION_HALCON_RELEASE_ROOT)\include\halconcpp;$(CIGVISION_HALCON_RELEASE_ROOT)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -158,7 +160,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
-      <AdditionalLibraryDirectories>C:\Program Files\MVTec\HALCON-22.11-Steady\lib;C:\Program Files\MVTec\HALCON-22.11-Steady\lib\x64-win64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(CIGVISION_HALCON_RELEASE_ROOT)\lib;$(CIGVISION_HALCON_RELEASE_ROOT)\lib\x64-win64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>halconcpp.lib;halcon.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>

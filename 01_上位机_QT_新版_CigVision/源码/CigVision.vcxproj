@@ -16,6 +16,11 @@
     <WindowsTargetPlatformVersion Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">10.0</WindowsTargetPlatformVersion>
     <WindowsTargetPlatformVersion Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">10.0</WindowsTargetPlatformVersion>
     <QtMsBuild Condition="'$(QtMsBuild)'=='' OR !Exists('$(QtMsBuild)\qt.targets')">$(MSBuildProjectDirectory)\QtMsBuild</QtMsBuild>
+    <CIGVISION_HALCON_DEBUG_ROOT Condition="'$(CIGVISION_HALCON_DEBUG_ROOT)'==''">C:\Program Files\MVTec\HALCON-25.05-Progress</CIGVISION_HALCON_DEBUG_ROOT>
+    <CIGVISION_HALCON_RELEASE_ROOT Condition="'$(CIGVISION_HALCON_RELEASE_ROOT)'==''">C:\Program Files\MVTec\HALCON-22.11-Steady</CIGVISION_HALCON_RELEASE_ROOT>
+    <CIGVISION_TENSORRT_ROOT Condition="'$(CIGVISION_TENSORRT_ROOT)'==''">$(TENSORRT_PATH)</CIGVISION_TENSORRT_ROOT>
+    <CIGVISION_CUDA_ROOT Condition="'$(CIGVISION_CUDA_ROOT)'==''">$(CUDA_PATH)</CIGVISION_CUDA_ROOT>
+    <CIGVISION_OPENCV_ROOT Condition="'$(CIGVISION_OPENCV_ROOT)'==''">$(OPENCV_PATH)\build</CIGVISION_OPENCV_ROOT>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'" Label="Configuration">
@@ -60,34 +65,36 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
-    <IncludePath>C:\Program Files (x86)\MVS\Development\Includes;C:\Program Files\MVTec\HALCON-25.05-Progress\include\halconcpp;C:\Program Files\MVTec\HALCON-25.05-Progress\include;$(VC_IncludePath);$(WindowsSDK_IncludePath);$(IncludePath)</IncludePath>
-    <ExternalIncludePath>C:\Program Files\MVTec\HALCON-25.05-Progress\lib;$(VC_IncludePath);$(WindowsSDK_IncludePath);$(ExternalIncludePath)</ExternalIncludePath>
-    <ReferencePath>C:\Program Files\MVTec\HALCON-25.05-Progress\lib;$(VC_ReferencesPath_x64);$(ReferencePath)</ReferencePath>
+    <CIGVISION_OPENCV_SUFFIX>d</CIGVISION_OPENCV_SUFFIX>
+    <IncludePath>$(MVCAM_COMMON_RUNENV)\Includes;$(CIGVISION_HALCON_DEBUG_ROOT)\include\halconcpp;$(CIGVISION_HALCON_DEBUG_ROOT)\include;$(VC_IncludePath);$(WindowsSDK_IncludePath);$(IncludePath)</IncludePath>
+    <ExternalIncludePath>$(CIGVISION_HALCON_DEBUG_ROOT)\lib;$(VC_IncludePath);$(WindowsSDK_IncludePath);$(ExternalIncludePath)</ExternalIncludePath>
+    <ReferencePath>$(CIGVISION_HALCON_DEBUG_ROOT)\lib;$(VC_ReferencesPath_x64);$(ReferencePath)</ReferencePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
-    <IncludePath>C:\Program Files\MVTec\HALCON-22.11-Steady\include\halconcpp;C:\Program Files\MVTec\HALCON-22.11-Steady\include;$(IncludePath)</IncludePath>
-    <ExternalIncludePath>C:\Program Files\MVTec\HALCON-22.11-Steady\lib;$(ExternalIncludePath)</ExternalIncludePath>
-    <ReferencePath>C:\Program Files\MVTec\HALCON-22.11-Steady\lib;$(ReferencePath)</ReferencePath>
+    <CIGVISION_OPENCV_SUFFIX></CIGVISION_OPENCV_SUFFIX>
+    <IncludePath>$(CIGVISION_HALCON_RELEASE_ROOT)\include\halconcpp;$(CIGVISION_HALCON_RELEASE_ROOT)\include;$(IncludePath)</IncludePath>
+    <ExternalIncludePath>$(CIGVISION_HALCON_RELEASE_ROOT)\lib;$(ExternalIncludePath)</ExternalIncludePath>
+    <ReferencePath>$(CIGVISION_HALCON_RELEASE_ROOT)\lib;$(ReferencePath)</ReferencePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile />
     <ClCompile>
-      <AdditionalIncludeDirectories>C:\Program Files (x86)\MVS\Development\Includes;C:\Advantech\DAQNavi\Inc;c:\Program Files\MVTec\HALCON-25.05-Progress\include;c:\Program Files\MVTec\HALCON-25.05-Progress\include\halconcpp;$(MVCAM_COMMON_RUNENV)\Includes;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(CIGVISION_OPENCV_ROOT)\include;$(CIGVISION_TENSORRT_ROOT)\include;$(CIGVISION_CUDA_ROOT)\include;$(MVCAM_COMMON_RUNENV)\Includes;$(CIGVISION_DAQNAVI_ROOT)\Inc;$(CIGVISION_HALCON_DEBUG_ROOT)\include;$(CIGVISION_HALCON_DEBUG_ROOT)\include\halconcpp;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
     <Link>
-      <AdditionalLibraryDirectories>C:\Program Files\MVTec\HALCON-25.05-Progress\lib\x64-win64;C:\Program Files\MVTec\HALCON-25.05-Progress\lib;C:\Program Files (x86)\MVS\Development\Libraries\win64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>halconcpp.lib;halcon.lib;MvCameraControl.lib;$(Qt_LIBS_);%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(CIGVISION_OPENCV_ROOT)\x64\vc16\lib;$(CIGVISION_TENSORRT_ROOT)\lib;$(CIGVISION_CUDA_ROOT)\lib\x64;$(CIGVISION_HALCON_DEBUG_ROOT)\lib\x64-win64;$(CIGVISION_HALCON_DEBUG_ROOT)\lib;$(MVCAM_COMMON_RUNENV)\Libraries\win64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>opencv_world490d.lib;nvinfer_10.lib;cudart.lib;halconcpp.lib;halcon.lib;MvCameraControl.lib;$(Qt_LIBS_);%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
-      <AdditionalIncludeDirectories>C:\Program Files (x86)\MVS\Development\Includes;C:\Advantech\DAQNavi\Inc;C:\Program Files\MVTec\HALCON-22.11-Steady\include;C:\Program Files\MVTec\HALCON-22.11-Steady\include\halconcpp;$(MVCAM_COMMON_RUNENV)\Includes;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(CIGVISION_OPENCV_ROOT)\include;$(CIGVISION_TENSORRT_ROOT)\include;$(CIGVISION_CUDA_ROOT)\include;$(MVCAM_COMMON_RUNENV)\Includes;$(CIGVISION_DAQNAVI_ROOT)\Inc;$(CIGVISION_HALCON_RELEASE_ROOT)\include;$(CIGVISION_HALCON_RELEASE_ROOT)\include\halconcpp;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <AdditionalLibraryDirectories>C:\Program Files\MVTec\HALCON-22.11-Steady\lib\x64-win64;C:\Program Files\MVTec\HALCON-22.11-Steady\lib;C:\Program Files (x86)\MVS\Development\Libraries\win64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>halconcpp.lib;halcon.lib;MvCameraControl.lib;$(Qt_LIBS_);%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(CIGVISION_OPENCV_ROOT)\x64\vc16\lib;$(CIGVISION_TENSORRT_ROOT)\lib;$(CIGVISION_CUDA_ROOT)\lib\x64;$(CIGVISION_HALCON_RELEASE_ROOT)\lib\x64-win64;$(CIGVISION_HALCON_RELEASE_ROOT)\lib;$(MVCAM_COMMON_RUNENV)\Libraries\win64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>opencv_world490.lib;nvinfer_10.lib;cudart.lib;halconcpp.lib;halcon.lib;MvCameraControl.lib;$(Qt_LIBS_);%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'" Label="Configuration">
@@ -121,6 +128,8 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="CigVisionParams.cpp" />
+    <ClCompile Include="adapters\qt\QtOfflineInspection.cpp" />
+    <ClCompile Include="adapters\tensorrt\TensorRtDetector.cpp" />
     <ClCompile Include="HalconGraphicsView.cpp" />
     <ClCompile Include="MyCamera.cpp" />
     <ClCompile Include="myTabWidget.cpp" />
@@ -143,6 +152,12 @@
     <QtMoc Include="HalconGraphicsView.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="core\OfflineInspection.h" />
+    <ClInclude Include="adapters\tensorrt\TensorRtDetector.h" />
+    <QtMoc Include="adapters\qt\QtOfflineInspection.h" />
+    <ClInclude Include="core\BoundedQueue.h" />
+    <ClInclude Include="core\InspectionContracts.h" />
+    <ClInclude Include="core\InspectionInterfaces.h" />
     <ClInclude Include="MultipleCameraDefine.h" />
     <ClInclude Include="MyCamera.h" />
     <ClInclude Include="paramStructs.h" />
@@ -158,6 +173,11 @@
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <Target Name="CopyTensorRtRuntime" AfterTargets="Build"
+      Condition="Exists('$(CIGVISION_TENSORRT_ROOT)\bin\nvinfer_10.dll') and Exists('$(CIGVISION_CUDA_ROOT)\bin\x64\cudart64_13.dll') and Exists('$(CIGVISION_OPENCV_ROOT)\x64\vc16\bin\opencv_world490$(CIGVISION_OPENCV_SUFFIX).dll')">
+    <Copy SourceFiles="$(CIGVISION_TENSORRT_ROOT)\bin\nvinfer_10.dll;$(CIGVISION_CUDA_ROOT)\bin\x64\cudart64_13.dll;$(CIGVISION_OPENCV_ROOT)\x64\vc16\bin\opencv_world490$(CIGVISION_OPENCV_SUFFIX).dll"
+      DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+  </Target>
   <ImportGroup Condition="Exists('$(QtMsBuild)\qt.targets')">
     <Import Project="$(QtMsBuild)\qt.targets" />
   </ImportGroup>
