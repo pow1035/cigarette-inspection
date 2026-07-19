@@ -50,11 +50,44 @@
 
   function categoryName(id) {
     const category = categoryById(id);
-    return category?.display_name || category?.name || category?.model_name || `Class ${id}`;
+    return category?.display_name || category?.name || category?.model_name || `类别 ${id}`;
   }
 
+  function decisionName(value) {
+    return ({ OK: "正常 OK", NG: "缺陷 NG", REVIEW: "待确认 REVIEW" })[String(value || "").toUpperCase()] || "未判定";
+  }
+
+  function reviewStateName(value) {
+    const key = String(value || "").toLowerCase();
+    if (["complete", "completed", "annotation-complete"].includes(key)) return "已完成";
+    if (key === "reviewed") return "已复核";
+    if (key === "in-progress") return "标注中";
+    return "未完成";
+  }
+
+  function sourceName(value) {
+    return String(value || "").toLowerCase() === "prediction" ? "模型预标注" : "人工标注";
+  }
+
+  function modeName(value) {
+    const key = String(value || "").toLowerCase();
+    if (key === "annotator" || key === "annotation") return "人工首标";
+    if (key === "reviewer" || key === "review") return "独立复核";
+    return key || "标注";
+  }
+
+  function categoryStatusName(value) {
+    const key = String(value || "").toLowerCase();
+    const names = {
+      "source-backed-needs-business-approval": "可试标，待业务批准",
+      "unconfirmed-do-not-label": "待业务确认，可框选（仅用于待确认）",
+      "forbidden": "禁止标注",
+      "approved": "已批准",
+    };
+    return names[key] || String(value || "").replaceAll("-", " ");
+  }
   function categoryDisabled(category) {
-    return Number(category?.id) >= 7 || category?.enabled === false || category?.labelable === false || /unconfirmed|do-not-label|forbidden/i.test(String(category?.status || category?.labeling_status || ""));
+    return category?.enabled === false || category?.labelable === false || /forbidden/i.test(String(category?.status || category?.labeling_status || ""));
   }
 
   function normalizeImage(image) {
@@ -88,14 +121,14 @@
   }
 
   async function loadState() {
-    setStatus("saving", "Loading session...");
+    setStatus("saving", "正在加载标注会话……");
     try {
       const payload = await apiRequest("/api/state");
       applyServerState(payload);
-      setStatus("success", "Session loaded");
+      setStatus("success", "标注会话已加载");
     } catch (error) {
-      setStatus("error", `Unable to load session: ${error.message}`);
-      showToast(`Unable to load annotation session: ${error.message}`, "error", 7000);
+      setStatus("error", `标注会话加载失败：${error.message}`);
+      showToast(`无法加载标注会话：${error.message}`, "error", 7000);
       renderAll();
     }
   }
@@ -149,11 +182,11 @@
     const total = state.images.length;
     const completed = state.images.filter(isComplete).length;
     const percent = total ? Math.round((completed / total) * 100) : 0;
-    el.sessionMeta.textContent = `${state.session.mode || "annotation"} mode`;
-    el.progressText.textContent = `${completed} / ${total} complete`;
+    el.sessionMeta.textContent = `${modeName(state.session.mode)}模式（仅本机）`;
+    el.progressText.textContent = `已完成 ${completed} / ${total} 张`;
     el.progressPercent.textContent = `${percent}%`;
     el.progressBar.style.width = `${percent}%`;
-    el.revisionStatus.textContent = `Revision ${state.session.revision ?? "-"}`;
+    el.revisionStatus.textContent = `状态版本 ${state.session.revision ?? "-"}`;
     el.saveBtn.disabled = state.saving || !state.images.length;
     el.exportBtn.disabled = state.saving || !state.images.length;
   }
@@ -179,13 +212,13 @@
     el.imageList.replaceChildren();
     filtered.forEach((image) => {
       const button = document.createElement("button");
-      const decision = image.decision || "Pending";
+      const decision = decisionName(image.decision);
       button.type = "button";
       button.className = `image-row ${String(image.decision || "").toLowerCase()} ${isComplete(image) ? "complete" : ""} ${String(image.id) === String(state.activeImageId) ? "selected" : ""}`;
       button.dataset.imageId = image.id;
       button.setAttribute("role", "option");
       button.setAttribute("aria-selected", String(String(image.id) === String(state.activeImageId)));
-      button.title = image.file_name || `Image ${image.id}`;
+      button.title = image.file_name || `图片 ${image.id}`;
       const stateBar = document.createElement("span");
       stateBar.className = "row-state-bar";
       stateBar.setAttribute("aria-hidden", "true");
@@ -193,10 +226,10 @@
       copy.className = "row-copy";
       const name = document.createElement("span");
       name.className = "row-name";
-      name.textContent = image.file_name || `Image ${image.id}`;
+      name.textContent = image.file_name || `图片 ${image.id}`;
       const meta = document.createElement("span");
       meta.className = "row-meta";
-      meta.textContent = `${image.boxes.length} box${image.boxes.length === 1 ? "" : "es"} | ${isComplete(image) ? "complete" : "pending"}`;
+      meta.textContent = `${image.boxes.length} 个框｜${isComplete(image) ? "已完成" : "未完成"}`;
       copy.append(name, meta);
       const badge = document.createElement("span");
       badge.className = `row-badge ${String(image.decision || "").toLowerCase()}`;
@@ -207,12 +240,12 @@
     if (!filtered.length) {
       const empty = document.createElement("div");
       empty.className = "empty-list";
-      empty.textContent = state.images.length ? "No images match this filter." : "No images in this session.";
+      empty.textContent = state.images.length ? "没有符合当前筛选条件的图片。" : "当前标注会话中没有图片。";
       el.imageList.append(empty);
     }
-    el.imageCount.textContent = `${filtered.length} of ${state.images.length}`;
+    el.imageCount.textContent = `显示 ${filtered.length} / 共 ${state.images.length} 张`;
     const activeIndex = state.filteredIds.findIndex((id) => String(id) === String(state.activeImageId));
-    el.queuePosition.textContent = activeIndex >= 0 ? `${activeIndex + 1} of ${filtered.length}` : `0 of ${filtered.length}`;
+    el.queuePosition.textContent = activeIndex >= 0 ? `第 ${activeIndex + 1} / ${filtered.length} 张` : `第 0 / ${filtered.length} 张`;
     el.prevBtn.disabled = activeIndex <= 0;
     el.nextBtn.disabled = activeIndex < 0 || activeIndex >= filtered.length - 1;
   }
@@ -224,7 +257,7 @@
       button.disabled = disabled;
       button.setAttribute("aria-pressed", String(Boolean(image && button.dataset.decision === image.decision)));
     });
-    el.predictedDecision.textContent = `Model: ${image?.predicted_decision || "-"}`;
+    el.predictedDecision.textContent = `模型预测：${image ? decisionName(image.predicted_decision) : "-"}`;
     el.categorySelect.disabled = disabled || !state.categories.length || state.sourceMode !== "original";
     el.notes.disabled = disabled;
     el.completeToggle.disabled = disabled;
@@ -233,7 +266,7 @@
     el.noteCount.textContent = `${el.notes.value.length} / 2000`;
     el.noteHint.innerHTML = "";
     if (image?.decision === "REVIEW" && !image.notes.trim()) {
-      el.noteHint.textContent = "Add context for Review decisions";
+      el.noteHint.textContent = "选择“待确认”时必须填写无法判断的原因";
       el.noteHint.className = "warning";
     } else {
       el.noteHint.className = "";
@@ -243,19 +276,18 @@
     el.detailSize.textContent = image ? `${image.width} x ${image.height}` : "-";
     el.detailSha.textContent = image?.sha256 ? `${image.sha256.slice(0, 12)}...` : "-";
     el.detailSha.title = image?.sha256 || "";
-    el.detailState.textContent = image?.review_state || "-";
+    el.detailState.textContent = image ? reviewStateName(image.review_state) : "-";
     el.completionHint.textContent = completionMessage(image);
     renderBoxList();
   }
 
   function completionMessage(image) {
-    if (!image) return "Select an image to begin.";
-    if (!image.decision) return "Choose a decision before completing this image.";
-    if (image.decision === "NG" && !image.boxes.length) return "NG images require at least one defect box.";
-    if (image.decision === "OK" && image.boxes.length) return "OK images cannot retain defect boxes.";
-    if (image.decision === "REVIEW" && image.boxes.length) return "Review images cannot retain defect boxes.";
-    if (image.decision === "REVIEW" && !image.notes.trim()) return "Review decisions require a note.";
-    return isComplete(image) ? "This image is included in completed progress." : "Ready to mark complete.";
+    if (!image) return "请先从左侧选择一张图片。";
+    if (!image.decision) return "请先选择本张图片的结论。";
+    if (image.decision === "NG" && !image.boxes.length) return "缺陷（NG）图片至少需要一个缺陷框。";
+    if (image.decision === "OK" && image.boxes.length) return "正常（OK）图片不能保留缺陷框。";
+    if (image.decision === "REVIEW" && !image.notes.trim()) return "待确认（REVIEW）图片必须填写备注。";
+    return isComplete(image) ? "本张图片已计入完成进度。" : "检查无误后可勾选“确认本张标注完成”。";
   }
 
   function renderBoxList() {
@@ -269,7 +301,7 @@
       button.dataset.boxId = box.id;
       button.setAttribute("role", "option");
       button.setAttribute("aria-selected", String(String(box.id) === String(state.selectedBoxId)));
-      button.title = `Select box ${index + 1}`;
+      button.title = `选择第 ${index + 1} 个缺陷框`;
       const swatch = document.createElement("span");
       swatch.className = "box-swatch";
       const copy = document.createElement("span");
@@ -283,14 +315,14 @@
       copy.append(className, coords);
       const source = document.createElement("span");
       source.className = "box-source";
-      source.textContent = box.source === "prediction" && Number.isFinite(Number(box.score)) ? `${Math.round(Number(box.score) * 100)}%` : box.source;
+      source.textContent = box.source === "prediction" && Number.isFinite(Number(box.score)) ? `模型预标注 ${Math.round(Number(box.score) * 100)}%` : sourceName(box.source);
       button.append(swatch, copy, source);
       el.boxList.append(button);
     });
     if (!boxes.length) {
       const empty = document.createElement("div");
       empty.className = "empty-boxes";
-      empty.textContent = "No defect boxes. OK images should remain empty.";
+      empty.textContent = "当前没有缺陷框；正常（OK）图片应保持为空。";
       el.boxList.append(empty);
     }
     el.boxCount.textContent = String(boxes.length);
@@ -300,7 +332,7 @@
       el.categorySelect.value = String(box.category_id);
       el.selectedBoxReadout.textContent = `${categoryName(box.category_id)} | ${box.bbox.map((value) => Math.round(value)).join(", ")}`;
     } else {
-      el.selectedBoxReadout.textContent = "No box selected";
+      el.selectedBoxReadout.textContent = "未选择缺陷框";
     }
     updateCategoryState();
   }
@@ -308,7 +340,7 @@
   function updateCategoryState() {
     const category = categoryById(el.categorySelect.value);
     const status = category?.labeling_status || category?.status || "";
-    el.categoryState.textContent = status ? String(status).replaceAll("-", " ") : "";
+    el.categoryState.textContent = categoryStatusName(status);
   }
 
   function updateToolbar() {
@@ -365,7 +397,7 @@
 
   function markDirty() {
     state.dirty = true;
-    setStatus("unsaved", "Unsaved changes");
+    setStatus("unsaved", "有尚未保存的更改");
   }
 
   function setStatus(type, message) {
@@ -382,11 +414,10 @@
   }
 
   function validationError(image) {
-    if (!image.decision) return "Choose OK, NG, or Review first.";
-    if (image.decision === "NG" && !image.boxes.length) return "NG images require at least one defect box.";
-    if (image.decision === "OK" && image.boxes.length) return "Delete all defect boxes before marking an image OK.";
-    if (image.decision === "REVIEW" && image.boxes.length) return "Delete all defect boxes before marking an image for review.";
-    if (image.decision === "REVIEW" && !image.notes.trim()) return "Add a note explaining why this image needs review.";
+    if (!image.decision) return "请先选择正常（OK）、缺陷（NG）或待确认（REVIEW）。";
+    if (image.decision === "NG" && !image.boxes.length) return "缺陷（NG）图片至少需要一个缺陷框。";
+    if (image.decision === "OK" && image.boxes.length) return "标记为正常（OK）前，请删除所有缺陷框。";
+    if (image.decision === "REVIEW" && !image.notes.trim()) return "请填写本张图片需要待确认的原因。";
     return "";
   }
 
@@ -395,12 +426,12 @@
     const operatorId = el.operatorId.value.trim();
     if (!operatorId) {
       el.operatorId.focus();
-      showToast("Operator ID is required before saving.", "error");
+      showToast("保存前必须填写真实的标注人 ID。", "error");
       return;
     }
     state.saving = true;
     renderHeader();
-    setStatus("saving", "Saving changes...");
+    setStatus("saving", "正在保存更改……");
     try {
       const payload = await apiRequest("/api/save", {
         method: "POST",
@@ -410,13 +441,13 @@
       applyServerState(payload);
       if (state.images.some((image) => String(image.id) === String(currentId))) state.activeImageId = currentId;
       state.dirty = false;
-      setStatus("success", "All changes saved");
-      showToast("Annotations saved.", "success");
+      setStatus("success", "所有更改已保存");
+      showToast("标注已保存。", "success");
       renderAll();
       loadActiveImage();
     } catch (error) {
-      setStatus("error", `Save failed: ${error.message}`);
-      showToast(`Save failed: ${error.message}`, "error", 7000);
+      setStatus("error", `保存失败：${error.message}`);
+      showToast(`保存失败：${error.message}`, "error", 7000);
     } finally {
       state.saving = false;
       renderHeader();
@@ -458,27 +489,27 @@
 
   async function exportPass1() {
     if (state.dirty) {
-      const shouldSave = window.confirm("There are unsaved changes. Save them before exporting?");
+      const shouldSave = window.confirm("当前有尚未保存的更改，是否先保存再导出？");
       if (!shouldSave) return;
       await save();
       if (state.dirty) return;
     }
     const incomplete = state.images.filter((image) => !isComplete(image)).length;
     if (incomplete) {
-      showToast(`${incomplete} image(s) are incomplete. Finish and save every image before export.`, "error", 6000);
+      showToast(`还有 ${incomplete} 张图片未完成。请完成并保存全部图片后再导出。`, "error", 6000);
       return;
     }
     state.saving = true;
     renderHeader();
-    setStatus("saving", "Exporting pass 1...");
+    setStatus("saving", "正在导出第一轮人工标注……");
     try {
       const payload = await apiRequest("/api/export-pass1", { method: "POST", body: JSON.stringify({}) });
-      const message = payload?.message || payload?.path || "Pass 1 export completed.";
+      const message = payload?.path ? `首标已导出：${payload.path}` : (payload?.message || "首标导出完成。");
       setStatus("success", String(message));
       showToast(String(message), "success", 5000);
     } catch (error) {
-      setStatus("error", `Export failed: ${error.message}`);
-      showToast(`Export failed: ${error.message}`, "error", 7000);
+      setStatus("error", `导出失败：${error.message}`);
+      showToast(`导出失败：${error.message}`, "error", 7000);
     } finally {
       state.saving = false;
       renderHeader();
@@ -519,7 +550,7 @@
     if (!geometry) {
       el.ctx.clearRect(0, 0, el.annotationCanvas.width, el.annotationCanvas.height);
       el.emptyViewport.classList.toggle("hidden", Boolean(activeImage()));
-      el.viewportInfo.textContent = activeImage() ? `${activeImage().width} x ${activeImage().height}` : "No image selected";
+      el.viewportInfo.textContent = activeImage() ? `${activeImage().width} × ${activeImage().height}` : "尚未选择图片";
       return;
     }
     applyCanvasGeometry(geometry);
@@ -709,17 +740,17 @@
     const width = Math.abs(end.x - start.x);
     const height = Math.abs(end.y - start.y);
     if (width < MIN_BOX_SIZE || height < MIN_BOX_SIZE) {
-      showToast("Box is too small. Drag around the visible defect.", "error");
+      showToast("缺陷框太小，请拖动鼠标框住可见缺陷。", "error");
       return;
     }
     const category = categoryById(el.categorySelect.value);
     if (!category || categoryDisabled(category)) {
-      showToast("Choose an enabled defect class before drawing.", "error");
+      showToast("绘制前请先选择允许标注的缺陷类别。", "error");
       return;
     }
     const box = { id: makeBoxId(), category_id: category.id, bbox: [x, y, width, height], source: "human" };
     activeImage().boxes.push(box);
-    activeImage().decision = "NG";
+    activeImage().decision = activeImage().boxes.some((item) => [7, 8].includes(Number(item.category_id))) ? "REVIEW" : "NG";
     activeImage().review_state = "pending";
     state.selectedBoxId = box.id;
     markDirty();
@@ -738,7 +769,7 @@
     const image = activeImage();
     const box = activeBox();
     if (!image || !box) return;
-    if (!window.confirm(`Delete the selected ${categoryName(box.category_id)} box?`)) return;
+    if (!window.confirm(`确定删除选中的“${categoryName(box.category_id)}”缺陷框吗？`)) return;
     image.boxes = image.boxes.filter((candidate) => String(candidate.id) !== String(box.id));
     state.selectedBoxId = null;
     image.review_state = "pending";
@@ -756,7 +787,7 @@
     const url = state.sourceMode === "preview" && image.preview_url ? image.preview_url : image.image_url;
     if (!url) {
       el.imageLoading.classList.add("hidden");
-      showToast("This image has no display URL.", "error");
+      showToast("本张图片没有可用的显示地址。", "error");
       return;
     }
     const bitmap = new Image();
@@ -770,8 +801,8 @@
     bitmap.onerror = () => {
       if (token !== state.imageLoadToken) return;
       el.imageLoading.classList.add("hidden");
-      setStatus("error", `Unable to load ${image.file_name}`);
-      showToast(`Unable to load image: ${image.file_name}`, "error");
+      setStatus("error", `无法加载图片：${image.file_name}`);
+      showToast(`无法加载图片：${image.file_name}`, "error");
     };
     bitmap.src = url;
   }
@@ -812,8 +843,9 @@
       const image = activeImage();
       if (!image) return;
       const decision = button.dataset.decision;
-      if (["OK", "REVIEW"].includes(decision) && image.boxes.length && !window.confirm(`Mark this image ${decision} and delete all ${image.boxes.length} defect box(es)?`)) return;
-      if (["OK", "REVIEW"].includes(decision)) {
+      const mustClearBoxes = decision === "OK";
+      if (mustClearBoxes && image.boxes.length && !window.confirm(`确定将本张设为“${decisionName(decision)}”并删除全部 ${image.boxes.length} 个不兼容缺陷框吗？`)) return;
+      if (mustClearBoxes) {
         image.boxes = [];
         state.selectedBoxId = null;
       }
@@ -827,6 +859,7 @@
       const box = activeBox();
       if (box) {
         box.category_id = categoryById(el.categorySelect.value)?.id ?? el.categorySelect.value;
+        activeImage().decision = activeImage().boxes.some((item) => [7, 8].includes(Number(item.category_id))) ? "REVIEW" : "NG";
         box.source = "human";
         delete box.score;
         activeImage().review_state = "pending";
@@ -842,7 +875,7 @@
       markDirty();
       renderHeader();
       el.noteCount.textContent = `${el.notes.value.length} / 2000`;
-      el.noteHint.textContent = image.decision === "REVIEW" && !image.notes.trim() ? "Add context for Review decisions" : "";
+      el.noteHint.textContent = image.decision === "REVIEW" && !image.notes.trim() ? "选择“待确认”时必须填写无法判断的原因" : "";
       el.noteHint.className = image.decision === "REVIEW" && !image.notes.trim() ? "warning" : "";
       el.completionHint.textContent = completionMessage(image);
     });
@@ -857,7 +890,7 @@
           return;
         }
         image.review_state = state.apiShape === "legacy" ? "annotation-complete" : "complete";
-      } else if (window.confirm("Reopen this image for editing?")) {
+      } else if (window.confirm("确定重新打开本张图片进行编辑吗？")) {
         image.review_state = "pending";
       } else {
         el.completeToggle.checked = true;

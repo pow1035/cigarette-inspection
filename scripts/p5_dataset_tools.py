@@ -1021,14 +1021,18 @@ REQUIRED_EVALUATION_BINDINGS = {
     "ground_truth", "predictions", "manifest", "class_catalog",
     "model", "engine", "detector_config", "attestation",
 }
+FALLBACK_EVALUATION_BINDINGS = (REQUIRED_EVALUATION_BINDINGS - {"engine"}) | {"runtime_contract"}
 
 
 def validate_evaluation_provenance(
         attestation: dict, bindings: dict[str, dict[str, str]], split: str) -> list[str]:
     errors = []
-    if set(bindings) != REQUIRED_EVALUATION_BINDINGS:
+    binding_names = set(bindings)
+    if binding_names not in {frozenset(REQUIRED_EVALUATION_BINDINGS),
+                              frozenset(FALLBACK_EVALUATION_BINDINGS)}:
         errors.append(
-            f"evaluation bindings must exactly contain {sorted(REQUIRED_EVALUATION_BINDINGS)}"
+            "evaluation bindings must exactly describe either a TensorRT engine or "
+            "a fallback runtime contract"
         )
     for name, binding in bindings.items():
         if not isinstance(binding, dict) or not isinstance(binding.get("path"), str):
@@ -1070,6 +1074,50 @@ def validate_evaluation_provenance(
     return errors
 
 
+def validate_fallback_runtime_contract(
+        contract: dict, detector_config: dict,
+        bindings: dict[str, dict[str, str]]) -> list[str]:
+    errors = []
+    if not isinstance(contract, dict):
+        return ["fallback runtime contract must be an object"]
+    if contract.get("schema_version") != "p5-fallback-runtime-contract-v1":
+        errors.append("fallback runtime contract schema_version is invalid")
+    if contract.get("formal_p4_tensorrt_evidence") is not False:
+        errors.append("fallback runtime contract must set formal_p4_tensorrt_evidence to false")
+    if contract.get("backend") != "ONNX Runtime":
+        errors.append("fallback runtime contract backend must be ONNX Runtime")
+    if contract.get("provider") != "CPUExecutionProvider":
+        errors.append("fallback runtime contract provider must be CPUExecutionProvider")
+    if not isinstance(contract.get("runtime_version"), str) or not contract["runtime_version"].strip():
+        errors.append("fallback runtime contract runtime_version must be non-empty")
+    scope = contract.get("accuracy_scope")
+    if (not isinstance(scope, str) or "provisional" not in scope.lower()
+            or "fallback" not in scope.lower()):
+        errors.append("fallback runtime contract accuracy_scope must state provisional fallback")
+    for field, binding_name in (("model_sha256", "model"),
+                                ("predictions_sha256", "predictions")):
+        if contract.get(field) != bindings.get(binding_name, {}).get("sha256"):
+            errors.append(f"fallback runtime contract {field} does not match evidence binding")
+    source_path = contract.get("source_runtime_manifest_path")
+    source_hash = contract.get("source_runtime_manifest_sha256")
+    if not isinstance(source_path, str) or not Path(source_path).is_file():
+        errors.append("fallback source runtime manifest does not exist")
+    elif source_hash != sha256_file(Path(source_path)):
+        errors.append("fallback source runtime manifest SHA-256 does not match")
+    if not isinstance(detector_config, dict):
+        errors.append("fallback detector config must be an object")
+    else:
+        if detector_config.get("schema_version") != "p5-detector-config-v1":
+            errors.append("fallback detector config schema_version is invalid")
+        if detector_config.get("formal_p4_tensorrt_evidence") is not False:
+            errors.append("fallback detector config must set formal_p4_tensorrt_evidence to false")
+        backend = detector_config.get("inference_backend")
+        if (not isinstance(backend, str) or contract.get("backend") not in backend
+                or "fallback" not in backend.lower()):
+            errors.append("fallback detector config backend does not match runtime contract")
+    return errors
+
+
 def greedy_matches(
         ground_truth: list[dict], predictions: list[dict],
         iou_threshold: float) -> tuple[list[tuple[float, int, int]], set[int], set[int]]:
@@ -1094,7 +1142,9 @@ def greedy_matches(
 def evaluate(
         ground_truth: dict, predictions: dict, manifest: dict,
         iou_threshold: float, attestation: dict,
-        bindings: dict[str, dict[str, str]], split: str = "test") -> dict:
+        bindings: dict[str, dict[str, str]], split: str = "test",
+        runtime_contract: dict | None = None,
+        detector_config: dict | None = None) -> dict:
     if not 0 < iou_threshold <= 1:
         raise DatasetError("IoU threshold must be in (0, 1]")
     provenance_errors = validate_evaluation_provenance(attestation, bindings, split)
@@ -1103,6 +1153,14 @@ def evaluate(
             "accuracy evaluation refused because provenance is invalid:\n- "
             + "\n- ".join(provenance_errors)
         )
+    if "runtime_contract" in bindings:
+        fallback_errors = validate_fallback_runtime_contract(
+            runtime_contract, detector_config, bindings)
+        if fallback_errors:
+            raise DatasetError(
+                "accuracy evaluation refused because fallback identity is invalid:\n- "
+                + "\n- ".join(fallback_errors)
+            )
     gt_errors = validate_annotations(
         ground_truth, manifest, require_reviewed=True, required_split=split)
     if ground_truth.get("info", {}).get("ground_truth_complete") is not True:
@@ -1260,6 +1318,15 @@ def evaluate(
     gt_ok = len(gt_images) - gt_ng
     return {
         "accuracy_metrics_claimed": True,
+        "baseline_classification": (
+            "provisional ONNX Runtime CPU fallback; not formal P4 TensorRT evidence"
+            if "runtime_contract" in bindings else "formal TensorRT evaluation"),
+        "formal_p4_tensorrt_evidence": "engine" in bindings,
+        "runtime_identity": ({
+            "backend": runtime_contract["backend"],
+            "provider": runtime_contract["provider"],
+            "runtime_version": runtime_contract["runtime_version"],
+        } if "runtime_contract" in bindings else {"backend": "TensorRT"}),
         "ground_truth_complete": True,
         "evaluation_split": split,
         "review_excluded_images": review_excluded,
@@ -1402,10 +1469,13 @@ def command_evaluate(args: argparse.Namespace) -> None:
         "manifest": args.manifest,
         "class_catalog": args.class_catalog,
         "model": args.model,
-        "engine": args.engine,
         "detector_config": args.detector_config,
         "attestation": args.attestation,
     }
+    if args.engine is not None:
+        binding_paths["engine"] = args.engine
+    else:
+        binding_paths["runtime_contract"] = args.runtime_contract
     bindings = {}
     for name, path in binding_paths.items():
         if not path.is_file():
@@ -1414,7 +1484,9 @@ def command_evaluate(args: argparse.Namespace) -> None:
     report = evaluate(
         read_json(args.ground_truth), read_json(args.predictions),
         read_json(args.manifest), args.iou, read_json(args.attestation),
-        bindings, args.split)
+        bindings, args.split,
+        read_json(args.runtime_contract) if args.runtime_contract else None,
+        read_json(args.detector_config))
     write_json(args.output, report)
     print(json.dumps({"image_count": report["image_count"], "micro": report["micro"],
                       "cigarette_level": report["cigarette_level"]}, sort_keys=True))
@@ -1468,7 +1540,9 @@ def build_parser() -> argparse.ArgumentParser:
     evaluation.add_argument("--predictions", type=Path, required=True)
     evaluation.add_argument("--attestation", type=Path, required=True)
     evaluation.add_argument("--model", type=Path, required=True)
-    evaluation.add_argument("--engine", type=Path, required=True)
+    runtime = evaluation.add_mutually_exclusive_group(required=True)
+    runtime.add_argument("--engine", type=Path)
+    runtime.add_argument("--runtime-contract", type=Path)
     evaluation.add_argument("--detector-config", type=Path, required=True)
     evaluation.add_argument("--iou", type=float, default=0.5)
     evaluation.add_argument("--split", choices=sorted(VALID_SPLITS - {"unassigned"}), default="test")

@@ -39,7 +39,16 @@
 | KI-033 | 阻断 | `wuzi`、`jietou` 无源码支持的正式中文业务定义，现有 Qt 也没有对应逐类阈值 | 类别目录标为 `unconfirmed-do-not-label`，等待业务确认，不靠拼音猜测 | 开放 | P5 |
 | KI-034 | 阻断 | ONNX 元数据/原型资料包含 AGPL 或研究用途提示，商业许可与第三方代码合规未确认 | 当前只做内部本地评估；商用交付前需形成模型、Ultralytics 和第三方代码许可清单 | 开放 | P5/P8 |
 | KI-035 | 高 | P5-02 视觉抽查仍见大范围框、低置信框、重叠框和疑似类别误报，当前模型效果不能按截图判定为商业可用 | `artifacts/p5-pilot-20260711-192148/review-package/previews`；必须先完成人工双人真值，再量化阈值/NMS/过滤或训练前后效果 | 开放 | P5 |
-| KI-036 | 阻断 | 30 图 pilot 目前只有预测预标注，授权仍为 unverified，人工标注人/复核人为空 | `pilot-review.csv` 全部 pending；11 图含未确认 `wuzi` 被强制 REVIEW | 开放 | P5 |
-| KI-037 | 高 | P5 首标工作台是无账号体系的 localhost 单机工具，reviewed 真值导出尚未实现 | 启动器强制显式 package 并仅绑定 loopback；`/api/export-reviewed` 固定 409；不得暴露到局域网或把首轮 `annotated` 当真值 | 接受限制 | P5-02C3 |
+| KI-036 | 阻断 | 旧工作台只保存一个名字，曾导致复核身份与授权证据缺失 | 2026-07-19 用户澄清肖朗逐页标注、小狼逐页检查并批准为真实数据；原 pass1 不变，正式证据 `artifacts/p5-reviewed-truth-20260719-124537` 为 30 reviewed、20 comparable、10 REVIEW excluded、35 GT 框；独立 reviewer/QA 最终 PASS | 已修复 | P5-02C3 |
+| KI-037 | 高 | P5 首标工作台是无账号体系的 localhost 单机工具，且旧导出只保存单一人员名 | 工作台继续仅绑定 loopback、`/api/export-reviewed` 固定 409；复核晋级改由哈希绑定的 `p5_promote_reviewed_truth.py` 和项目负责人 attestation 完成，不把原 pass1 原地改真值 | 接受限制 | P5-02C3 |
+| KI-038 | 低 | 当前 Windows 会话无创建符号链接权限，P5 可视化包的符号链接逃逸子分支未取得运行态证据 | 独立 QA `019f7866-8956-7af3-b466-c578bce34bc6`；`..`、绝对路径、分析输出及构建入口逃逸均已实际拒绝；待开发者模式、相应权限或 CI 补证 | 接受限制（非阻断） | P5/CI |
 
 详细审计摘要见 `docs/code-audit.md`。代码检查不能替代 Windows、GPU 或真实硬件运行证据。
+
+## KI-037: formal P4 TensorRT baseline unavailable on current host
+
+- Status: OPEN; fallback baseline available but explicitly non-formal.
+- Available `.engine` files fail TensorRT 8.6.1 deserialization with `Magic tag does not match`.
+- ONNX-to-engine recovery fails at a `Mod` node because the required plugin is unavailable.
+- Required recovery input: compatible compiled inference executable plus DLLs, a host-compatible engine, or the exact original TensorRT/CUDA/plugin toolchain.
+- No additional human annotation is required for this blocker.

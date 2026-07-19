@@ -87,10 +87,13 @@ def ground_truth_attestation(bindings=None):
 
 
 def run_evaluate(truth, predictions, manifest, iou=0.5, split="test",
-                 attestation=None, bindings=None):
+                 attestation=None, bindings=None, runtime_contract=None,
+                 detector_config=None):
     bindings = bindings or evaluation_bindings()
     attestation = attestation or ground_truth_attestation(bindings)
-    return TOOLS.evaluate(truth, predictions, manifest, iou, attestation, bindings, split)
+    return TOOLS.evaluate(
+        truth, predictions, manifest, iou, attestation, bindings, split,
+        runtime_contract, detector_config)
 
 
 class AuditTests(unittest.TestCase):
@@ -442,6 +445,57 @@ class ValidationTests(unittest.TestCase):
         value["info"]["class_catalog_sha256"] = "0" * 64
         errors = TOOLS.validate_annotations(value, manifest, require_reviewed=True)
         self.assertTrue(any("class_catalog_sha256" in error for error in errors))
+
+    def test_fallback_runtime_contract_is_accepted(self):
+        manifest = fixture_manifest()
+        truth = dataset([image(1, "a.png", "OK")], [])
+        predictions = dataset([image(1, "a.png", "OK", "preannotated", False)], [], complete=False)
+        bindings = evaluation_bindings()
+        del bindings["engine"]
+        bindings["runtime_contract"] = {"path": "runtime.json", "sha256": "9" * 64}
+        with tempfile.TemporaryDirectory() as temp:
+            source = Path(temp) / "source-runtime.json"
+            source.write_text("{}", encoding="utf-8")
+            contract = {
+                "schema_version": "p5-fallback-runtime-contract-v1",
+                "formal_p4_tensorrt_evidence": False,
+                "backend": "ONNX Runtime", "provider": "CPUExecutionProvider",
+                "runtime_version": "1.20.1",
+                "accuracy_scope": "provisional fallback only",
+                "model_sha256": bindings["model"]["sha256"],
+                "predictions_sha256": bindings["predictions"]["sha256"],
+                "source_runtime_manifest_path": str(source),
+                "source_runtime_manifest_sha256": TOOLS.sha256_file(source),
+            }
+            config = {
+                "schema_version": "p5-detector-config-v1",
+                "formal_p4_tensorrt_evidence": False,
+                "inference_backend": "ONNX Runtime CPU fallback",
+            }
+            report = run_evaluate(
+                truth, predictions, manifest,
+                attestation=ground_truth_attestation(bindings), bindings=bindings,
+                runtime_contract=contract, detector_config=config)
+            self.assertFalse(report["formal_p4_tensorrt_evidence"])
+            self.assertIn("not formal P4 TensorRT", report["baseline_classification"])
+            self.assertEqual(report["runtime_identity"]["provider"], "CPUExecutionProvider")
+            for field, bad_value in (("schema_version", "bad"),
+                                     ("formal_p4_tensorrt_evidence", True),
+                                     ("backend", "TensorRT"),
+                                     ("model_sha256", "0" * 64),
+                                     ("predictions_sha256", "0" * 64)):
+                bad = dict(contract); bad[field] = bad_value
+                with self.assertRaisesRegex(TOOLS.DatasetError, "fallback identity is invalid"):
+                    run_evaluate(
+                        truth, predictions, manifest,
+                        attestation=ground_truth_attestation(bindings), bindings=bindings,
+                        runtime_contract=bad, detector_config=config)
+            bad_config = dict(config); bad_config["formal_p4_tensorrt_evidence"] = True
+            with self.assertRaisesRegex(TOOLS.DatasetError, "fallback identity is invalid"):
+                run_evaluate(
+                    truth, predictions, manifest,
+                    attestation=ground_truth_attestation(bindings), bindings=bindings,
+                    runtime_contract=contract, detector_config=bad_config)
 
     def test_missing_evidence_binding_refuses_evaluation(self):
         manifest = fixture_manifest()

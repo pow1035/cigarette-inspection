@@ -394,13 +394,33 @@ class WorkbenchServerTests(unittest.TestCase):
         self.assertEqual(exported["info"]["annotators"], ["alice"])
         self.assertTrue(all(item["annotated_by"] == "alice" for item in exported["images"]))
 
-    def test_unconfirmed_class_cannot_be_exported_as_ng(self):
+    def test_mixed_confirmed_and_unconfirmed_boxes_can_complete_as_review(self):
+        state = self.complete(self.state())
+        image = state["images"][0]
+        confirmed_category_id = image["boxes"][0]["category_id"]
+        image["decision"] = "REVIEW"
+        image["notes"] = "mixed confirmed and pending regions require review"
+        next_box_id = max(box["id"] for item in state["images"] for box in item["boxes"]) + 1
+        image["boxes"].append({
+            "id": next_box_id, "category_id": 7, "bbox": [30, 30, 8, 8], "source": "human"})
+        status, saved = self.request("POST", "/api/save", state)
+        self.assertEqual(status, 200)
+        self.assertEqual(saved["images"][0]["decision"], "REVIEW")
+        self.assertEqual(len(saved["images"][0]["boxes"]), 2)
+        self.assertEqual(self.request("POST", "/api/export-pass1")[0], 200)
+        exported = json.loads((self.workspace / "pass1-annotations.coco.json").read_text(encoding="utf-8"))
+        mixed = [item for item in exported["annotations"] if item["image_id"] == image["id"]]
+        self.assertEqual({item["category_id"] for item in mixed}, {confirmed_category_id, 7})
+        self.assertFalse(exported["images"][0]["is_ground_truth"])
+
+    def test_unconfirmed_ng_is_normalized_to_review_before_save(self):
         state = self.complete(self.state())
         state["images"][0]["boxes"][0]["category_id"] = 7
-        status, payload = self.request("POST", "/api/save", state)
-        self.assertEqual(status, 400)
-        self.assertIn("unconfirmed", payload["error"])
-        self.assertFalse((self.workspace / "pass1-annotations.coco.json").exists())
+        state["images"][0]["notes"] = "class requires business review"
+        status, saved = self.request("POST", "/api/save", state)
+        self.assertEqual(status, 200)
+        self.assertEqual(saved["images"][0]["decision"], "REVIEW")
+        self.assertEqual(self.request("POST", "/api/export-pass1")[0], 200)
 
     def test_reviewed_export_is_controlled_refusal(self):
         status, payload = self.request("POST", "/api/export-reviewed")

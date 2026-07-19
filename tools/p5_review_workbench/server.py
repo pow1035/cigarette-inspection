@@ -169,7 +169,7 @@ class ReviewWorkbench:
             **item,
             "display_name": item["display_name_zh"],
             "status": item["mapping_status"],
-            "labelable": item["id"] not in {7, 8},
+            "labelable": True,
         } for item in self.categories]
         required_package_files = [
             "pilot-preannotations.coco.json", "pilot-review.csv", "pilot-manifest.json",
@@ -193,6 +193,9 @@ class ReviewWorkbench:
         self.category_ids = {item["id"] for item in self.categories}
         if self.state_path.exists():
             state = _read_json(self.state_path)
+            for category in state.get("categories", []):
+                if category.get("id") in {7, 8}:
+                    category["labelable"] = True
             self._validate_state(state, expected_revision=None)
             self.state = state
         else:
@@ -396,10 +399,10 @@ class ReviewWorkbench:
                     raise WorkbenchError(
                         HTTPStatus.BAD_REQUEST,
                         f"completed image {image_id} requires server-stamped provenance")
-                if decision in {"OK", "REVIEW"} and boxes:
+                if decision == "OK" and boxes:
                     raise WorkbenchError(
                         HTTPStatus.BAD_REQUEST,
-                        f"completed {decision} image {image_id} must not contain boxes")
+                        f"completed OK image {image_id} must not contain boxes")
                 if decision == "NG" and not boxes:
                     raise WorkbenchError(
                         HTTPStatus.BAD_REQUEST,
@@ -453,8 +456,7 @@ class ReviewWorkbench:
         for category in public["categories"]:
             category.setdefault("display_name", category.get("display_name_zh", category.get("name", "")))
             category.setdefault("status", category.get("mapping_status", ""))
-            if category.get("id") in {7, 8}:
-                category["labelable"] = False
+            category["labelable"] = True
         for image in public["images"]:
             if image["review_state"] == "annotation-complete":
                 image["review_state"] = "complete"
@@ -511,6 +513,9 @@ class ReviewWorkbench:
                     client_box_ids.add(box_id)
                     box["id"] = next_box_id
                     next_box_id += 1
+            if (image.get("decision") == "NG"
+                    and any(box.get("category_id") in {7, 8} for box in image.get("boxes", []))):
+                image["decision"] = "REVIEW"
         return normalized
 
     def _stamp_completion_provenance(self, normalized) -> None:
@@ -608,13 +613,13 @@ class ReviewWorkbench:
                 }
                 exported["images"].append(image)
                 boxes = current["boxes"]
-                if current["decision"] in {"OK", "REVIEW"} and boxes:
-                    raise WorkbenchError(HTTPStatus.CONFLICT, "OK and REVIEW images must have no annotations")
+                if current["decision"] == "OK" and boxes:
+                    raise WorkbenchError(HTTPStatus.CONFLICT, "OK images must have no annotations")
                 if current["decision"] == "NG" and not boxes:
                     raise WorkbenchError(HTTPStatus.CONFLICT, "NG images must have at least one annotation")
                 if current["decision"] == "NG" and any(box["category_id"] in {7, 8} for box in boxes):
                     raise WorkbenchError(HTTPStatus.CONFLICT, "classes 7 and 8 cannot be exported as NG")
-                if current["decision"] != "NG":
+                if current["decision"] not in {"NG", "REVIEW"}:
                     continue
                 for box in boxes:
                     annotation = {

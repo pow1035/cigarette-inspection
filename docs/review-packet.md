@@ -23,7 +23,7 @@
 - 覆盖：4 来源组、2 尺寸、12 OK/18 NG、class 0/1/2/3/4/5/7；11 个含未确认类别样本强制 REVIEW。
 - 自查：`python -m py_compile` PASS；PowerShell parser PASS；`git diff --check` PASS（仅 CRLF 转换提示）。
 
-### 请求独立检查
+### 独立检查结论
 
 - reviewer：算法确定性、特征覆盖、重复/split、防泄漏、预测 provenance、错误路径、证据假绿与文档一致性。
 - QA：从当前工作树独立复跑、复算输入/输出哈希、攻击无效 size/不完整 COCO、抽查原图/预览，并确认无真实硬件/剔除/准确率声明。
@@ -431,3 +431,93 @@ P0 是文档引导阶段，代码测试不在范围内，未运行代码测试�
 - reviewer 检查身份/路径/状态/原子性/revision/导出 provenance、超限体处理、loopback 边界和文档声明。
 - QA 从当前工作树独立运行测试/API/浏览器或等价用户流程，确认没有把 Codex QA 草稿、`annotated` 或预测框提升为 ground truth。
 - 最终状态：三轮针对性返修后，独立 reviewer/QA 均 PASS；AC-05-05/P5-02C1 技术切片提交门关闭。P5-02C2/C3 仍未开始，不建议把 P5 整体作为完成提交。
+
+## 2026-07-18 P5 探索性分歧分析评审包
+
+### 范围与限制
+
+- 新增 `scripts/p5_exploratory_consistency.py` 和对应测试，只比较 P4 模型输出与 30 图单标注员 pass1 参考。
+- 两侧都必须显式保持 `ground_truth_complete=false`、`accuracy_metrics_claimed=false` 和逐图逐框 `is_ground_truth=false`；单标注员侧必须为 `annotation_stage=pass1`。
+- 输出只允许 same/different、空间匹配/类别改变和单侧框数量；人工 `REVIEW` 从图片决定比较中排除。
+- 不训练、不调阈值/NMS、不形成正式效果、FP/FN 或验收声明；不连接相机、DAQNavi 或真实剔除。
+
+### 评审证据
+
+- 输出：`artifacts/p5-exploratory-analysis-20260718-131039`；manifest SHA-256 `05697C73450DB607B30E811A6C3F89DD25B99C9CCCFFD3C721E1C800F952587F`。
+- 30 图：14 same、6 different、10 REVIEW excluded。
+- 70 个模型框、71 个人工参考框：36 同位置同类别、4 同位置类别改变、30 仅模型侧、31 仅人工参考侧；101 行账目闭合。
+- 最终 targeted 6/6、P5 全量 55/55；`py_compile`、`node --check`、`git diff --check` 通过。
+- 独立 reviewer `019f73a2-d454-7d91-82be-3ac4de258711` 和独立 QA `019f73a2-d5d2-74f2-9d7c-d9f4c39e53c4` 均 PASS。reviewer 唯一 P3 加固建议已转为正式回归测试。
+
+## 2026-07-19 P5 探索性分歧可视化评审包
+
+### 范围与硬边界
+
+- 审查 `scripts/p5_visual_disagreement_pack.py`、`tests/p5/test_p5_visual_disagreement_pack.py` 和正式目录 `artifacts/p5-exploratory-visual-pack-20260719-113656`。
+- 只把既有描述性分歧分析转换成三栏案例图、中文离线 HTML、CSV、README、summary 和 manifest；不重新匹配出另一套统计，不接受未绑定输入。
+- 模型侧与单标注员 pass1 都必须保持非真值；产物只用于分歧定位，不用于训练、调阈值/NMS、正式效果或验收。
+
+### 要求 reviewer/QA 核对
+
+- 分析 manifest 与三输入哈希绑定、分析重新计算一致性、源图 SHA-256/尺寸、全部输出哈希和 HTML 本地路径。
+- 选图并集必须为 19：6 张决定不同、10 张人工 REVIEW、3 张类别改变图；类别改变框必须为 4。
+- 颜色含义：绿=同位置同类别、橙=同位置类别改变、红=仅模型侧、蓝=仅人工参考侧；三栏为原图/模型输出/单标注员参考。
+- Windows FreeType 不可用时应降级而非失败；源图身份错误必须在输出目录创建前拒绝；路径逃逸、链接逃逸和分析输出逃逸必须拒绝，中途失败不得留下正式目录或 staging。
+- 扫描正式效果术语和错误真值/验收声明；确认无外部网络依赖。
+
+### 本机验证证据
+
+- 正式目录 manifest SHA-256：`E0D64E78B073BD2403607F54E8E0537CD93B820C7D9E78E337D9E20A3E3A528F`。
+- targeted 12/12，P5 全量 67/67；`py_compile`、`node --check`、`git diff --check` 通过。
+- 19 JPEG、19 CSV 行、19 HTML 本地图片链接、23 个 manifest 输出绑定、19 个源图绑定全部复核；正式效果术语边界扫描 0，HTML 外部 URL 0、script 标签 0。
+- 原图栏最大平均 JPEG 像素差 0.789/255；代表案例 40、44、6 的预期框色可机械检出。当前编排界面不支持本地图片输入，因此这项机械检查不冒充人工肉眼业务复核。
+### 独立门禁结果
+
+- 首轮 reviewer `019f7866-87b9-7d33-a78f-ed4a97d13167` 对候选目录 `112152` 判定 FAIL：`../` 源图路径逃逸、包级非原子、默认字体中文动态文本风险及关键失败路径测试不足。
+- 返修后同一 reviewer 对正式目录 `113656` 判定 PASS；首轮 finding 全部 RESOLVED，无开放 P0-P3 finding。
+- 独立 QA `019f7866-8956-7af3-b466-c578bce34bc6` 判定 PASS：24 个文件清单、23 个输出哈希、19 个源图绑定、19 个案例和 HTML/CSV 链接全部一致；路径逃逸拒绝、中途失败清理和默认字体降级均通过。
+- QA 唯一 P3 环境限制：当前 Windows 会话不能创建符号链接，因此链接逃逸分支未取得运行态证据；应在启用开发者模式、具备相应权限的环境或 CI 中补充，不阻断当前技术切片。
+- 最终结论：P5-02C4 技术切片 PASS；P5 整体仍进行中，不能据此声明模型效果、准确率、真值完成或商业验收。
+
+## 2026-07-19 P5-02C3 双人复核真值晋级评审包
+
+### 人工事实与范围
+
+- 项目负责人确认：肖朗逐页标注，小狼逐页检查；旧工作台只保存肖朗。项目负责人批准 30 图作为真实数据。
+- 原 pass1 保持不变且不改写为真值；本切片只新增独立晋级脚本、测试和本地 ignored artifact，不进入 P6/P7，不训练、不调阈值/NMS。
+- 10 张 `REVIEW` 是已复核 split 成员，但排除评估分母且正式 GT 零框；其 36 个参考框仅保留在原 pass1。
+
+### 候选证据
+
+- 脚本：`scripts/p5_promote_reviewed_truth.py`
+- 测试：`tests/p5/test_p5_promote_reviewed_truth.py`
+- 正式目录：`artifacts/p5-reviewed-truth-20260719-124537`
+- 原 pass1 SHA-256：`E09708A8B6AB989E01F68E5B854EB673B66C12CB51448D5F55AABC6D33CC5E43`
+- 计数：30 reviewed；20 comparable；10 REVIEW excluded；35 GT boxes；36 REVIEW reference boxes only in pass1。
+
+### 最终验证
+
+- 定向晋级测试：8/8 PASS。
+- P5 全量：75/75 PASS。
+- 外部真值门：`valid=true`、`error_count=0`、`require_reviewed=true`。
+- 独立结构审计：输入 4/4、实现 2/2、输出 5/5 哈希/size 匹配；预测 annotations 完全不变；仅 pilot 30 条改 approved；非 pilot 保持 unverified。
+- AST：2/2 PASS；`git diff --check` exit 0（仅现有 CRLF 提示）。
+
+### 独立检查结论
+
+- reviewer `019f789f-575c-7ed0-ab72-809d63f11c1f`：最终 PASS；新候选无开放 P0-P3 finding。
+- QA `019f789f-7a77-7be3-a447-fc32133c0534`：最终 PASS；独立 250ms 漂移探针被正确拒绝，8/8 与 75/75 复跑通过。
+- P5-02C3 复核晋级切片提交门已关闭；P5 整体仍进行中，下一步是绑定 P4 模型/engine/config 运行小规模 pilot 基线。
+
+## P5-02C4 provisional fallback pilot baseline (2026-07-19)
+
+- Status: implementation and local verification PASS; independent review/QA pending.
+- Artifact: `artifacts/p5-fallback-baseline-20260719-161114/` (local evidence only; never commit).
+- Classification: ONNX Runtime 1.20.1 CPU fallback, **not** formal P4 TensorRT evidence.
+- Frozen inputs: approved 30-image pilot, reviewed GT, model SHA-256 `956554A92E8E7F9338B86E2B25FAE3E40F87DDF7F702E04B213AE46C5E26D0C4`, confidence threshold 0.25, IoU 0.50. No training or threshold/NMS tuning occurred.
+- Evaluation population: 20 comparable images; 10 REVIEW images excluded.
+- Box-level micro: TP=13, FP=24, FN=22, precision=0.351351, recall=0.371429, F1=0.361111.
+- Cigarette-level: 10 GT NG / 10 GT OK; missed-NG=3 (0.30), false-NG=3 (0.30).
+- Regression: `python -m unittest discover -s tests/p5 -p "test_*.py"` -> 76/76 PASS.
+- TensorRT remains blocked: all available engines fail TensorRT 8.6.1 deserialization; rebuilding from ONNX fails because the `Mod` node plugin is unavailable.
+- This pilot result is diagnostic only and is not a product-acceptance or commercial-performance claim.

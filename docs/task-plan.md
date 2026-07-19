@@ -103,10 +103,11 @@ P4 不接相机队列，不生成 `RejectCommand`，不触达 DAQNavi 或真实�
 | P5-02A 30 图确定性试标集 | 通过（技术切片） | 正式 `artifacts/p5-pilot-20260711-192148`；独立 QA `artifacts/p5-pilot-20260711-192926`；29/29；reviewer/QA PASS |
 | P5-02B 可复核标注包 | 通过（技术切片） | 30 原图、30 带框预览、COCO 预标注、派生 pilot manifest 和 UTF-8 CSV；11 个含未确认类别样本强制 REVIEW |
 | P5-02C1 本地首标工作台 | 通过（技术切片） | 48/48、超限 10/10、Browser QA；运行期 65 文件哈希、逐图署名、state/package provenance；独立 reviewer/QA 最终 PASS |
-| P5-02C2 真实人工首标 | 未开始 | 需要责任标注人逐图完成 30 图；Codex QA 草稿不计人工标注，不产生 ground truth |
-| P5-02C3 独立复核与授权真值 | 未开始 | 需要不同复核人、业务类别确认、数据授权和 reviewed attestation；完成前无 ground truth、无准确率 |
+| P5-02C2 真实人工标注与逐页复核 | 已完成（人工事实） | 肖朗完成 30/30、小狼逐页检查；原工作台只保存肖朗，原始 71 框 pass1 保持不变 |
+| P5-02C3 双人复核与授权真值 | 通过（复核晋级切片） | 肖朗标注、小狼逐页检查、项目负责人批准；正式证据 `artifacts/p5-reviewed-truth-20260719-124537`；reviewer/QA 最终 PASS，8/8 定向、75/75 P5 全量 |
+| P5-02C4 探索性分歧可视化 | 通过（技术切片） | `artifacts/p5-exploratory-visual-pack-20260719-113656`：19 张并集案例、中文离线 HTML、CSV、README、23 个输出哈希；独立 reviewer/QA 最终 PASS；两侧均非真值 |
 
-P5-01、P5-02A/B 和 P5-02C1 技术切片已通过门禁；P5 整体仍进行中：P5-02C2/C3 未开始，当前不训练模型、不改 Qt 产品 UI、不声明准确率。只有形成 approved、双人 reviewed 真值且冻结 split 达到覆盖要求后，才进入阈值/NMS 或训练决策。
+P5-01、P5-02A/B、P5-02C1 技术切片已通过门禁。2026-07-19 用户澄清：30 图当时由肖朗逐页标注、小狼逐页检查，旧工作台仅保存一个名字；用户现批准其作为真实数据。原 pass1 不变，另行生成 approved/reviewed pilot：30 图均复核，10 张 REVIEW 排除指标分母，20 张可比较、35 个正式真值框。P5-02C3 独立门禁已通过；P5 整体仍进行中：下一步绑定 P4 模型/engine/config 形成小规模 pilot 基线；类别业务批准、完整 train/validation/test 划分和代表性覆盖仍未完成。冻结 pilot 不得用于训练或阈值/NMS 调优。
 
 ## 审查与 QA 节奏
 
@@ -115,3 +116,13 @@ P5-01、P5-02A/B 和 P5-02C1 技术切片已通过门禁；P5 整体仍进行中
 - UI 阶段：Windows 本地应用需要 Computer/人工运行证据；Mac 上的代码检查不能替代。
 - 现场硬件阶段当前冻结且不排期；未来恢复时必须另立阶段，并由用户或现场人员报告人工 QA。
 - P3、P5、P7 后评估一次定向清理，P8 前强制清理审查。
+
+### P5-02C4 provisional fallback baseline
+
+- [x] Preserve formal TensorRT/fallback identity separation.
+- [x] Add mutually exclusive `--engine` / `--runtime-contract` evaluation bindings.
+- [x] Run frozen pilot fallback evaluation (20 comparable, 10 REVIEW excluded).
+- [x] Generate local immutable evidence manifest and baseline summary.
+- [x] Run P5 regression (76/76 PASS).
+- [ ] Independent reviewer and QA verdicts.
+- [ ] Formal TensorRT rerun after compatible runtime/executable/engine is restored.

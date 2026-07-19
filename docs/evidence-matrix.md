@@ -30,11 +30,35 @@
 | AC-04-01 | TensorRT 10.x 检测器通过 JSON 配置 engine、张量名、992 输入、阈值、9 类映射和禁用类别 | `adapters/tensorrt/TensorRtDetector.*`；`artifacts/p4-tensorrt-20260711-150510/detector-config.json`、`manifest.json`；engine/尺寸 exit 4，残缺/冲突 CLI exit 2；reviewer 最终复核 | 通过 | 中文业务名、逐类阈值仍未确认，不影响适配器可配置性证明 |
 | AC-04-02 | 116 图固定清单生成逐图结果、带框图、汇总分布和 detector latency | 同目录 `fixed-input-manifest.json`、`batch-output`、`effect-summary.json`；`artifacts/p4-audit-20260711-141545`；独立 QA `artifacts/p4-qa-independent-postfix-20260711` | 通过 | 116 文件含 113 个唯一哈希；无人工 ground truth，不声明准确率 |
 
-| AC-05-01 | P5 数据清单、重复关系、来源组、类别目录和真值规则可审计 | `docs/p5-source-inventory.md`、`docs/p5-labeling-guide.md`、`config/p5-class-catalog.json`；`artifacts/p5-data-20260711-170640`；reviewer/QA 最终 PASS | 进行中 | 工具基线通过；授权审批、人工 reviewed 真值和冻结 split 尚未完成 |
-| AC-05-02 | 评估工具拒绝未复核、未授权、带预测 provenance 或缺哈希声明的数据，并可计算框级/烟支级指标 | 正式 20/20；reviewer PASS；QA `artifacts/p5-qa-independent-20260711-170802` 对抗 12/12、证据门 12/12 | 进行中 | 工具能力通过但没有实际真值报告；本地声明不是不可伪造签名，99 个 `wuzi` 框仍待业务确认 |
+| AC-05-01 | P5 数据清单、重复关系、来源组、类别目录和真值规则可审计 | 既有数据审计；原 pass1 SHA-256 `E097...E43`；晋级证据 `artifacts/p5-reviewed-truth-20260719-124537`：30 reviewed、20 comparable、10 REVIEW excluded、35 GT 框；reviewer/QA 最终 PASS | 进行中 | 30 图 pilot 已授权并冻结；完整 train/validation/test 划分、类别业务批准和代表性覆盖仍未完成 |
+| AC-05-02 | 评估工具拒绝未复核、未授权、带预测 provenance 或缺哈希声明的数据，并可计算框级/烟支级指标 | `scripts/p5_dataset_tools.py`；`artifacts/p5-reviewed-truth-20260719-124537`；定向 8/8、P5 全量 75/75，正式 GT 与 predictions 校验 error 0 | 进行中 | 真值已具备；下一步须精确绑定 P4 模型、engine、detector config 后运行 pilot 基线，10 REVIEW 排除且多类零支持 |
 | AC-05-04 | 30 图试标集可确定性复现且不修改源图 | 正式 `artifacts/p5-pilot-20260711-192148`；reviewer `019f50b8-2d80-7e10-af4a-cdbd9b12cddc` PASS；独立 QA `019f50ef-db01-7cb0-b37a-f1af708b8cde`、`artifacts/p5-pilot-20260711-192926`：29/29、30 原图/预览/绑定，gate PASS | 通过 | QA 额外对抗检查未单独持久化，故不作数量声明；11 图 REVIEW，授权/双人真值/准确率仍未验证 |
-| AC-05-05 | localhost 首标工作台的身份、状态、保存和导出门可重复验证 | `artifacts/p5-review-workbench-20260711-203902`：48/48、超限 10/10、Browser QA、20/20 manifest、9/9 源码、65/65 package；reviewer/QA 最终 PASS | 通过（技术切片） | Codex QA 不是人工 QA/ground truth；P5-02C2/C3 未开始 |
+| AC-05-05 | localhost 首标工作台的身份、状态、保存和导出门可重复验证 | 既有工作台证据；原 pass1 保持 `is_ground_truth=false`；独立晋级脚本、attestation 与输出 manifest 位于 `artifacts/p5-reviewed-truth-20260719-124537`；reviewer/QA 最终 PASS | 通过（技术切片） | 工作台只保存单名；用户补充复核事实后通过独立哈希晋级，不修改旧 pass1 |
 
 P5-P8 已按用户决定重排为全本地阶段，当前均保持未验证：P5 需要标注/指标/优化对照，P6 需要本地实时流与模拟剔除证据，P7 需要沿用现有风格的 Qt UI/功能运行证据，P8 需要稳定性、性能和部署预验收证据。真实相机、DAQNavi 和真实剔除冻结且不在这些阶段声明内。
 
 路线文档一致性证据（2026-07-11）：`README.md`、`AGENTS.md`、`docs/task-plan.md` 及相关记录系统；`light_gate.py` 无 warning；`git diff --check` exit 0；唯一阶段标记为 P5；旧 P5/P6 现场路线扫描无命中；PowerShell 等价文档结构检查通过。Git Bash 可用，但原脚本的未跟踪文件检查与当前 Windows CRLF 工作树不兼容，记录为 degraded validator compatibility。
+
+## P5-02C4 provisional fallback pilot baseline (2026-07-19)
+
+- Status: implementation and local verification PASS; independent review/QA pending.
+- Artifact: `artifacts/p5-fallback-baseline-20260719-161114/` (local evidence only; never commit).
+- Classification: ONNX Runtime 1.20.1 CPU fallback, **not** formal P4 TensorRT evidence.
+- Frozen inputs: approved 30-image pilot, reviewed GT, model SHA-256 `956554A92E8E7F9338B86E2B25FAE3E40F87DDF7F702E04B213AE46C5E26D0C4`, confidence threshold 0.25, IoU 0.50. No training or threshold/NMS tuning occurred.
+- Evaluation population: 20 comparable images; 10 REVIEW images excluded.
+- Box-level micro: TP=13, FP=24, FN=22, precision=0.351351, recall=0.371429, F1=0.361111.
+- Cigarette-level: 10 GT NG / 10 GT OK; missed-NG=3 (0.30), false-NG=3 (0.30).
+- Regression: `python -m unittest discover -s tests/p5 -p "test_*.py"` -> 76/76 PASS.
+- TensorRT remains blocked: all available engines fail TensorRT 8.6.1 deserialization; rebuilding from ONNX fails because the `Mod` node plugin is unavailable.
+- This pilot result is diagnostic only and is not a product-acceptance or commercial-performance claim.
+
+## P5-02C4 final independent review (2026-07-19)
+
+- Initial reviewer: FAIL because `runtime_contract` was hash-bound but not semantically validated.
+- Repair: strict schema/backend/provider/version/scope validation; model and predictions cross-hash checks; source runtime manifest hash check; detector-config identity check; explicit report classification; negative tests.
+- Independent reviewer after repair: PASS.
+- Independent QA: PASS, limited to provisional ONNX Runtime CPU fallback baseline.
+- Regression after repair: 76/76 PASS; `git diff --check` PASS (line-ending warnings only).
+- Evidence report SHA-256: `2bc9b7115ba67563308fcb70fe3c4435c8849b89346962b8148d6487917b24d3`.
+- Evidence manifest SHA-256: `9a9fd67471413eebcd8cd57179a8048bf7e868f313035921459046b6735968d6`.
+- Formal TensorRT baseline remains BLOCKED / NOT VERIFIED under KI-037.

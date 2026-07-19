@@ -189,3 +189,40 @@ P4 关闭后的路线调整属于用户产品规划决定，不改变 P4 reviewe
 - 独立 reviewer `019f4fd0-7aa5-7af3-b82b-7b7ebb14ed55` 与 `019f511d-c5ed-7571-86e5-71372fd9d220`：最终 gate PASS，无开放 blocker。
 - 独立 QA `019f4fd0-8ec7-7801-a493-e2d6797aea23`：48/48、运行期替换/Host、20/20 manifest、9/9 source、65/65 package，最终 gate PASS。
 - 提交门：P5-02C1 技术切片关闭；P5-02C2/C3 未开始，P5 整体不声明准确率。
+
+## 2026-07-18 P5 探索性分歧分析评审结果
+
+- 独立 reviewer `019f73a2-d454-7d91-82be-3ac4de258711`：PASS；无阻断、高或中严重度 finding。确认双侧非真值门、IoU 0.5 空间优先确定性贪心、四类框结果、REVIEW 排除、身份/哈希绑定和禁用表述均正确。
+- reviewer 的 P3 建议：正式测试原先未逐项锁定预测侧门、字段缺失、效果声明、非 pass1、IoU 边界和同 IoU 决胜。现已补齐，targeted 从 4/4 增至 6/6，全 P5 从 53/53 增至 55/55；建议关闭。
+- 独立 QA `019f73a2-d5d2-74f2-9d7c-d9f4c39e53c4`：PASS；独立重算 30 图片、10 REVIEW、70/71 框和 101 结果行，六文件及三输入哈希一致，禁用指标术语扫描为 0。
+- 技术 gate：PASS（仅探索性分歧包）。P5 整体仍进行中；该 gate 不把单标注员参考升级为真值，不授权训练、阈值/NMS 调整、正式效果或验收结论。
+
+## 2026-07-19 P5 探索性分歧可视化评审结果
+
+- 首轮独立 reviewer `019f7866-87b9-7d33-a78f-ed4a97d13167` 对候选目录 `artifacts/p5-exploratory-visual-pack-20260719-112152` 判定 FAIL：1 项 P1 为源图相对路径可用 `../` 逃逸；3 项 P2 分别为整包生成非原子、FreeType 失败后的默认字体可能被中文动态文本触发崩溃、关键失败路径测试不足。
+- 返修采用受限目录 `resolve(strict=True)` 与 `relative_to` 双重边界验证、同父目录 staging 完整生成后原子重命名、异常清理、默认位图字体下动态文本 ASCII Unicode 转义，并把可视化定向测试扩充到 12 项。
+- 同一 reviewer 对正式目录 `artifacts/p5-exploratory-visual-pack-20260719-113656` 完成返修复核：首轮 4 项 finding 全部 RESOLVED，最终 PASS，P0/P1/P2/P3 均无开放 finding。
+- 独立 QA `019f7866-8956-7af3-b466-c578bce34bc6`：PASS，P0=0、P1=0、P2=0、P3=1。唯一 P3 是当前 Windows 会话缺少创建符号链接权限，符号链接逃逸子分支未取得运行态证据；`..`、绝对路径、分析输出和构建入口逃逸均已实际复现并拒绝，中途失败清理与默认字体中文动态文本降级均通过。
+- QA 复核正式目录共 24 个文件，其中 manifest 绑定 23 个输出；23/23 输出 SHA-256 和大小匹配，19/19 源图绑定匹配，19 张案例可解码，CSV 与 HTML 本地链接一致。新旧两个正式审查目录的 24/24 文件逐字节一致。
+- 最终本机门禁：可视化 targeted 12/12、P5 全量 67/67、`py_compile`、`node --check` 和 `git diff --check` 均通过。
+- 技术 gate：PASS（仅 P5-02C4 探索性可视化切片）。该结论不是人工肉眼业务复核，不把模型输出或单标注员 pass1 升级为真值，也不授权训练、阈值/NMS 调整、正式效果指标或验收结论；P5 整体保持进行中。
+## 2026-07-19 P5-02C3 双人复核真值晋级
+
+- 人工事实：肖朗完成 30 图逐页标注，小狼逐页检查；旧工作台只保存肖朗。项目负责人批准这 30 图作为真实数据。原 pass1 保持不变，SHA-256 为 `E09708A8B6AB989E01F68E5B854EB673B66C12CB51448D5F55AABC6D33CC5E43`。
+- 首轮候选 `122518` 未通过 reviewer 门：attestation 对时间依据表述过强，且 staging 写出后失败清理缺少测试；返修后候选 `123517` 的 reviewer 为 PASS。
+- QA 对 `123517` 判定 FAIL：晋级脚本允许 `reviewed_at` 相对源 mtime 偏差 ±500ms。该门已改为 datetime 精确相等，并新增 `mtime + 250ms` 拒绝测试；实现哈希改变后未原地修改旧候选，而是重新生成 `artifacts/p5-reviewed-truth-20260719-124537`。
+- 最终 reviewer `019f789f-575c-7ed0-ab72-809d63f11c1f`：PASS；4 项输入、2 项实现和 5 项输出绑定均通过，正式候选无开放 P0-P3 finding。
+- 最终 QA `019f789f-7a77-7be3-a447-fc32133c0534`：PASS；独立 250ms 漂移探针正确拒绝，定向 8/8、P5 全量 75/75，正式 GT/predictions validator 均 error 0，无 staging 残留。
+- 正式统计：30 reviewed、20 comparable、10 REVIEW excluded；OK/NG/REVIEW 各 10；正式 GT 35 框，REVIEW 的 36 个参考框只保留于原 pass1；正式 GT 中类别 7/8 为 0。标注人肖朗，复核人小狼。
+- 最终结论：P5-02C3 复核晋级切片 PASS。P5 整体仍进行中；冻结 pilot 不用于训练或阈值/NMS 调优，下一步仅运行精确绑定 P4 模型、engine 与 detector config 的小规模 pilot 基线，不据此声明完整数据集或商业效果。
+
+## P5-02C4 final independent review (2026-07-19)
+
+- Initial reviewer: FAIL because `runtime_contract` was hash-bound but not semantically validated.
+- Repair: strict schema/backend/provider/version/scope validation; model and predictions cross-hash checks; source runtime manifest hash check; detector-config identity check; explicit report classification; negative tests.
+- Independent reviewer after repair: PASS.
+- Independent QA: PASS, limited to provisional ONNX Runtime CPU fallback baseline.
+- Regression after repair: 76/76 PASS; `git diff --check` PASS (line-ending warnings only).
+- Evidence report SHA-256: `2bc9b7115ba67563308fcb70fe3c4435c8849b89346962b8148d6487917b24d3`.
+- Evidence manifest SHA-256: `9a9fd67471413eebcd8cd57179a8048bf7e868f313035921459046b6735968d6`.
+- Formal TensorRT baseline remains BLOCKED / NOT VERIFIED under KI-037.
