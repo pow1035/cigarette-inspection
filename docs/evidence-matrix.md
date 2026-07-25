@@ -77,7 +77,7 @@ P7 参数身份增量（2026-07-25）：ProductState 已扩展到 8/8，并在 G
 
 HEAD `6886856` 最终 full gate（2026-07-26）PASS：P5 100/100、P6 17/17、P8 76/76（preflight 17、soak 9、release 17、wrapper/collector 2、package manifest 7、evidence verify/import 24）、C++14/C++17、20 次重复、ASan/UBSan；PowerShell 13 个脚本 parser/analyzer 0 finding、CLI 7/7。该结论不覆盖目标 Windows/Qt/GPU/SDK/D 盘、真实数据、许可或硬件；P5 受控 artifact 仍缺失。
 
-最终独立复核（2026-07-26）：reviewer `019f9a55-8131-7423-96a7-44d934c28255` 与 QA `019f9a55-99a2-7011-887f-119893e3ec4f` 对当前 v2/v4/HMAC/文件锁增量均给出 PASS，P0/P1/P2/P3=0/0/0/0。PowerShell 静态门在 Colima/Linux arm64 使用 PowerShell 7.6.3 与 PSScriptAnalyzer 1.25.0 扫描 13 个 `.ps1`，parser/analyzer finding 0，CLI 7/7。GitHub Actions 已在线执行；首次运行发现的全局 analyzer 隔离差异已改用显式 `ScriptAnalyzerModulePath` 并本地复验。
+最终独立复核（2026-07-26）：reviewer `019f9a55-8131-7423-96a7-44d934c28255` 与 QA `019f9a55-99a2-7011-887f-119893e3ec4f` 对当前 v2/v4/HMAC/文件锁增量均给出 PASS，P0/P1/P2/P3=0/0/0/0。PowerShell 静态门在 Colima/Linux arm64 使用 PowerShell 7.6.3 与 PSScriptAnalyzer 1.25.0 扫描 13 个 `.ps1`，parser/analyzer finding 0，CLI 7/7。`a649621` 的在线 Actions `30168494128` PASS，但该运行仍使用 checkout v4/setup-python v5；当前 v6 升级尚待升级提交后的在线复验。首次运行发现的全局 analyzer 隔离差异已改用显式 `ScriptAnalyzerModulePath` 并本地复验。
 
 ## P5-02C5 provisional fallback pilot baseline (2026-07-19)
 

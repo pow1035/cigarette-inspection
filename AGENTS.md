@@ -11,7 +11,7 @@
 3. 按 `codex-long-task-architecture` 循环工作：实现、自查、验证、独立评审/QA（工具可用时）、更新证据、再过提交门。
 4. 每阶段结束时更新 `docs/progress-log.md`、`docs/evidence-matrix.md`、`docs/review-packet.md`、`docs/review-results.md` 和相关状态。
 5. 未通过提交门时，不声称阶段完成，不提交、合并或发布。
-6. 当前 `CURRENT_PHASE` 是 P8；测试集保持 P8 76 项，PowerShell 静态门保持 13 个脚本和 7 个 CLI 契约。主机证据已返修为现场 challenge 采集、v2 host report、v4 wrapper/receipt 与外置 HMAC 密钥，但返修后的最终 `--full` 门、独立 reviewer/QA 尚待执行；不得继承返修前的 PASS。P8 整体因 P5/P6/P7 外部输入，以及真实 Windows + Qt/HALCON/MVS/DAQNavi/CUDA/TensorRT/OpenCV 环境、数据、许可和硬件阻断保持进行中。P5-P8 只做本地数据效果、实时仿真、Qt 产品化和交付预验收，不得擅自恢复现场硬件路线。
+6. 当前 `CURRENT_PHASE` 是 P8；测试集保持 P8 76 项，PowerShell 静态门保持 13 个脚本和 7 个 CLI 契约。主机证据已返修为现场 challenge 采集、v2 host report、v4 wrapper/receipt 与外置 HMAC 密钥；HEAD `6886856` 的最终 `--full` 门及最终 reviewer/QA 均已 PASS。提交 `a649621` 的在线 Actions `30168494128` PASS，但该运行仍使用 checkout v4/setup-python v5；当前 workflow 已升级为 v6，尚待升级提交后的在线复验。P8 整体因 P5/P6/P7 外部输入，以及真实 Windows + Qt/HALCON/MVS/DAQNavi/CUDA/TensorRT/OpenCV 环境、数据、许可和硬件阻断保持进行中。P5-P8 只做本地数据效果、实时仿真、Qt 产品化和交付预验收，不得擅自恢复现场硬件路线。
 
 ## 文档维护节奏
 

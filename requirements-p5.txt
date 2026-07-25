@@ -1,4 +1,5 @@
 # Runtime/test dependency for the P5 visual disagreement pack.
-# The other P5 data, promotion, consistency, and workbench modules use only
-# Python's standard library.
 Pillow==11.3.0
+
+# Semantic validation of the GitHub Actions workflow.
+PyYAML==6.0.3

@@ -119,6 +119,88 @@ rg -q 'collect_windows_p8_host_reports\.ps1' README.md docs/task-plan.md \
 rg -q 'run_windows_p8_preacceptance\.ps1' README.md docs/task-plan.md \
   docs/evidence-matrix.md docs/p8-local-closure.md
 rg -q 'run_all_local_gates\.sh --core' .github/workflows/p5-local-gates.yml
+python3 - .github/workflows/p5-local-gates.yml <<'PY'
+import sys
+from pathlib import Path
+
+import yaml
+
+
+class UniqueKeyLoader(yaml.SafeLoader):
+    pass
+
+
+def construct_unique_mapping(loader, node, deep=False):
+    loader.flatten_mapping(node)
+    mapping = {}
+    for key_node, value_node in node.value:
+        key = loader.construct_object(key_node, deep=deep)
+        if key in mapping:
+            raise yaml.constructor.ConstructorError(
+                "while constructing a mapping",
+                node.start_mark,
+                f"found duplicate key {key!r}",
+                key_node.start_mark,
+            )
+        mapping[key] = loader.construct_object(value_node, deep=deep)
+    return mapping
+
+
+UniqueKeyLoader.add_constructor(
+    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
+    construct_unique_mapping,
+)
+
+workflow = Path(sys.argv[1])
+references = []
+try:
+    document = yaml.load(
+        workflow.read_text(encoding="utf-8"),
+        Loader=UniqueKeyLoader,
+    )
+except yaml.YAMLError as exc:
+    raise SystemExit(f"FAIL {workflow}: invalid or ambiguous YAML: {exc}") from exc
+
+
+def collect_uses(node):
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if key == "uses":
+                if not isinstance(value, str):
+                    raise SystemExit(
+                        f"FAIL {workflow}: uses value must be a string, found {value!r}"
+                    )
+                references.append(value)
+            collect_uses(value)
+    elif isinstance(node, list):
+        for value in node:
+            collect_uses(value)
+
+
+collect_uses(document)
+
+expected = {
+    "actions/checkout": "actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+    "actions/setup-python": "actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1",
+}
+for action, pinned_reference in expected.items():
+    prefix = f"{action}@"
+    actual = [
+        reference
+        for reference in references
+        if reference.casefold().startswith(prefix.casefold())
+    ]
+    if actual != [pinned_reference]:
+        raise SystemExit(
+            f"FAIL {workflow}: expected exactly {pinned_reference!r}, found {actual!r}"
+        )
+PY
+for ci_status_doc in README.md HANDOFF_P5.md AGENTS.md \
+    docs/evidence-matrix.md docs/observability.md docs/progress-log.md \
+    docs/review-packet.md docs/task-plan.md; do
+  rg -q '30168494128' "$ci_status_doc"
+  rg -q 'v6.*(尚待|等待).*在线复验' "$ci_status_doc"
+done
 rg -q 'run_python_suite tests/p8 76' scripts/run_all_local_gates.sh
 rg -q 'validate_powershell_scripts\.ps1' \
   .github/workflows/p5-local-gates.yml README.md docs/task-plan.md \
@@ -273,12 +355,17 @@ rg -q '20 次重复' README.md docs/task-plan.md docs/evidence-matrix.md \
   docs/progress-log.md docs/review-packet.md docs/review-results.md \
   docs/qa-checklist.md docs/p8-local-closure.md
 if rg -q '返修后.*full gate.*待|最终门待执行|最终门待跑|full gate/reviewer/QA 待执行' \
-    README.md HANDOFF_P5.md docs/acceptance-criteria.md \
+    README.md HANDOFF_P5.md AGENTS.md docs/acceptance-criteria.md \
     docs/evidence-matrix.md docs/known-issues.md docs/observability.md \
     docs/p8-local-closure.md docs/progress-log.md docs/qa-checklist.md \
     docs/review-packet.md docs/review-results.md docs/task-plan.md \
     docs/windows-target-execution.md; then
   echo "FAIL P8 documentation still reports the completed final full gate as pending" >&2
+  exit 1
+fi
+if rg -q '最终 reviewer/QA 仍须复核' \
+    README.md HANDOFF_P5.md AGENTS.md docs; then
+  echo "FAIL P8 documentation still reports completed final reviewer/QA as pending" >&2
   exit 1
 fi
 

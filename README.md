@@ -158,6 +158,6 @@ python3 scripts/p5_input_readiness.py --require-reviewed --require-fallback
 
 该命令 exit 0 表示指定范围输入通过内部 manifest 一致性检查，exit 2 只表示 reviewed-truth/fallback 证据目录尚未通过受控渠道恢复，exit 3 表示已有输入缺失、错配或格式非法。它不是 manifest 自身的签名认证：恢复 artifact 时还必须用受控渠道提供的 evidence-manifest SHA-256 做外部核对（fallback 的历史摘要见 `HANDOFF_P5.md`，reviewed 摘要当前未随 clone 提供）。当前 fresh clone 的预期结果是 exit 2；不能用缺失输入开始 pilot，也不能把 CPU smoke 当作正式 TensorRT 证据。
 
-GitHub Actions 的 `Local gates` 工作流定义会在 pull request、`main` push 和手动触发时执行文档/P1 静态门、P5/P6/P8 Python 回归（P8 当前精确计数 76）、contracts/offline/simulation/product-state 四组无 SDK C++ 回归，以及上述 PowerShell parser/PSScriptAnalyzer/Windows PowerShell 5.1 兼容门和 7 个 CLI 契约用例。本轮只在本机 Colima/Linux arm64 等价执行了 PowerShell 门，没有声称 GitHub Actions 已在线运行。Windows/MSVC、Qt UI、TensorRT/GPU 和现场硬件仍保留为人工或目标机门禁，不能由该 Linux CI 代替。
+GitHub Actions 的 `Local gates` 工作流会在 pull request、`main` push 和手动触发时执行文档/P1 静态门、P5/P6/P8 Python 回归（P8 当前精确计数 76）、contracts/offline/simulation/product-state 四组无 SDK C++ 回归，以及上述 PowerShell parser/PSScriptAnalyzer/Windows PowerShell 5.1 兼容门和 7 个 CLI 契约用例。提交 `a649621` 的在线运行 `30168494128` 已全部通过，但该运行仍使用 `actions/checkout@v4` 与 `actions/setup-python@v5`，并产生一条 Node 20 弃用 warning；当前 workflow 已升级到 Node 24 action runtime 的 v6，尚待升级提交后的在线复验。Windows/MSVC、Qt UI、TensorRT/GPU 和现场硬件仍保留为人工或目标机门禁，不能由该 Linux CI 代替。
 
 构建产物、IDE 缓存、依赖安装包、模型/engine、大测试数据和 `artifacts/` 证据目录不得提交。不要提交账号、许可证、设备序列号、客户资料、密钥或含机器身份的未脱敏日志。

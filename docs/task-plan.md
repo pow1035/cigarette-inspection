@@ -216,6 +216,7 @@ P5-01、P5-02A/B、P5-02C1 技术切片已通过门禁。2026-07-19 用户澄清
 - [x] 第六轮/最终 documentation maintenance 已同步 v2 host report、v4 wrapper/receipt、现场 challenge 采集、ownership/reparse 非递归失败边界、外置 32-byte key 与 SHA+HMAC 三项认证，并更新防回退文档门。
 - [x] HEAD `6886856` 最终 `./scripts/run_all_local_gates.sh --full` PASS：P5 100、P6 17、P8 76、C++14/C++17、20 次重复、ASan/UBSan；PowerShell 13 个脚本零 finding、CLI 7/7。
 - [x] 当前 v2/v4/HMAC/文件锁增量最终 reviewer `019f9a55-8131-7423-96a7-44d934c28255` 与 QA `019f9a55-99a2-7011-887f-119893e3ec4f` 均 PASS，P0/P1/P2/P3=0/0/0/0。
+- [x] `a649621` 在线 Actions `30168494128` PASS；该运行仍使用 checkout v4/setup-python v5。当前 checkout/setup-python 已升级到 Node 24 runtime 的 v6，尚待升级提交后的在线复验。
 - [x] 第七轮/最终 documentation maintenance 同步 full gate 与文件锁快照防护，并冻结本地证据边界。
 - [ ] 目标机与外部阻断关闭前保持 P8 进行中：Windows/PowerShell/Qt/GPU/D 盘、真实数据/正式 TensorRT、许可和硬件均不得由本地门替代。
 
@@ -228,7 +229,7 @@ PowerShell 静态门输出固定 `syntaxCompatibilityTargets=["5.1"]`、`scriptA
 - UI 阶段：Windows 本地应用需要 Computer/人工运行证据；Mac 上的代码检查不能替代。
 - documentation maintenance agent 固定在每个实现切片后、独立 review/QA 结果返回后、最终门禁前运行，核对记录系统后再允许进入下一门。
 - 现场硬件阶段当前冻结且不排期；未来恢复时必须另立阶段，并由用户或现场人员报告人工 QA。
-- P3、P5、P7 后评估一次定向清理。P8 v2/v4 返修已处理递归清理、历史重放、协调伪造和 PATH 执行风险；最终 reviewer/QA 仍须复核 ownership/reparse 竞态、key 隔离和 HMAC 信任边界。collector 保持单文件便于目标机部署，不因体量机械拆分。
+- P3、P5、P7 后评估一次定向清理。P8 v2/v4 返修已处理递归清理、历史重放、协调伪造和 PATH 执行风险；最终 reviewer/QA 已复核 ownership/reparse 竞态、key 隔离和 HMAC 信任边界并 PASS。collector 保持单文件便于目标机部署，不因体量机械拆分。
 
 ### P5-02C5 provisional fallback baseline
 
