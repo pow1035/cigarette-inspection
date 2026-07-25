@@ -1,7 +1,7 @@
 ﻿# P5 项目交接说明
 
-更新时间：2026-07-19  
-当前阶段：P5（本地数据效果与冻结 pilot 评估）  
+更新时间：2026-07-25
+当前阶段：P8（本地稳定性、部署与交付预验收）；P5/P6/P7 外部阻断保留
 当前分支：`main`
 
 ## 1. 本轮已经完成的工作
@@ -84,7 +84,17 @@
 python -m unittest discover -s tests\p5 -p "test_*.py"
 ```
 
-结果：76/76 PASS。
+当前结果：100/100 PASS（C6 历史快照为 76/76；新增 readiness 回归为 24 项）。
+
+接手机器还必须先运行受控输入就绪检查：
+
+```bash
+python3 scripts/p5_input_readiness.py --require-reviewed --require-fallback
+```
+
+exit 0 才表示指定范围输入可开始；exit 2 表示 fresh clone 缺少被 `.gitignore` 排除的 reviewed-truth/fallback artifact；exit 3 表示已恢复输入存在错配或格式问题。当前 fresh clone 的实际结果为 exit 2。
+
+readiness 只证明 supplied manifest 的内部一致性，不是 manifest 自身认证。受控恢复时还必须核对外部 evidence-manifest SHA-256；fallback 摘要已在上文记录，reviewed evidence-manifest 摘要当前未随 clone 提供，缺少该信任根时不得宣称 pilot ready。
 
 本轮还经过独立 reviewer 和独立 QA：返修后均为 PASS。证据记录见：
 
@@ -95,7 +105,7 @@ python -m unittest discover -s tests\p5 -p "test_*.py"
 
 ## 2. 当前最重要的问题
 
-### KI-037：正式 P4 TensorRT 基线仍未恢复
+### KI-039：正式 P4 TensorRT 基线仍未恢复
 
 当前机器上的三个已有 `.engine` 均不能被 TensorRT 8.6.1 反序列化，错误为：
 
@@ -108,6 +118,10 @@ python -m unittest discover -s tests\p5 -p "test_*.py"
 - 配套 DLL 和准确的原始 TensorRT/CUDA/plugin 运行环境。
 
 因此正式 TensorRT 状态必须保持：`BLOCKED / NOT VERIFIED`。
+
+### KI-040：受控 P5 artifact 未随 fresh clone 提供
+
+`artifacts/p5-reviewed-truth-20260719-124537/` 和 `artifacts/p5-fallback-baseline-20260719-161114/` 受 `.gitignore` 保护，当前接手目录没有这两份输入。恢复前只能运行 readiness 和代码回归，不能复算指定范围 pilot。
 
 ### 数据量与类别覆盖不足
 
@@ -170,6 +184,18 @@ python -m unittest discover -s tests\p5 -p "test_*.py"
 
 不得根据冻结 pilot 反复修改阈值并挑选最好结果。
 
+### 优先级 4：P8 本机收口与目标机交接（当前工作入口）
+
+P5 的正式 TensorRT 与受控 artifact 仍由 KI-039/KI-040 阻断，不应因此暂停本地路线。P6 本地切片已完成，Qt/Windows runtime 保留为目标机任务。当前 P7-01A 已完成：
+
+- `ProductRuntimeState` 提供有界、线程安全的运行身份、生命周期、统计、最近结果、复核和诊断状态；
+- 离线 worker 已发送 frame/station/camera/cigarette/defect/error 元数据，运行页从状态快照刷新；
+- “缺陷查询”按钮已进入深色最近 NG/错误复核页，支持具名确认、需修正和误报标记；
+- SDK-free 产品状态当前 8/8；typed configured/applied profile、canonical/golden SHA-256、帧级漂移拒绝、TensorRT v2 配置绑定和品牌七阈值页面/持久化已接入。当前 UI 构造固定 local-only，不初始化相机或 DAQNavi；Qt/Windows 页面 runtime 和 Computer Use 尚未取得。
+- 首轮独立 reviewer/QA 的 8 项发现已全部修复；修复后 reviewer 与 QA 均 PASS，另覆盖 TSan、ASan/UBSan、重复压力和启动窗口 stop 探针。
+
+P7-01B 统计/诊断页和 P7-01C 配置身份/安全退出的本地源码已实现。P8 测试集保持 76 项（preflight 17、soak 9、fixture release 17、Windows wrapper/collector 静态契约 2、package manifest generator 7、跨机 evidence verify/import 24），PowerShell 静态门保持 13 个脚本与 7/7 CLI 契约。目标机先用 `p8_package_manifest.py` 在 package 外生成 manifest，并在 Package、EvidenceRoot、整个 DeploymentRoot 外准备 exactly 32-byte HMAC key；建议 `D:\CigVision-secure\p8-evidence.key`。不要预采集或传入历史 Windows/GPU 报告。v4 wrapper 每次生成 challenge，复制 collector 到 provenance 后以 mandatory `-RepositoryRoot $repoRoot` 立即现场采集 v2 报告；RepositoryRoot 与 OutputDirectory 不得重叠，不能由 provenance 脚本的 `$PSScriptRoot` 推导仓库根。manifest 以 `CreateNew + Flush(true)` 写入固定 UTF-8 bytes，SHA/HMAC 针对同一 bytes 计算并复读确认未漂移。可信 verifier 精确复验 host-input、preflight 9 项、采集窗口和 7 个 provenance 受信源，并要求带外 SHA、HMAC 与 bundle 外 key；receipt 为 v4。返修前 full gate 曾通过，返修后的最终 full gate/reviewer/QA 待执行。真实 Windows + Qt/HALCON/MVS/DAQNavi/CUDA/TensorRT/OpenCV、数据、许可和硬件仍是外部阻断；HMAC 只认证证据。
+
 ## 4. 新接手者的启动顺序
 
 1. 阅读 `AGENTS.md`；
@@ -177,9 +203,9 @@ python -m unittest discover -s tests\p5 -p "test_*.py"
 3. 阅读 `docs/known-issues.md`、`docs/code-audit.md`；
 4. 阅读 `docs/p5-source-inventory.md` 和 `docs/p5-labeling-guide.md`；
 5. 阅读 `docs/progress-log.md`、`docs/evidence-matrix.md`、`docs/review-results.md`；
-6. 从受控渠道恢复 `artifacts/` 证据和数据并核对 SHA-256；
-7. 运行 76 项 P5 回归；
-8. 只继续 P5，不跨入 P6/P7，也不恢复真实硬件/剔除链路。
+6. 从受控渠道恢复 `artifacts/` 证据和数据并核对 SHA-256（若要复算 P5）；
+7. 先运行 `./scripts/run_all_local_gates.sh --full`，再按 `docs/windows-target-execution.md` 与 P6/P7 目标机 Qt/Windows 验证清单执行；本机不得伪造目标机结果；
+8. P5 外部输入恢复后再运行完整 P5 回归；任何情况下都不恢复真实硬件/剔除链路。
 
 ## 5. Git 与数据边界
 

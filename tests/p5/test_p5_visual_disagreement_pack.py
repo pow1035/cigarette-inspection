@@ -335,7 +335,8 @@ class VisualDisagreementPackTests(unittest.TestCase):
                 "human": None,
             }
             categories = {1: {"id": 1, "name": "中文类别"}}
-            with patch.object(VISUAL.ImageFont, "truetype", side_effect=ImportError("blocked")):
+            with patch.object(VISUAL.ImageFont, "truetype", side_effect=ImportError("blocked")), \
+                    patch.object(VISUAL.ImageFont, "load_default", side_effect=ImportError("blocked")):
                 VISUAL.render_case(
                     source_path, image_info, [prediction], [], [match], categories,
                     ["decision_different"], None, output_path,

@@ -77,6 +77,21 @@
     </QtMoc>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="core\BatchCommandLine.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="core\ProductRuntimeState.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="core\ProductParameterProfile.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="core\Sha256.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="core\RealtimeSimulation.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="paramStructs.h">
       <Filter>Header Files</Filter>
     </ClInclude>

@@ -2,7 +2,7 @@
 
 ## 当前状态
 
-P3/P4 已具备逐帧 JSON、汇总计数、输入/输出哈希和 detector latency 证据；统一运行日志、资源指标、实时流指标和 UI 诊断仍未实现。当前文档定义的是 P5-P8 本地目标，不声明现场可观测性通过。
+P3/P4 已具备逐帧 JSON、汇总计数、输入/输出哈希和 detector latency 证据；P6-01B 已实现产品 trace 源码，P6-02 已在 SDK-free 虚拟时钟下产出队列/丢弃/P95 指标。P7-01A 新增有界产品状态快照、最近结果、具名复核和诊断事件容器；统一持久化日志、资源指标和完整 UI 诊断页仍未实现，不声明现场可观测性通过。
 
 ## 统一事件字段
 
@@ -35,9 +35,11 @@ P5 先冻结效果数据集和指标口径，P6/P8 再冻结本地时延、队�
 - P3：离线回放日志、逐帧追踪和队列行为。
 - P4：模型加载、输出解析、视觉观察和推理时延；无 ground truth 时不汇总准确率。
 - P5：数据版本、标注版本、模型/engine/配置哈希、逐类及烟支级指标、错误样本和优化前后对照。
-- P6：文件/录制流、模拟相机与编号、队列深度、丢弃/乱序、端到端时延、模拟剔除命令及停止/恢复行为。
+- P6：文件/录制流、模拟相机与编号、队列深度、丢弃/乱序、端到端时延、模拟剔除命令及停止/恢复行为；P6-01B 的 `simulation-trace.json` 绑定配置、每帧 clock、command、receipt 和 error，模拟回执不早于计划时间；P6-02 的 `RealtimeSimulationSummary` 绑定逐帧 disposition、最大 queue/pipeline depth、P95 queue wait/end-to-end、逐相机守恒和可重算的序列账目；`scripts/p6_simulation_preflight.py` 在目标机运行前只读核对 manifest 的路径/哈希/元数据和 trace 的 Simulation-only/账目一致性；`scripts/p6_windows_simulation_evidence.py` 另保存命令、stdout/stderr、输入/逐帧/summary/trace 复核、六类 CLI rejection 和 SHA-256 evidence manifest。以上仍是 SDK-free/源码、输入预检和可测试编排证据，不替代 Qt/Windows runtime 或现场指标。
 - P7：Qt 用户操作、页面状态、模型状态、统计/复核/配置流程、废弃功能清单和 Computer Use 截图/观察。
-- P8：长时运行资源曲线、故障注入、恢复、部署、升级/回滚和本地预验收报告。
+- P8：长时运行资源曲线、故障注入、恢复、部署、升级/回滚、本地预验收报告，以及 package manifest SHA、本次 wrapper challenge、现场 Windows/GPU v2 主机报告、显式 RepositoryRoot、collector SHA、wrapper 采集窗口、外部 wrapper manifest SHA/HMAC、结束复扫、严格 argv/profile/阈值/gate/run 守恒、真实 soak 语义和带 `verifierSha256`/manifest HMAC 的 import receipt v4。32-byte evidence key 必须在 Package、EvidenceRoot、DeploymentRoot 外单独保管，不进入 bundle。采集/交接步骤见 `docs/windows-target-execution.md`。
+
+P8 测试集仍为 76 项；PowerShell 静态门计数仍为 13 个 `.ps1` 和 7 个 CLI 契约。v4 wrapper 不接受历史 host input，而是生成 64-hex challenge 并立即调用 provenance collector；v2 报告只读记录应用版本、依赖文件大小/哈希与 CIM GPU 事实，并绑定 package/capture/host/time。verifier 精确重验 preflight 顶层/claims/inputs/9 项检查、host capture 窗口和 7 个 provenance 受信源。preflight 固定 `productAcceptanceChecked=false`、`semanticAcceptanceChecked=false`，v4 wrapper/receipt 固定 `productAcceptanceClaimed=false`。外部 manifest SHA、HMAC 和 key 均是证据认证材料，HMAC 不证明产品运行。返修前 full gate 曾通过；返修后的最终 full gate、独立 reviewer/QA 尚待执行。GitHub Actions 未在线运行；真实 Windows + Qt/HALCON/MVS/DAQNavi/CUDA/TensorRT/OpenCV、D 盘资源曲线、数据、许可、硬件和真实 bundle 尚未采集。
 
 真实相机、MVS 采集、DAQNavi 输入输出和真实剔除日志属于冻结的未来阶段，不作为 P5-P8 待补事件。
 

@@ -62,6 +62,8 @@ struct OfflineRunOptions {
     QueueOverflowPolicy overflowPolicy = QueueOverflowPolicy::RejectNewest;
     bool drainOnStop = true;
     std::string parameterVersion = "offline-fixture-v1";
+    std::string parameterSha256 =
+        "09fa9ae45d4caa232ce06e32831fad5d17653c9a085bb4b305e0840608690107";
 };
 
 struct OfflineRunSummary {
@@ -82,11 +84,22 @@ public:
 // A deterministic chain-test detector. It is not a production inspection algorithm.
 class DeterministicFixtureDetector final : public IDetector {
 public:
+    explicit DeterministicFixtureDetector(
+        std::string parameterVersion = "offline-fixture-v1",
+        std::string parameterSha256 =
+            "09fa9ae45d4caa232ce06e32831fad5d17653c9a085bb4b305e0840608690107")
+        : parameterVersion_(std::move(parameterVersion)),
+          parameterSha256_(std::move(parameterSha256))
+    {
+    }
+
     DetectionBatch detect(const FramePacket& frame) override
     {
         DetectionBatch batch;
         batch.frameId = frame.frameId;
         batch.detectorVersion = "deterministic-fixture-v1";
+        batch.parameterVersion = parameterVersion_;
+        batch.parameterSha256 = parameterSha256_;
         if ((frame.frameId % 2U) == 0U) {
             Detection detection;
             detection.classId = 0;
@@ -99,21 +112,32 @@ public:
         }
         return batch;
     }
+
+private:
+    std::string parameterVersion_;
+    std::string parameterSha256_;
 };
 
 inline InspectionResult decideInspection(const FramePacket& frame,
-    const DetectionBatch& batch, const std::string& parameterVersion)
+    const DetectionBatch& batch, const std::string& parameterVersion,
+    const std::string& parameterSha256)
 {
     InspectionResult result;
     result.frameId = frame.frameId;
     result.elapsedMicros = batch.elapsedMicros;
-    result.parameterVersion = parameterVersion;
+    result.parameterVersion = batch.parameterVersion;
+    result.parameterSha256 = batch.parameterSha256;
 
     std::string errorCode = batch.errorCode;
     std::string errorMessage = batch.errorMessage;
     if (batch.frameId != frame.frameId) {
         errorCode = "DETECTOR_FRAME_ID_MISMATCH";
         errorMessage = "detector result does not match the input frame";
+    }
+    if (batch.parameterVersion != parameterVersion ||
+        batch.parameterSha256 != parameterSha256) {
+        errorCode = "DETECTOR_PARAMETER_IDENTITY_MISMATCH";
+        errorMessage = "detector parameter identity does not match the run snapshot";
     }
 
     if (errorCode.empty()) {
@@ -147,8 +171,9 @@ public:
     void requestStop() noexcept
     {
         std::lock_guard<std::mutex> lock(stateMutex_);
-        if (running_.load()) {
-            stopRequested_.store(true);
+        stopRequested_.store(true);
+        if (running_.load() && activeSource_ != nullptr) {
+            activeSource_->stop();
         }
     }
     bool isRunning() const noexcept { return running_.load(); }
@@ -165,12 +190,16 @@ public:
                 summary.issues.push_back("offline session is already running");
                 return summary;
             }
-            stopRequested_.store(false);
+            if (stopRequested_.exchange(false)) {
+                summary.state = OfflineRunState::Stopped;
+                return summary;
+            }
             running_.store(true);
         }
-        RunningGuard runningGuard(stateMutex_, running_);
+        RunningGuard runningGuard(stateMutex_, running_, stopRequested_, activeSource_);
 
-        if (options.queueCapacity == 0 || options.parameterVersion.empty()) {
+        if (options.queueCapacity == 0 || options.parameterVersion.empty() ||
+            !isSha256Identity(options.parameterSha256)) {
             summary.issues.push_back("invalid offline run options");
             return summary;
         }
@@ -191,7 +220,14 @@ public:
             summary.issues.push_back("source start failed: " + sourceError);
             return summary;
         }
-        SourceGuard sourceGuard(source);
+        {
+            std::lock_guard<std::mutex> lock(stateMutex_);
+            activeSource_ = &source;
+            if (stopRequested_.load()) {
+                source.stop();
+            }
+        }
+        SourceGuard sourceGuard(*this, source);
 
         BoundedQueue<FramePacket> queue(options.queueCapacity, options.overflowPolicy);
         std::mutex summaryMutex;
@@ -224,13 +260,15 @@ public:
                     batch.errorMessage = "unknown detector exception";
                 }
 
-                InspectionResult result = decideInspection(frame, batch, options.parameterVersion);
+                InspectionResult result = decideInspection(
+                    frame, batch, options.parameterVersion, options.parameterSha256);
                 std::string validationError;
                 if (!result.validate(&validationError)) {
                     result = InspectionResult();
                     result.frameId = frame.frameId;
                     result.decision = InspectionDecision::Error;
                     result.parameterVersion = options.parameterVersion;
+                    result.parameterSha256 = options.parameterSha256;
                     result.errorCode = "INVALID_INSPECTION_RESULT";
                     result.errorMessage = validationError;
                 }
@@ -381,24 +419,42 @@ public:
 
 private:
     struct RunningGuard {
-        RunningGuard(std::mutex& mutex, std::atomic<bool>& running)
-            : mutex_(mutex), running_(running) {}
+        RunningGuard(std::mutex& mutex, std::atomic<bool>& running,
+            std::atomic<bool>& stopRequested, IFrameSource*& activeSource)
+            : mutex_(mutex), running_(running), stopRequested_(stopRequested),
+              activeSource_(activeSource) {}
         ~RunningGuard()
         {
             std::lock_guard<std::mutex> lock(mutex_);
+            activeSource_ = nullptr;
+            stopRequested_.store(false);
             running_.store(false);
         }
         std::mutex& mutex_;
         std::atomic<bool>& running_;
+        std::atomic<bool>& stopRequested_;
+        IFrameSource*& activeSource_;
     };
     struct SourceGuard {
-        explicit SourceGuard(IFrameSource& source) : source_(source) {}
-        ~SourceGuard() { source_.stop(); }
+        SourceGuard(OfflineInspectionSession& owner, IFrameSource& source)
+            : owner_(owner), source_(source) {}
+        ~SourceGuard()
+        {
+            {
+                std::lock_guard<std::mutex> lock(owner_.stateMutex_);
+                if (owner_.activeSource_ == &source_) {
+                    owner_.activeSource_ = nullptr;
+                }
+            }
+            source_.stop();
+        }
+        OfflineInspectionSession& owner_;
         IFrameSource& source_;
     };
 
     std::atomic<bool> stopRequested_{ false };
     std::atomic<bool> running_{ false };
+    IFrameSource* activeSource_ = nullptr;
     mutable std::mutex stateMutex_;
 };
 

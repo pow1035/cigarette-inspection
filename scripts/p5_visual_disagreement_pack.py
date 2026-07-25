@@ -126,6 +126,30 @@ def atomic_image(path: Path, image: Image.Image) -> None:
         raise
 
 
+def _load_bitmap_font() -> ImageFont.ImageFont:
+    """Load a FreeType-independent Pillow font for deterministic degradation.
+
+    Pillow's public ``load_default`` factory switched to a bundled TrueType
+    font when FreeType is available.  That makes the apparent bitmap fallback
+    depend on the same optional extension that may have just failed.  The
+    legacy PILfont loader is intentionally used first because it is pure
+    bitmap data and does not call ``ImageFont.truetype``.
+    """
+    bitmap_loader = getattr(ImageFont, "load_default_imagefont", None)
+    if bitmap_loader is not None:
+        try:
+            return bitmap_loader()
+        except (OSError, ImportError, AttributeError, TypeError):
+            # Keep a compatibility path for Pillow versions without a usable
+            # legacy loader.  The final exception is converted to a project
+            # error below instead of leaking an implementation-specific error.
+            pass
+    try:
+        return ImageFont.load_default()
+    except (OSError, ImportError, AttributeError, TypeError) as exc:
+        raise VisualPackError("Pillow has no usable bitmap or TrueType font") from exc
+
+
 def load_font(font_path: Path | None, size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
     candidates = [font_path] if font_path else []
     candidates.extend([
@@ -138,7 +162,7 @@ def load_font(font_path: Path | None, size: int) -> ImageFont.FreeTypeFont | Ima
                 return ImageFont.truetype(str(candidate), size=size)
             except (OSError, ImportError):
                 continue
-    return ImageFont.load_default()
+    return _load_bitmap_font()
 
 
 def raster_ascii(value: Any) -> str:

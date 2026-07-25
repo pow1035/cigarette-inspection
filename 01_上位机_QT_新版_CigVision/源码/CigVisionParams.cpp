@@ -14,16 +14,41 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QMessageBox>
+#include <QFormLayout>
+#include <QDoubleSpinBox>
+#include <QCoreApplication>
 #include <fstream>
 #include <string>
+#include <cmath>
+
+namespace {
+
+bool isValidDeepLearningThreshold(double value)
+{
+    return std::isfinite(value) && value >= 0.0 && value <= 1.0;
+}
+
+bool areValidDeepLearningParams(const DeepLearningParams& params)
+{
+    return isValidDeepLearningThreshold(params.jointRollThreshold)
+        && isValidDeepLearningThreshold(params.flyingTobaccoThreshold)
+        && isValidDeepLearningThreshold(params.tobaccoClipsThreshold)
+        && isValidDeepLearningThreshold(params.filterWrinkleThreshold)
+        && isValidDeepLearningThreshold(params.missingFilterThreshold)
+        && isValidDeepLearningThreshold(params.rodDamageThreshold)
+        && isValidDeepLearningThreshold(params.rodStainThreshold);
+}
+
+}
 
 
 CigVisionParams::CigVisionParams(QWidget* parent)
 	: QWidget(parent)
 {
-	// 设置配置文件路径 - 使用绝对路径
-	configPath = QDir::currentPath() + "/config.ini";
-	brandsBasePath = QDir::currentPath() + QStringLiteral("/品牌设置");
+    // 配置与品牌目录固定相对于 executable，避免启动者 cwd 改变读写目标。
+    const QString applicationDirectory = QCoreApplication::applicationDirPath();
+    configPath = QDir(applicationDirectory).filePath(QStringLiteral("config.ini"));
+    brandsBasePath = QDir(applicationDirectory).filePath(QStringLiteral("品牌设置"));
 	
 	qDebug() << "Config file path:" << configPath;
 	qDebug() << "Brands base path:" << brandsBasePath;
@@ -111,6 +136,9 @@ CigVisionParams::CigVisionParams(QWidget* parent)
 		}
 	}
 
+    // Always establish deterministic in-memory defaults before optional brand
+    // loading. A missing/corrupt para.ini must never leave POD fields uninitialized.
+    initDefaultParams();
 	//初始化系统参数
 	loadSystemParams();
 	//初始化牌号参数
@@ -131,6 +159,8 @@ CigVisionParams::CigVisionParams(QWidget* parent)
     initOutNGWidgets();
     //初始化拼接检测调参界面
     initJointNGWidgets();
+    // 初始化深度学习置信度参数界面
+    initDeepLearningParamsWidgets();
     
 }
 CigVisionParams::~CigVisionParams()
@@ -912,42 +942,42 @@ void CigVisionParams::init_1st_TabWidgets()//主参数界面布局初始化
 	all_check_button->setText(QStringLiteral("全部测试"));
 
 	left_1step_button->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);//设置文字在图标下方
-	left_1step_button->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+	left_1step_button->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
 	left_1step_button->setText(QStringLiteral("左1步"));
 	left_1step_button->setMaximumSize(80, 50);
 
 	right_1step_button->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);//设置文字在图标下方
-	right_1step_button->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+	right_1step_button->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
 	right_1step_button->setText(QStringLiteral("右1步"));
 	right_1step_button->setMaximumSize(80, 50);
 
 	left_next20_button->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);//设置文字在图标下方
-	left_next20_button->setIcon(QPixmap(QStringLiteral("icons/use/arrow-double-left (green).png")));
+	left_next20_button->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/page_first.png")));
 	left_next20_button->setText(QStringLiteral("左20步"));
 	left_next20_button->setMaximumSize(80, 50);
 
 	right_next20_button->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);//设置文字在图标下方
-	right_next20_button->setIcon(QPixmap(QStringLiteral("icons/use/arrow-double-right (green).png")));
+	right_next20_button->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/page_last.png")));
 	right_next20_button->setText(QStringLiteral("右20步"));
 	right_next20_button->setMaximumSize(80, 50);
 
 	left_NG_button->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);//设置文字在图标下方
-	left_NG_button->setIcon(QPixmap(QStringLiteral("icons/use/arrowleft (red).png")));
+	left_NG_button->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
 	left_NG_button->setText(QStringLiteral("查左缺陷图"));
 	left_NG_button->setMaximumSize(80, 50);
 
 	right_NG_button->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);//设置文字在图标下方
-	right_NG_button->setIcon(QPixmap(QStringLiteral("icons/use/arrowright (red).png")));
+	right_NG_button->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
 	right_NG_button->setText(QStringLiteral("查右缺陷图"));
 	right_NG_button->setMaximumSize(QSize(80, 50));
 
 	left_end_button->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);//设置文字在图标下方
-	left_end_button->setIcon(QPixmap(QStringLiteral("icons/use/page_first (green).png")));
+	left_end_button->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/page_first.png")));
 	left_end_button->setText(QStringLiteral("最左端"));
 	left_end_button->setMaximumSize(QSize(80, 50));
 
 	right_end_button->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);//设置文字在图标下方
-	right_end_button->setIcon(QPixmap(QStringLiteral("icons/use/page_last (green).png")));
+	right_end_button->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/page_last.png")));
 	right_end_button->setText(QStringLiteral("最右端"));
 	right_end_button->setMaximumSize(QSize(80, 50));
 
@@ -1202,14 +1232,14 @@ void CigVisionParams::initParamsWidgets() {
     vLayout->addWidget(cancel);
     
     save->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);//设置文字在图标下方
-    save->setIcon(QPixmap(QStringLiteral("icons/use/selected(blue).png")));
+    save->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/document-conversion.png")));
     save->setText(QStringLiteral("保存"));
     //save->setMaximumSize(120, 120);
     save->setFixedSize(100, 50);
     //save->setIconSize(QSize(80,80));
 
     cancel->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);//设置文字在图标下方
-    cancel->setIcon(QPixmap(QStringLiteral("icons/use/close (blue).png")));
+    cancel->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     cancel->setText(QStringLiteral("恢复"));
     cancel->setFixedSize(100, 50);
     //cancel->setIconSize(QSize(80, 80));
@@ -1406,9 +1436,9 @@ void CigVisionParams::initUpCigTopParamsWidgets()//初始化上烟设置界面
     btn_UPmodelSet->setMinimumSize(150, 50);
     btn_UPmodelDel->setMinimumSize(150, 50);
 
-    btn_UPcenterX_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_UPcenterX_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_UPcenterX_add->setMaximumSize(50, 50);
-    btn_UPcenterX_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_UPcenterX_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_UPcenterX_dec->setMaximumSize(50, 50);
 
     lab_UPCenterX->setText(QStringLiteral("上烟中心点X"));
@@ -1427,9 +1457,9 @@ void CigVisionParams::initUpCigTopParamsWidgets()//初始化上烟设置界面
     zu1_00_v1_h1->addWidget(ledit_UPCenterX);
     zu1_00_v1_h1->addWidget(btn_UPcenterX_add);
 
-    btn_UPcenterY_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_UPcenterY_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_UPcenterY_add->setMaximumSize(50, 50);
-    btn_UPcenterY_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_UPcenterY_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_UPcenterY_dec->setMaximumSize(50, 50);
 
     lab_UPCenterY->setText(QStringLiteral("上烟中心点Y"));
@@ -1448,9 +1478,9 @@ void CigVisionParams::initUpCigTopParamsWidgets()//初始化上烟设置界面
     zu1_00_v1_h2->addWidget(ledit_UPCenterY);
     zu1_00_v1_h2->addWidget(btn_UPcenterY_add);
 
-    btn_UPwidth_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_UPwidth_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_UPwidth_add->setMaximumSize(50, 50);
-    btn_UPwidth_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_UPwidth_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_UPwidth_dec->setMaximumSize(50, 50);
 
     lab_UPwidth->setText(QStringLiteral("上烟宽度"));
@@ -1469,9 +1499,9 @@ void CigVisionParams::initUpCigTopParamsWidgets()//初始化上烟设置界面
     zu1_00_v1_h3->addWidget(ledit_UPwidth);
     zu1_00_v1_h3->addWidget(btn_UPwidth_add);
 
-    btn_UPheight_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_UPheight_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_UPheight_add->setMaximumSize(50, 50);
-    btn_UPheight_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_UPheight_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_UPheight_dec->setMaximumSize(50, 50);
 
     lab_UPheight->setText(QStringLiteral("上烟高度"));
@@ -1490,9 +1520,9 @@ void CigVisionParams::initUpCigTopParamsWidgets()//初始化上烟设置界面
     zu1_00_v1_h4->addWidget(ledit_UPheight);
     zu1_00_v1_h4->addWidget(btn_UPheight_add);
 
-    btn_UPsigma_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_UPsigma_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_UPsigma_add->setMaximumSize(50, 50);
-    btn_UPsigma_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_UPsigma_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_UPsigma_dec->setMaximumSize(50, 50);
     lab_UPsigma->setText(QStringLiteral("西格玛值"));
     lab_UPsigma->setMaximumSize(100, 50);
@@ -1509,9 +1539,9 @@ void CigVisionParams::initUpCigTopParamsWidgets()//初始化上烟设置界面
     zu1_00_v2_h1->addWidget(ledit_UPsigma);
     zu1_00_v2_h1->addWidget(btn_UPsigma_add);
 
-    btn_UPstartBS_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_UPstartBS_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_UPstartBS_add->setMaximumSize(50, 50);
-    btn_UPstartBS_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_UPstartBS_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_UPstartBS_dec->setMaximumSize(50, 50);
     lab_UPstartBS->setText(QStringLiteral("边界强度起始阈值"));
     lab_UPstartBS->setMaximumSize(150, 50);
@@ -1528,9 +1558,9 @@ void CigVisionParams::initUpCigTopParamsWidgets()//初始化上烟设置界面
     zu1_00_v2_h2->addWidget(ledit_UPstartBS);
     zu1_00_v2_h2->addWidget(btn_UPstartBS_add);
 
-    btn_UPstepBS_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_UPstepBS_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_UPstepBS_add->setMaximumSize(50, 50);
-    btn_UPstepBS_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_UPstepBS_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_UPstepBS_dec->setMaximumSize(50, 50);
     lab_UPstepBS->setText(QStringLiteral("边界强度阈值步进数"));
     lab_UPstepBS->setMaximumSize(150, 50);
@@ -1549,9 +1579,9 @@ void CigVisionParams::initUpCigTopParamsWidgets()//初始化上烟设置界面
 
     zu1_00_v3_h1->addWidget(lab_UPintroduce_model);
 
-    btn_UPmodelX_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_UPmodelX_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_UPmodelX_add->setMaximumSize(50, 50);
-    btn_UPmodelX_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_UPmodelX_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_UPmodelX_dec->setMaximumSize(50, 50);
     lab_UPmodelX->setText(QStringLiteral("模版输出X"));
     lab_UPmodelX->setMaximumSize(150, 50);
@@ -1568,9 +1598,9 @@ void CigVisionParams::initUpCigTopParamsWidgets()//初始化上烟设置界面
     zu1_00_v3_h2->addWidget(ledit_UPmodelX);
     zu1_00_v3_h2->addWidget(btn_UPmodelX_add);
 
-    btn_UPmodelY_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_UPmodelY_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_UPmodelY_add->setMaximumSize(50, 50);
-    btn_UPmodelY_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_UPmodelY_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_UPmodelY_dec->setMaximumSize(50, 50);
     lab_UPmodelY->setText(QStringLiteral("模版输出Y"));
     lab_UPmodelY->setMaximumSize(150, 50);
@@ -1587,9 +1617,9 @@ void CigVisionParams::initUpCigTopParamsWidgets()//初始化上烟设置界面
     zu1_00_v3_h3->addWidget(ledit_UPmodelY);
     zu1_00_v3_h3->addWidget(btn_UPmodelY_add);
 
-    btn_UPmodelWidth_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_UPmodelWidth_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_UPmodelWidth_add->setMaximumSize(50, 50);
-    btn_UPmodelWidth_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_UPmodelWidth_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_UPmodelWidth_dec->setMaximumSize(50, 50);
     lab_UPmodelWidth->setText(QStringLiteral("模版输出宽度"));
     lab_UPmodelWidth->setMaximumSize(150, 50);
@@ -1847,9 +1877,9 @@ void CigVisionParams::initDownCigTopParamsWidgets()//初始化下烟设置界面
     btn_DownmodelSet->setMinimumSize(150, 50);
     btn_DownmodelDel->setMinimumSize(150, 50);
 
-    btn_DowncenterX_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_DowncenterX_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_DowncenterX_add->setMaximumSize(50, 50);
-    btn_DowncenterX_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_DowncenterX_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_DowncenterX_dec->setMaximumSize(50, 50);
 
     lab_DownCenterX->setText(QStringLiteral("下烟中心点X"));
@@ -1868,9 +1898,9 @@ void CigVisionParams::initDownCigTopParamsWidgets()//初始化下烟设置界面
     zu1_01_v1_h1->addWidget(ledit_DownCenterX);
     zu1_01_v1_h1->addWidget(btn_DowncenterX_add);
 
-    btn_DowncenterY_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_DowncenterY_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_DowncenterY_add->setMaximumSize(50, 50);
-    btn_DowncenterY_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_DowncenterY_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_DowncenterY_dec->setMaximumSize(50, 50);
 
     lab_DownCenterY->setText(QStringLiteral("下烟中心点Y"));
@@ -1889,9 +1919,9 @@ void CigVisionParams::initDownCigTopParamsWidgets()//初始化下烟设置界面
     zu1_01_v1_h2->addWidget(ledit_DownCenterY);
     zu1_01_v1_h2->addWidget(btn_DowncenterY_add);
 
-    btn_Downwidth_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_Downwidth_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_Downwidth_add->setMaximumSize(50, 50);
-    btn_Downwidth_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_Downwidth_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_Downwidth_dec->setMaximumSize(50, 50);
 
     lab_Downwidth->setText(QStringLiteral("下烟宽度"));
@@ -1910,9 +1940,9 @@ void CigVisionParams::initDownCigTopParamsWidgets()//初始化下烟设置界面
     zu1_01_v1_h3->addWidget(ledit_Downwidth);
     zu1_01_v1_h3->addWidget(btn_Downwidth_add);
 
-    btn_Downheight_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_Downheight_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_Downheight_add->setMaximumSize(50, 50);
-    btn_Downheight_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_Downheight_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_Downheight_dec->setMaximumSize(50, 50);
 
     lab_Downheight->setText(QStringLiteral("下烟高度"));
@@ -1931,9 +1961,9 @@ void CigVisionParams::initDownCigTopParamsWidgets()//初始化下烟设置界面
     zu1_01_v1_h4->addWidget(ledit_Downheight);
     zu1_01_v1_h4->addWidget(btn_Downheight_add);
 
-    btn_Downsigma_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_Downsigma_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_Downsigma_add->setMaximumSize(50, 50);
-    btn_Downsigma_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_Downsigma_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_Downsigma_dec->setMaximumSize(50, 50);
     lab_Downsigma->setText(QStringLiteral("西格玛值"));
     lab_Downsigma->setMaximumSize(100, 50);
@@ -1950,9 +1980,9 @@ void CigVisionParams::initDownCigTopParamsWidgets()//初始化下烟设置界面
     zu1_01_v2_h1->addWidget(ledit_Downsigma);
     zu1_01_v2_h1->addWidget(btn_Downsigma_add);
 
-    btn_DownstartBS_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_DownstartBS_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_DownstartBS_add->setMaximumSize(50, 50);
-    btn_DownstartBS_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_DownstartBS_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_DownstartBS_dec->setMaximumSize(50, 50);
     lab_DownstartBS->setText(QStringLiteral("边界强度起始阈值"));
     lab_DownstartBS->setMaximumSize(150, 50);
@@ -1969,9 +1999,9 @@ void CigVisionParams::initDownCigTopParamsWidgets()//初始化下烟设置界面
     zu1_01_v2_h2->addWidget(ledit_DownstartBS);
     zu1_01_v2_h2->addWidget(btn_DownstartBS_add);
 
-    btn_DownstepBS_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_DownstepBS_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_DownstepBS_add->setMaximumSize(50, 50);
-    btn_DownstepBS_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_DownstepBS_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_DownstepBS_dec->setMaximumSize(50, 50);
     lab_DownstepBS->setText(QStringLiteral("边界强度阈值步进数"));
     lab_DownstepBS->setMaximumSize(150, 50);
@@ -1989,9 +2019,9 @@ void CigVisionParams::initDownCigTopParamsWidgets()//初始化下烟设置界面
     zu1_01_v2_h3->addWidget(btn_DownstepBS_add);
 
     zu1_01_v3_h1->addWidget(lab_Downintroduce_model);
-    btn_DownmodelX_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_DownmodelX_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_DownmodelX_add->setMaximumSize(50, 50);
-    btn_DownmodelX_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_DownmodelX_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_DownmodelX_dec->setMaximumSize(50, 50);
     lab_DownmodelX->setText(QStringLiteral("模版输出X"));
     lab_DownmodelX->setMaximumSize(150, 50);
@@ -2008,9 +2038,9 @@ void CigVisionParams::initDownCigTopParamsWidgets()//初始化下烟设置界面
     zu1_01_v3_h2->addWidget(ledit_DownmodelX);
     zu1_01_v3_h2->addWidget(btn_DownmodelX_add);
 
-    btn_DownmodelY_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_DownmodelY_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_DownmodelY_add->setMaximumSize(50, 50);
-    btn_DownmodelY_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_DownmodelY_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_DownmodelY_dec->setMaximumSize(50, 50);
     lab_DownmodelY->setText(QStringLiteral("模版输出Y"));
     lab_DownmodelY->setMaximumSize(150, 50);
@@ -2027,9 +2057,9 @@ void CigVisionParams::initDownCigTopParamsWidgets()//初始化下烟设置界面
     zu1_01_v3_h3->addWidget(ledit_DownmodelY);
     zu1_01_v3_h3->addWidget(btn_DownmodelY_add);
 
-	btn_DownmodelWidth_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+	btn_DownmodelWidth_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
 	btn_DownmodelWidth_add->setMaximumSize(50, 50);
-	btn_DownmodelWidth_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+	btn_DownmodelWidth_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
 	btn_DownmodelWidth_dec->setMaximumSize(50, 50);
 	lab_DownmodelWidth->setText(QStringLiteral("模版输出宽度"));
 	lab_DownmodelWidth->setMaximumSize(150, 50);
@@ -2295,9 +2325,9 @@ void CigVisionParams::initUpCigBoundaryParamsWidgets()//初始化上烟边设置
     btn_UPmodelSet->setMinimumSize(150, 50);
     btn_UPmodelDel->setMinimumSize(150, 50);
 
-    btn_UPStartDistance_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_UPStartDistance_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_UPStartDistance_add->setMaximumSize(50, 50);
-    btn_UPStartDistance_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_UPStartDistance_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_UPStartDistance_dec->setMaximumSize(50, 50);
 
     lab_UPStartDistance->setText(QStringLiteral("上烟定位框水平起始距离"));
@@ -2315,9 +2345,9 @@ void CigVisionParams::initUpCigBoundaryParamsWidgets()//初始化上烟边设置
     zu1_00_v1_h1->addWidget(ledit_UPStartDistance);
     zu1_00_v1_h1->addWidget(btn_UPStartDistance_add);
 
-    btn_UPRectDistance_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_UPRectDistance_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_UPRectDistance_add->setMaximumSize(50, 50);
-    btn_UPRectDistance_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_UPRectDistance_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_UPRectDistance_dec->setMaximumSize(50, 50);
 
     lab_UPRectDistance->setText(QStringLiteral("上烟定位框水平间距"));
@@ -2335,9 +2365,9 @@ void CigVisionParams::initUpCigBoundaryParamsWidgets()//初始化上烟边设置
     zu1_00_v1_h2->addWidget(ledit_UPRectDistance);
     zu1_00_v1_h2->addWidget(btn_UPRectDistance_add);
 
-    btn_UPwidth_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_UPwidth_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_UPwidth_add->setMaximumSize(50, 50);
-    btn_UPwidth_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_UPwidth_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_UPwidth_dec->setMaximumSize(50, 50);
 
     lab_UPwidth->setText(QStringLiteral("上烟框宽度"));
@@ -2355,9 +2385,9 @@ void CigVisionParams::initUpCigBoundaryParamsWidgets()//初始化上烟边设置
     zu1_00_v1_h3->addWidget(ledit_UPwidth);
     zu1_00_v1_h3->addWidget(btn_UPwidth_add);
 
-    btn_UPheight_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_UPheight_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_UPheight_add->setMaximumSize(50, 50);
-    btn_UPheight_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_UPheight_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_UPheight_dec->setMaximumSize(50, 50);
 
     lab_UPheight->setText(QStringLiteral("上烟框高度"));
@@ -2375,9 +2405,9 @@ void CigVisionParams::initUpCigBoundaryParamsWidgets()//初始化上烟边设置
     zu1_00_v1_h4->addWidget(ledit_UPheight);
     zu1_00_v1_h4->addWidget(btn_UPheight_add);
 
-    btn_UPsigma_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_UPsigma_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_UPsigma_add->setMaximumSize(50, 50);
-    btn_UPsigma_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_UPsigma_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_UPsigma_dec->setMaximumSize(50, 50);
     lab_UPsigma->setText(QStringLiteral("西格玛值"));
     lab_UPsigma->setMaximumSize(100, 50);
@@ -2393,9 +2423,9 @@ void CigVisionParams::initUpCigBoundaryParamsWidgets()//初始化上烟边设置
     zu1_00_v2_h1->addWidget(ledit_UPsigma);
     zu1_00_v2_h1->addWidget(btn_UPsigma_add);
 
-    btn_UPstartBS_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_UPstartBS_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_UPstartBS_add->setMaximumSize(50, 50);
-    btn_UPstartBS_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_UPstartBS_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_UPstartBS_dec->setMaximumSize(50, 50);
     lab_UPstartBS->setText(QStringLiteral("边界强度起始阈值"));
     lab_UPstartBS->setMaximumSize(200, 50);
@@ -2411,9 +2441,9 @@ void CigVisionParams::initUpCigBoundaryParamsWidgets()//初始化上烟边设置
     zu1_00_v2_h2->addWidget(ledit_UPstartBS);
     zu1_00_v2_h2->addWidget(btn_UPstartBS_add);
 
-	/*btn_UPstepBS_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+	/*btn_UPstepBS_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
 	btn_UPstepBS_add->setMaximumSize(50, 50);
-	btn_UPstepBS_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+	btn_UPstepBS_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
 	btn_UPstepBS_dec->setMaximumSize(50, 50);
 	lab_UPstepBS->setText(QStringLiteral("边界强度阈值步进数"));
     lab_UPstepBS->setMaximumSize(150, 50);
@@ -2747,9 +2777,9 @@ void CigVisionParams::initDownCigBoundaryParamsWidgets()//初始化下烟边设�
     btn_DOWNmodelSet->setMinimumSize(150, 50);
     btn_DOWNmodelDel->setMinimumSize(150, 50);
 
-    btn_DOWNStartDistance_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_DOWNStartDistance_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_DOWNStartDistance_add->setMaximumSize(50, 50);
-    btn_DOWNStartDistance_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_DOWNStartDistance_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_DOWNStartDistance_dec->setMaximumSize(50, 50);
 
     lab_DOWNStartDistance->setText(QStringLiteral("下烟定位框水平起始距离"));
@@ -2767,9 +2797,9 @@ void CigVisionParams::initDownCigBoundaryParamsWidgets()//初始化下烟边设�
     zu1_00_v1_h1->addWidget(ledit_DOWNStartDistance);
     zu1_00_v1_h1->addWidget(btn_DOWNStartDistance_add);
 
-    btn_DOWNRectDistance_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_DOWNRectDistance_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_DOWNRectDistance_add->setMaximumSize(50, 50);
-    btn_DOWNRectDistance_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_DOWNRectDistance_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_DOWNRectDistance_dec->setMaximumSize(50, 50);
 
     lab_DOWNRectDistance->setText(QStringLiteral("下烟定位框水平间距"));
@@ -2787,9 +2817,9 @@ void CigVisionParams::initDownCigBoundaryParamsWidgets()//初始化下烟边设�
     zu1_00_v1_h2->addWidget(ledit_DOWNRectDistance);
     zu1_00_v1_h2->addWidget(btn_DOWNRectDistance_add);
 
-    btn_DOWNwidth_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_DOWNwidth_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_DOWNwidth_add->setMaximumSize(50, 50);
-    btn_DOWNwidth_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_DOWNwidth_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_DOWNwidth_dec->setMaximumSize(50, 50);
 
     lab_DOWNwidth->setText(QStringLiteral("下烟框宽度"));
@@ -2807,9 +2837,9 @@ void CigVisionParams::initDownCigBoundaryParamsWidgets()//初始化下烟边设�
     zu1_00_v1_h3->addWidget(ledit_DOWNwidth);
     zu1_00_v1_h3->addWidget(btn_DOWNwidth_add);
 
-    btn_DOWNheight_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_DOWNheight_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_DOWNheight_add->setMaximumSize(50, 50);
-    btn_DOWNheight_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_DOWNheight_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_DOWNheight_dec->setMaximumSize(50, 50);
 
     lab_DOWNheight->setText(QStringLiteral("下烟框高度"));
@@ -2827,9 +2857,9 @@ void CigVisionParams::initDownCigBoundaryParamsWidgets()//初始化下烟边设�
     zu1_00_v1_h4->addWidget(ledit_DOWNheight);
     zu1_00_v1_h4->addWidget(btn_DOWNheight_add);
 
-    btn_DOWNsigma_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_DOWNsigma_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_DOWNsigma_add->setMaximumSize(50, 50);
-    btn_DOWNsigma_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_DOWNsigma_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_DOWNsigma_dec->setMaximumSize(50, 50);
     lab_DOWNsigma->setText(QStringLiteral("西格玛值"));
     lab_DOWNsigma->setMaximumSize(100, 50);
@@ -2845,9 +2875,9 @@ void CigVisionParams::initDownCigBoundaryParamsWidgets()//初始化下烟边设�
     zu1_00_v2_h1->addWidget(ledit_DOWNsigma);
     zu1_00_v2_h1->addWidget(btn_DOWNsigma_add);
 
-    btn_DOWNstartBS_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_DOWNstartBS_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_DOWNstartBS_add->setMaximumSize(50, 50);
-    btn_DOWNstartBS_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_DOWNstartBS_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_DOWNstartBS_dec->setMaximumSize(50, 50);
     lab_DOWNstartBS->setText(QStringLiteral("边界强度起始阈值"));
     lab_DOWNstartBS->setMaximumSize(200, 50);
@@ -2863,9 +2893,9 @@ void CigVisionParams::initDownCigBoundaryParamsWidgets()//初始化下烟边设�
     zu1_00_v2_h2->addWidget(ledit_DOWNstartBS);
     zu1_00_v2_h2->addWidget(btn_DOWNstartBS_add);
 
-	/*btn_UPstepBS_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+	/*btn_UPstepBS_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
 	btn_UPstepBS_add->setMaximumSize(50, 50);
-	btn_UPstepBS_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+	btn_UPstepBS_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
 	btn_UPstepBS_dec->setMaximumSize(50, 50);
 	lab_UPstepBS->setText(QStringLiteral("边界强度阈值步进数"));
     lab_UPstepBS->setMaximumSize(150, 50);
@@ -3149,9 +3179,9 @@ void CigVisionParams::initCigStickROIWidgets()
     QLabel* lab_DownInnerExcept = new QLabel();
     QLineEdit* ledit_DownInnerExcept = new QLineEdit();
 
-    btn_UpCigStickStart_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_UpCigStickStart_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_UpCigStickStart_add->setMaximumSize(50, 50);
-    btn_UpCigStickStart_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_UpCigStickStart_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_UpCigStickStart_dec->setMaximumSize(50, 50);
     lab_UpCigStickStart->setText(QStringLiteral("上烟棒检测区域距左端起始距离"));
     lab_UpCigStickStart->setMaximumSize(220, 50);
@@ -3162,9 +3192,9 @@ void CigVisionParams::initCigStickROIWidgets()
     ledit_UpCigStickStart->setStyleSheet("background-color: rgb(200,200,200); font-size: 14px; ");
     ledit_UpCigStickStart->setMaxLength(3);
 
-    btn_UpCigStickLong_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_UpCigStickLong_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_UpCigStickLong_add->setMaximumSize(50, 50);
-    btn_UpCigStickLong_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_UpCigStickLong_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_UpCigStickLong_dec->setMaximumSize(50, 50);
     lab_UpCigStickLong->setText(QStringLiteral("上烟棒检测区域长度"));
     lab_UpCigStickLong->setMaximumSize(220, 50);
@@ -3175,9 +3205,9 @@ void CigVisionParams::initCigStickROIWidgets()
     ledit_UpCigStickLong->setStyleSheet("background-color: rgb(200,200,200); font-size: 14px; ");
     ledit_UpCigStickLong->setMaxLength(3);
 
-    btn_UpInnerExcept_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_UpInnerExcept_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_UpInnerExcept_add->setMaximumSize(50, 50);
-    btn_UpInnerExcept_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_UpInnerExcept_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_UpInnerExcept_dec->setMaximumSize(50, 50);
     lab_UpInnerExcept->setText(QStringLiteral("上烟棒检测区域内部例外"));
     lab_UpInnerExcept->setMaximumSize(220, 50);
@@ -3203,9 +3233,9 @@ void CigVisionParams::initCigStickROIWidgets()
     zu1_00_v1_h3->addWidget(ledit_UpInnerExcept);
     zu1_00_v1_h3->addWidget(btn_UpInnerExcept_add);
 
-    btn_DownCigStickStart_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_DownCigStickStart_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_DownCigStickStart_add->setMaximumSize(50, 50);
-    btn_DownCigStickStart_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_DownCigStickStart_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_DownCigStickStart_dec->setMaximumSize(50, 50);
     lab_DownCigStickStart->setText(QStringLiteral("上烟棒检测区域距左端起始距离"));
     lab_DownCigStickStart->setMaximumSize(220, 50);
@@ -3216,9 +3246,9 @@ void CigVisionParams::initCigStickROIWidgets()
     ledit_DownCigStickStart->setStyleSheet("background-color: rgb(200,200,200); font-size: 14px; ");
     ledit_DownCigStickStart->setMaxLength(3);
 
-    btn_DownCigStickLong_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_DownCigStickLong_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_DownCigStickLong_add->setMaximumSize(50, 50);
-    btn_DownCigStickLong_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_DownCigStickLong_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_DownCigStickLong_dec->setMaximumSize(50, 50);
     lab_DownCigStickLong->setText(QStringLiteral("上烟棒检测区域长度"));
     lab_DownCigStickLong->setMaximumSize(220, 50);
@@ -3229,9 +3259,9 @@ void CigVisionParams::initCigStickROIWidgets()
     ledit_DownCigStickLong->setStyleSheet("background-color: rgb(200,200,200); font-size: 14px; ");
     ledit_DownCigStickLong->setMaxLength(3);
 
-    btn_DownInnerExcept_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_DownInnerExcept_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_DownInnerExcept_add->setMaximumSize(50, 50);
-    btn_DownInnerExcept_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_DownInnerExcept_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_DownInnerExcept_dec->setMaximumSize(50, 50);
     lab_DownInnerExcept->setText(QStringLiteral("上烟棒检测区域内部例外"));
     lab_DownInnerExcept->setMaximumSize(220, 50);
@@ -3432,9 +3462,9 @@ void CigVisionParams::initCigFilterROIWidgets()
     QLabel* lab_DownCigFilterInnerExcept = new QLabel();
     QLineEdit* ledit_DownCigFilterInnerExcept = new QLineEdit();
 
-    btn_UpCigFilterStart_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_UpCigFilterStart_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_UpCigFilterStart_add->setMaximumSize(50, 50);
-    btn_UpCigFilterStart_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_UpCigFilterStart_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_UpCigFilterStart_dec->setMaximumSize(50, 50);
     lab_UpCigFilterStart->setText(QStringLiteral("上烟嘴棒检测区域距左端起始距离"));
     lab_UpCigFilterStart->setMaximumSize(220, 50);
@@ -3445,9 +3475,9 @@ void CigVisionParams::initCigFilterROIWidgets()
     ledit_UpCigFilterStart->setStyleSheet("background-color: rgb(200,200,200); font-size: 14px; ");
     ledit_UpCigFilterStart->setMaxLength(3);
 
-    btn_UpCigFilterLong_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_UpCigFilterLong_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_UpCigFilterLong_add->setMaximumSize(50, 50);
-    btn_UpCigFilterLong_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_UpCigFilterLong_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_UpCigFilterLong_dec->setMaximumSize(50, 50);
     lab_UpCigFilterLong->setText(QStringLiteral("上烟嘴棒检测区域长度"));
     lab_UpCigFilterLong->setMaximumSize(220, 50);
@@ -3458,9 +3488,9 @@ void CigVisionParams::initCigFilterROIWidgets()
     ledit_UpCigFilterLong->setStyleSheet("background-color: rgb(200,200,200); font-size: 14px; ");
     ledit_UpCigFilterLong->setMaxLength(3);
 
-    btn_UpCigFilterInnerExcept_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_UpCigFilterInnerExcept_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_UpCigFilterInnerExcept_add->setMaximumSize(50, 50);
-    btn_UpCigFilterInnerExcept_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_UpCigFilterInnerExcept_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_UpCigFilterInnerExcept_dec->setMaximumSize(50, 50);
     lab_UpCigFilterInnerExcept->setText(QStringLiteral("上烟嘴棒检测区域内部例外"));
     lab_UpCigFilterInnerExcept->setMaximumSize(220, 50);
@@ -3486,9 +3516,9 @@ void CigVisionParams::initCigFilterROIWidgets()
     zu1_00_v1_h3->addWidget(ledit_UpCigFilterInnerExcept);
     zu1_00_v1_h3->addWidget(btn_UpCigFilterInnerExcept_add);
 
-    btn_DownCigFilterStart_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_DownCigFilterStart_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_DownCigFilterStart_add->setMaximumSize(50, 50);
-    btn_DownCigFilterStart_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_DownCigFilterStart_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_DownCigFilterStart_dec->setMaximumSize(50, 50);
     lab_DownCigFilterStart->setText(QStringLiteral("下烟棒检测区域距左端起始距离"));
     lab_DownCigFilterStart->setMaximumSize(220, 50);
@@ -3499,9 +3529,9 @@ void CigVisionParams::initCigFilterROIWidgets()
     ledit_DownCigFilterStart->setStyleSheet("background-color: rgb(200,200,200); font-size: 14px; ");
     ledit_DownCigFilterStart->setMaxLength(3);
 
-    btn_DownCigFilterLong_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_DownCigFilterLong_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_DownCigFilterLong_add->setMaximumSize(50, 50);
-    btn_DownCigFilterLong_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_DownCigFilterLong_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_DownCigFilterLong_dec->setMaximumSize(50, 50);
     lab_DownCigFilterLong->setText(QStringLiteral("下烟棒检测区域长度"));
     lab_DownCigFilterLong->setMaximumSize(220, 50);
@@ -3512,9 +3542,9 @@ void CigVisionParams::initCigFilterROIWidgets()
     ledit_DownCigFilterLong->setStyleSheet("background-color: rgb(200,200,200); font-size: 14px; ");
     ledit_DownCigFilterLong->setMaxLength(3);
 
-    btn_DownCigFilterInnerExcept_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_DownCigFilterInnerExcept_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_DownCigFilterInnerExcept_add->setMaximumSize(50, 50);
-    btn_DownCigFilterInnerExcept_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_DownCigFilterInnerExcept_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_DownCigFilterInnerExcept_dec->setMaximumSize(50, 50);
     lab_DownCigFilterInnerExcept->setText(QStringLiteral("下烟棒检测区域内部例外"));
     lab_DownCigFilterInnerExcept->setMaximumSize(220, 50);
@@ -3704,9 +3734,9 @@ QHBoxLayout* zu1_cigJoint_paraHBoxLayout = new QHBoxLayout();//整体布局
     QLineEdit* ledit_DownCigJointLong = new QLineEdit();
 
 
-    btn_UpCigJointStart_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_UpCigJointStart_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_UpCigJointStart_add->setMaximumSize(50, 50);
-    btn_UpCigJointStart_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_UpCigJointStart_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_UpCigJointStart_dec->setMaximumSize(50, 50);
     lab_UpCigJointStart->setText(QStringLiteral("上烟拼接段距左端起始距离"));
     lab_UpCigJointStart->setMaximumSize(220, 50);
@@ -3717,9 +3747,9 @@ QHBoxLayout* zu1_cigJoint_paraHBoxLayout = new QHBoxLayout();//整体布局
     ledit_UpCigJointStart->setStyleSheet("background-color: rgb(200,200,200); font-size: 14px; ");
     ledit_UpCigJointStart->setMaxLength(3);
 
-    btn_UpCigJointLong_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_UpCigJointLong_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_UpCigJointLong_add->setMaximumSize(50, 50);
-    btn_UpCigJointLong_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_UpCigJointLong_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_UpCigJointLong_dec->setMaximumSize(50, 50);
     lab_UpCigJointLong->setText(QStringLiteral("上烟拼接段长度"));
     lab_UpCigJointLong->setMaximumSize(220, 50);
@@ -3740,9 +3770,9 @@ QHBoxLayout* zu1_cigJoint_paraHBoxLayout = new QHBoxLayout();//整体布局
     zu1_00_v1_h2->addWidget(ledit_UpCigJointLong);
     zu1_00_v1_h2->addWidget(btn_UpCigJointLong_add);
 
-    btn_DownCigJointStart_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_DownCigJointStart_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_DownCigJointStart_add->setMaximumSize(50, 50);
-    btn_DownCigJointStart_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_DownCigJointStart_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_DownCigJointStart_dec->setMaximumSize(50, 50);
     lab_DownCigJointStart->setText(QStringLiteral("下烟拼接段距左端起始距离"));
     lab_DownCigJointStart->setMaximumSize(220, 50);
@@ -3753,9 +3783,9 @@ QHBoxLayout* zu1_cigJoint_paraHBoxLayout = new QHBoxLayout();//整体布局
     ledit_DownCigJointStart->setStyleSheet("background-color: rgb(200,200,200); font-size: 14px; ");
     ledit_DownCigJointStart->setMaxLength(3);
 
-    btn_DownCigJointLong_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_DownCigJointLong_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_DownCigJointLong_add->setMaximumSize(50, 50);
-    btn_DownCigJointLong_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_DownCigJointLong_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_DownCigJointLong_dec->setMaximumSize(50, 50);
     lab_DownCigJointLong->setText(QStringLiteral("下烟拼接段长度"));
     lab_DownCigJointLong->setMaximumSize(220, 50);
@@ -3914,9 +3944,9 @@ void CigVisionParams::initStickNGWidgets()
     QLabel* lab_DownCigStickDarkGray = new QLabel();
     QLineEdit* ledit_DownCigStickDarkGray = new QLineEdit();
 
-    btn_UpCigStickDarkArea_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_UpCigStickDarkArea_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_UpCigStickDarkArea_add->setMaximumSize(50, 50);
-    btn_UpCigStickDarkArea_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_UpCigStickDarkArea_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_UpCigStickDarkArea_dec->setMaximumSize(50, 50);
     lab_UpCigStickDarkArea->setText(QStringLiteral("上烟烟棒暗点面积阈值"));
     lab_UpCigStickDarkArea->setMaximumSize(220, 50);
@@ -3927,9 +3957,9 @@ void CigVisionParams::initStickNGWidgets()
     ledit_UpCigStickDarkArea->setStyleSheet("background-color: rgb(200,200,200); font-size: 14px; ");
     ledit_UpCigStickDarkArea->setMaxLength(3);
 
-    btn_UpCigStickDarkGray_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_UpCigStickDarkGray_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_UpCigStickDarkGray_add->setMaximumSize(50, 50);
-    btn_UpCigStickDarkGray_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_UpCigStickDarkGray_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_UpCigStickDarkGray_dec->setMaximumSize(50, 50);
     lab_UpCigStickDarkGray->setText(QStringLiteral("上烟烟棒暗点灰度阈值"));
     lab_UpCigStickDarkGray->setMaximumSize(220, 50);
@@ -3950,9 +3980,9 @@ void CigVisionParams::initStickNGWidgets()
     zu1_00_v1_h2->addWidget(ledit_UpCigStickDarkGray);
     zu1_00_v1_h2->addWidget(btn_UpCigStickDarkGray_add);
 
-    btn_DownCigStickDarkArea_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_DownCigStickDarkArea_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_DownCigStickDarkArea_add->setMaximumSize(50, 50);
-    btn_DownCigStickDarkArea_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_DownCigStickDarkArea_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_DownCigStickDarkArea_dec->setMaximumSize(50, 50);
     lab_DownCigStickDarkArea->setText(QStringLiteral("下烟烟棒暗点面积阈值"));
     lab_DownCigStickDarkArea->setMaximumSize(220, 50);
@@ -3963,9 +3993,9 @@ void CigVisionParams::initStickNGWidgets()
     ledit_DownCigStickDarkArea->setStyleSheet("background-color: rgb(200,200,200); font-size: 14px; ");
     ledit_DownCigStickDarkArea->setMaxLength(3);
 
-    btn_DownCigStickDarkGray_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_DownCigStickDarkGray_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_DownCigStickDarkGray_add->setMaximumSize(50, 50);
-    btn_DownCigStickDarkGray_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_DownCigStickDarkGray_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_DownCigStickDarkGray_dec->setMaximumSize(50, 50);
     lab_DownCigStickDarkGray->setText(QStringLiteral("下烟烟棒暗点灰度阈值"));
     lab_DownCigStickDarkGray->setMaximumSize(220, 50);
@@ -4124,9 +4154,9 @@ void CigVisionParams::initFilterDarkNGWidgets()
     QLabel* lab_DownCigFilterDarkGray = new QLabel();
     QLineEdit* ledit_DownCigFilterDarkGray = new QLineEdit();
 
-    btn_UpCigFilterDarkArea_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_UpCigFilterDarkArea_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_UpCigFilterDarkArea_add->setMaximumSize(50, 50);
-    btn_UpCigFilterDarkArea_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_UpCigFilterDarkArea_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_UpCigFilterDarkArea_dec->setMaximumSize(50, 50);
     lab_UpCigFilterDarkArea->setText(QStringLiteral("上烟滤嘴暗点面积阈值"));
     lab_UpCigFilterDarkArea->setMaximumSize(220, 50);
@@ -4137,9 +4167,9 @@ void CigVisionParams::initFilterDarkNGWidgets()
     ledit_UpCigFilterDarkArea->setStyleSheet("background-color: rgb(200,200,200); font-size: 14px; ");
     ledit_UpCigFilterDarkArea->setMaxLength(3);
 
-    btn_UpCigFilterDarkGray_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_UpCigFilterDarkGray_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_UpCigFilterDarkGray_add->setMaximumSize(50, 50);
-    btn_UpCigFilterDarkGray_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_UpCigFilterDarkGray_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_UpCigFilterDarkGray_dec->setMaximumSize(50, 50);
     lab_UpCigFilterDarkGray->setText(QStringLiteral("上烟滤嘴暗点灰度阈值"));
     lab_UpCigFilterDarkGray->setMaximumSize(220, 50);
@@ -4160,9 +4190,9 @@ void CigVisionParams::initFilterDarkNGWidgets()
     zu1_00_v1_h2->addWidget(ledit_UpCigFilterDarkGray);
     zu1_00_v1_h2->addWidget(btn_UpCigFilterDarkGray_add);
 
-    btn_DownCigFilterDarkArea_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_DownCigFilterDarkArea_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_DownCigFilterDarkArea_add->setMaximumSize(50, 50);
-    btn_DownCigFilterDarkArea_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_DownCigFilterDarkArea_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_DownCigFilterDarkArea_dec->setMaximumSize(50, 50);
     lab_DownCigFilterDarkArea->setText(QStringLiteral("下烟烟棒暗点面积阈值"));
     lab_DownCigFilterDarkArea->setMaximumSize(220, 50);
@@ -4173,9 +4203,9 @@ void CigVisionParams::initFilterDarkNGWidgets()
     ledit_DownCigFilterDarkArea->setStyleSheet("background-color: rgb(200,200,200); font-size: 14px; ");
     ledit_DownCigFilterDarkArea->setMaxLength(3);
 
-    btn_DownCigFilterDarkGray_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_DownCigFilterDarkGray_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_DownCigFilterDarkGray_add->setMaximumSize(50, 50);
-    btn_DownCigFilterDarkGray_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_DownCigFilterDarkGray_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_DownCigFilterDarkGray_dec->setMaximumSize(50, 50);
     lab_DownCigFilterDarkGray->setText(QStringLiteral("下烟烟棒暗点灰度阈值"));
     lab_DownCigFilterDarkGray->setMaximumSize(220, 50);
@@ -4333,9 +4363,9 @@ void CigVisionParams::initFilterWhiteNGWidgets()
     QLabel* lab_DownCigFilterWhiteGray = new QLabel();
     QLineEdit* ledit_DownCigFilterWhiteGray = new QLineEdit();
 
-    btn_UpCigFilterWhiteArea_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_UpCigFilterWhiteArea_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_UpCigFilterWhiteArea_add->setMaximumSize(50, 50);
-    btn_UpCigFilterWhiteArea_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_UpCigFilterWhiteArea_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_UpCigFilterWhiteArea_dec->setMaximumSize(50, 50);
     lab_UpCigFilterWhiteArea->setText(QStringLiteral("上烟滤嘴亮点面积阈值"));
     lab_UpCigFilterWhiteArea->setMaximumSize(220, 50);
@@ -4346,9 +4376,9 @@ void CigVisionParams::initFilterWhiteNGWidgets()
     ledit_UpCigFilterWhiteArea->setStyleSheet("background-color: rgb(200,200,200); font-size: 14px; ");
     ledit_UpCigFilterWhiteArea->setMaxLength(3);
 
-    btn_UpCigFilterWhiteGray_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_UpCigFilterWhiteGray_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_UpCigFilterWhiteGray_add->setMaximumSize(50, 50);
-    btn_UpCigFilterWhiteGray_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_UpCigFilterWhiteGray_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_UpCigFilterWhiteGray_dec->setMaximumSize(50, 50);
     lab_UpCigFilterWhiteGray->setText(QStringLiteral("上烟滤嘴亮点灰度阈值"));
     lab_UpCigFilterWhiteGray->setMaximumSize(220, 50);
@@ -4369,9 +4399,9 @@ void CigVisionParams::initFilterWhiteNGWidgets()
     zu1_00_v1_h2->addWidget(ledit_UpCigFilterWhiteGray);
     zu1_00_v1_h2->addWidget(btn_UpCigFilterWhiteGray_add);
 
-    btn_DownCigFilterWhiteArea_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_DownCigFilterWhiteArea_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_DownCigFilterWhiteArea_add->setMaximumSize(50, 50);
-    btn_DownCigFilterWhiteArea_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_DownCigFilterWhiteArea_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_DownCigFilterWhiteArea_dec->setMaximumSize(50, 50);
     lab_DownCigFilterWhiteArea->setText(QStringLiteral("下烟烟棒亮点面积阈值"));
     lab_DownCigFilterWhiteArea->setMaximumSize(220, 50);
@@ -4382,9 +4412,9 @@ void CigVisionParams::initFilterWhiteNGWidgets()
     ledit_DownCigFilterWhiteArea->setStyleSheet("background-color: rgb(200,200,200); font-size: 14px; ");
     ledit_DownCigFilterWhiteArea->setMaxLength(3);
 
-    btn_DownCigFilterWhiteGray_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_DownCigFilterWhiteGray_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_DownCigFilterWhiteGray_add->setMaximumSize(50, 50);
-    btn_DownCigFilterWhiteGray_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_DownCigFilterWhiteGray_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_DownCigFilterWhiteGray_dec->setMaximumSize(50, 50);
     lab_DownCigFilterWhiteGray->setText(QStringLiteral("下烟烟棒亮点灰度阈值"));
     lab_DownCigFilterWhiteGray->setMaximumSize(220, 50);
@@ -4555,9 +4585,9 @@ void CigVisionParams::initOutNGWidgets()
     QLabel* lab_DownCigOutConvexity = new QLabel();
     QLineEdit* ledit_DownCigOutConvexity = new QLineEdit();
 
-    btn_UpCigOutPixArea_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_UpCigOutPixArea_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_UpCigOutPixArea_add->setMaximumSize(50, 50);
-    btn_UpCigOutPixArea_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_UpCigOutPixArea_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_UpCigOutPixArea_dec->setMaximumSize(50, 50);
     lab_UpCigOutPixArea->setText(QStringLiteral("上烟烟支轮廓向外扩展像素"));
     lab_UpCigOutPixArea->setMaximumSize(220, 50);
@@ -4568,9 +4598,9 @@ void CigVisionParams::initOutNGWidgets()
     ledit_UpCigOutPixArea->setStyleSheet("background-color: rgb(200,200,200); font-size: 14px; ");
     ledit_UpCigOutPixArea->setMaxLength(3);
 
-    btn_UpCigOutrectangularity_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_UpCigOutrectangularity_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_UpCigOutrectangularity_add->setMaximumSize(50, 50);
-    btn_UpCigOutrectangularity_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_UpCigOutrectangularity_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_UpCigOutrectangularity_dec->setMaximumSize(50, 50);
     lab_UpCigOutrectangularity->setText(QStringLiteral("上烟矩形度参数"));
     lab_UpCigOutrectangularity->setMaximumSize(220, 50);
@@ -4581,9 +4611,9 @@ void CigVisionParams::initOutNGWidgets()
     ledit_UpCigOutrectangularity->setStyleSheet("background-color: rgb(200,200,200); font-size: 14px; ");
     ledit_UpCigOutrectangularity->setMaxLength(3);
 
-    btn_UpCigOutConvexity_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_UpCigOutConvexity_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_UpCigOutConvexity_add->setMaximumSize(50, 50);
-    btn_UpCigOutConvexity_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_UpCigOutConvexity_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_UpCigOutConvexity_dec->setMaximumSize(50, 50);
     lab_UpCigOutConvexity->setText(QStringLiteral("上烟凸度参数"));
     lab_UpCigOutConvexity->setMaximumSize(220, 50);
@@ -4610,9 +4640,9 @@ void CigVisionParams::initOutNGWidgets()
     zu1_00_v1_h3->addWidget(ledit_UpCigOutConvexity);
     zu1_00_v1_h3->addWidget(btn_UpCigOutConvexity_add);
 
-    btn_DownCigOutPixArea_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_DownCigOutPixArea_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_DownCigOutPixArea_add->setMaximumSize(50, 50);
-    btn_DownCigOutPixArea_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_DownCigOutPixArea_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_DownCigOutPixArea_dec->setMaximumSize(50, 50);
     lab_DownCigOutPixArea->setText(QStringLiteral("下烟烟支轮廓向外扩展像素"));
     lab_DownCigOutPixArea->setMaximumSize(220, 50);
@@ -4623,9 +4653,9 @@ void CigVisionParams::initOutNGWidgets()
     ledit_DownCigOutPixArea->setStyleSheet("background-color: rgb(200,200,200); font-size: 14px; ");
     ledit_DownCigOutPixArea->setMaxLength(3);
 
-    btn_DownCigOutrectangularity_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_DownCigOutrectangularity_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_DownCigOutrectangularity_add->setMaximumSize(50, 50);
-    btn_DownCigOutrectangularity_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_DownCigOutrectangularity_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_DownCigOutrectangularity_dec->setMaximumSize(50, 50);
     lab_DownCigOutrectangularity->setText(QStringLiteral("下烟矩形度参数"));
     lab_DownCigOutrectangularity->setMaximumSize(220, 50);
@@ -4636,9 +4666,9 @@ void CigVisionParams::initOutNGWidgets()
     ledit_DownCigOutrectangularity->setStyleSheet("background-color: rgb(200,200,200); font-size: 14px; ");
     ledit_DownCigOutrectangularity->setMaxLength(3);
 
-    btn_DownCigOutConvexity_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_DownCigOutConvexity_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_DownCigOutConvexity_add->setMaximumSize(50, 50);
-    btn_DownCigOutConvexity_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_DownCigOutConvexity_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_DownCigOutConvexity_dec->setMaximumSize(50, 50);
     lab_DownCigOutConvexity->setText(QStringLiteral("下烟凸度参数"));
     lab_DownCigOutConvexity->setMaximumSize(220, 50);
@@ -4822,9 +4852,9 @@ void CigVisionParams::initJointNGWidgets()
     QLabel* lab_DownCigJointArea = new QLabel();
     QLineEdit* ledit_DownCigJointArea = new QLineEdit();
 
-    btn_UpCigJointArea_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_UpCigJointArea_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_UpCigJointArea_add->setMaximumSize(50, 50);
-    btn_UpCigJointArea_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_UpCigJointArea_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_UpCigJointArea_dec->setMaximumSize(50, 50);
     lab_UpCigJointArea->setText(QStringLiteral("上烟拼接缺陷面积阈值"));
     lab_UpCigJointArea->setMaximumSize(220, 50);
@@ -4840,9 +4870,9 @@ void CigVisionParams::initJointNGWidgets()
     zu1_00_v1_h1->addWidget(ledit_UpCigJointArea);
     zu1_00_v1_h1->addWidget(btn_UpCigJointArea_add);
 
-    btn_DownCigJointArea_add->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-bold (green).png")));
+    btn_DownCigJointArea_add->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-bold.png")));
     btn_DownCigJointArea_add->setMaximumSize(50, 50);
-    btn_DownCigJointArea_dec->setIcon(QPixmap(QStringLiteral("icons/use/arrow-left-bold (green).png")));
+    btn_DownCigJointArea_dec->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-left-bold.png")));
     btn_DownCigJointArea_dec->setMaximumSize(50, 50);
     lab_DownCigJointArea->setText(QStringLiteral("下烟拼接缺陷面积阈值"));
     lab_DownCigJointArea->setMaximumSize(220, 50);
@@ -5147,7 +5177,8 @@ void CigVisionParams::showParamsWidgets(int processID, int operatorID)//显示�
 	if (processID == 5 and operatorID == 0)//深度学习置信度设置
 	{
 		paramsTabWidget->clear();
-        paramsTabWidget->addTab(stickNGSet_widget, QStringLiteral("深度学习参数设置 "));
+        refreshDeepLearningParamsWidgets();
+        paramsTabWidget->addTab(deepNGSet_widget, QStringLiteral("深度学习参数设置 "));
         current_process_step = process_step::Deep;
 	}
     //
@@ -5325,16 +5356,22 @@ bool CigVisionParams::loadBrandParams(const QString& brandName)
     downJointDefectParams.defectArea = settings.value("defectArea", 0).toInt();
     settings.endGroup();
 
-	// 加载深度学习参数
-	settings.beginGroup("DeepLearningParams");
-	deepLearningParams.jointRollThreshold = settings.value("jointRollThreshold", 0.5).toDouble();
-	deepLearningParams.flyingTobaccoThreshold = settings.value("flyingTobaccoThreshold", 0.5).toDouble();
-	deepLearningParams.tobaccoClipsThreshold = settings.value("tobaccoClipsThreshold", 0.5).toDouble();
-	deepLearningParams.filterWrinkleThreshold = settings.value("filterWrinkleThreshold", 0.5).toDouble();
-	deepLearningParams.missingFilterThreshold = settings.value("missingFilterThreshold", 0.5).toDouble();
-	deepLearningParams.rodDamageThreshold = settings.value("rodDamageThreshold", 0.5).toDouble();
-	deepLearningParams.rodStainThreshold = settings.value("rodStainThreshold", 0.5).toDouble();
-	settings.endGroup();
+    // 加载深度学习参数。无效阈值不得进入运行时参数快照。
+    settings.beginGroup("DeepLearningParams");
+    DeepLearningParams loadedDeepLearningParams;
+    loadedDeepLearningParams.jointRollThreshold = settings.value("jointRollThreshold", 0.5).toDouble();
+    loadedDeepLearningParams.flyingTobaccoThreshold = settings.value("flyingTobaccoThreshold", 0.5).toDouble();
+    loadedDeepLearningParams.tobaccoClipsThreshold = settings.value("tobaccoClipsThreshold", 0.5).toDouble();
+    loadedDeepLearningParams.filterWrinkleThreshold = settings.value("filterWrinkleThreshold", 0.5).toDouble();
+    loadedDeepLearningParams.missingFilterThreshold = settings.value("missingFilterThreshold", 0.5).toDouble();
+    loadedDeepLearningParams.rodDamageThreshold = settings.value("rodDamageThreshold", 0.5).toDouble();
+    loadedDeepLearningParams.rodStainThreshold = settings.value("rodStainThreshold", 0.5).toDouble();
+    settings.endGroup();
+    if (!areValidDeepLearningParams(loadedDeepLearningParams)) {
+        qWarning() << "品牌深度学习阈值无效，保留当前安全值:" << paraPath;
+        return false;
+    }
+    deepLearningParams = loadedDeepLearningParams;
     return true;
 }
 
@@ -5516,6 +5553,16 @@ bool CigVisionParams::saveBrandParams(const QString& brandName)
     settings.setValue("convexity", downOutDefectParams.convexity);
     settings.endGroup();
 
+    settings.beginGroup("DeepLearningParams");
+    settings.setValue("jointRollThreshold", deepLearningParams.jointRollThreshold);
+    settings.setValue("flyingTobaccoThreshold", deepLearningParams.flyingTobaccoThreshold);
+    settings.setValue("tobaccoClipsThreshold", deepLearningParams.tobaccoClipsThreshold);
+    settings.setValue("filterWrinkleThreshold", deepLearningParams.filterWrinkleThreshold);
+    settings.setValue("missingFilterThreshold", deepLearningParams.missingFilterThreshold);
+    settings.setValue("rodDamageThreshold", deepLearningParams.rodDamageThreshold);
+    settings.setValue("rodStainThreshold", deepLearningParams.rodStainThreshold);
+    settings.endGroup();
+
     // 确保设置被写入文件
     settings.sync();
     
@@ -5601,6 +5648,7 @@ void CigVisionParams::onBrandComboBoxChanged(const QString& brandName)
         if (!loadBrandParams(currentBrand)) {
             qDebug() << "Warning: Failed to load parameters for brand:" << brandName;
         }
+        refreshDeepLearningParamsWidgets();
         
         // 更新界面显示
         brandComboBox->setCurrentText(currentBrand);
@@ -5683,8 +5731,106 @@ void CigVisionParams::onNewBrandButtonClicked()
 // 实现深度学习参数的getter和setter方法
 void CigVisionParams::setDeepLearningParams(const DeepLearningParams& params)
 {
+    if (!areValidDeepLearningParams(params)) {
+        qWarning() << "拒绝保存无效深度学习阈值；所有值必须在 [0, 1] 且为有限数";
+        if (deepLearningSaveStatusLabel != nullptr) {
+            deepLearningSaveStatusLabel->setText(QStringLiteral("保存失败：阈值必须在 0.000～1.000"));
+        }
+        return;
+    }
+
     deepLearningParams = params;
-    saveToIni();
+    const bool saved = !currentBrand.isEmpty() && saveBrandParams(currentBrand);
+    if (deepLearningSaveStatusLabel != nullptr) {
+        deepLearningSaveStatusLabel->setText(
+            saved ? QStringLiteral("已保存到当前品牌参数")
+                  : QStringLiteral("保存失败：请检查品牌目录和 para.ini"));
+    }
+}
+
+void CigVisionParams::initDeepLearningParamsWidgets()
+{
+    QVBoxLayout* pageLayout = new QVBoxLayout(deepNGSet_widget);
+    QGroupBox* thresholdGroup = new QGroupBox(QStringLiteral("分类置信度阈值"));
+    QFormLayout* thresholdLayout = new QFormLayout(thresholdGroup);
+
+    const QStringList labels = {
+        QStringLiteral("搭口搓牙"),
+        QStringLiteral("飞烟"),
+        QStringLiteral("夹末"),
+        QStringLiteral("滤嘴皱褶"),
+        QStringLiteral("缺嘴"),
+        QStringLiteral("烟棒破损"),
+        QStringLiteral("烟棒脏污")
+    };
+
+    deepLearningThresholdSpins.clear();
+    for (const QString& label : labels) {
+        QDoubleSpinBox* spin = new QDoubleSpinBox(thresholdGroup);
+        spin->setRange(0.0, 1.0);
+        spin->setDecimals(3);
+        spin->setSingleStep(0.01);
+        spin->setAlignment(Qt::AlignCenter);
+        thresholdLayout->addRow(label, spin);
+        deepLearningThresholdSpins.push_back(spin);
+    }
+
+    QLabel* identityNotice = new QLabel(
+        QStringLiteral("这些值作为品牌配置快照留痕；只有运行会话标记“已应用”时，才代表检测器实际采用。"),
+        deepNGSet_widget);
+    identityNotice->setWordWrap(true);
+
+    QPushButton* saveButton = new QPushButton(QStringLiteral("保存当前品牌阈值"), deepNGSet_widget);
+    deepLearningSaveStatusLabel = new QLabel(deepNGSet_widget);
+    deepLearningSaveStatusLabel->setWordWrap(true);
+
+    pageLayout->addWidget(thresholdGroup);
+    pageLayout->addWidget(identityNotice);
+    pageLayout->addWidget(saveButton);
+    pageLayout->addWidget(deepLearningSaveStatusLabel);
+    pageLayout->addStretch();
+
+    connect(saveButton, &QPushButton::clicked, this, [this]() {
+        if (deepLearningThresholdSpins.size() != 7) {
+            deepLearningSaveStatusLabel->setText(QStringLiteral("保存失败：参数控件不完整"));
+            return;
+        }
+
+        DeepLearningParams params;
+        params.jointRollThreshold = deepLearningThresholdSpins[0]->value();
+        params.flyingTobaccoThreshold = deepLearningThresholdSpins[1]->value();
+        params.tobaccoClipsThreshold = deepLearningThresholdSpins[2]->value();
+        params.filterWrinkleThreshold = deepLearningThresholdSpins[3]->value();
+        params.missingFilterThreshold = deepLearningThresholdSpins[4]->value();
+        params.rodDamageThreshold = deepLearningThresholdSpins[5]->value();
+        params.rodStainThreshold = deepLearningThresholdSpins[6]->value();
+        setDeepLearningParams(params);
+    });
+
+    refreshDeepLearningParamsWidgets();
+}
+
+void CigVisionParams::refreshDeepLearningParamsWidgets()
+{
+    if (deepLearningThresholdSpins.size() != 7) {
+        return;
+    }
+
+    const double values[] = {
+        deepLearningParams.jointRollThreshold,
+        deepLearningParams.flyingTobaccoThreshold,
+        deepLearningParams.tobaccoClipsThreshold,
+        deepLearningParams.filterWrinkleThreshold,
+        deepLearningParams.missingFilterThreshold,
+        deepLearningParams.rodDamageThreshold,
+        deepLearningParams.rodStainThreshold
+    };
+    for (int index = 0; index < 7; ++index) {
+        deepLearningThresholdSpins[index]->setValue(values[index]);
+    }
+    if (deepLearningSaveStatusLabel != nullptr) {
+        deepLearningSaveStatusLabel->clear();
+    }
 }
 
 void CigVisionParams::initSysParamsWidgets()
@@ -6001,7 +6147,7 @@ void CigVisionParams::initSystemParamsGroup()
         "   border: 2px solid #4CAF50;"
         "   border-radius: 4px;"
         "   background-color: #4CAF50;"
-        "   image: url(icons/use/check.png);"
+        "   image: url(:/CigVision/icons/use/document-conversion.png);"
         "}";
    
     QString comboBoxStyle =

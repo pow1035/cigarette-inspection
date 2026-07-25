@@ -1,5 +1,118 @@
 # 进度日志
 
+## 当前状态（2026-07-26）
+
+- 当前阶段已推进到 P8。P7 本地源码和 SDK-free 参数/状态契约已完成，剩余 Windows/Qt runtime 作为外部目标机阻断保留，不再占用本地实现主线。
+- P7 产品状态已扩展为 8/8：新增 typed configured/applied 参数 profile、canonical SHA-256、golden 身份、帧级参数哈希漂移拒绝和 TensorRT adapter 投影。品牌七阈值改用独立页面并写入当前品牌 `para.ini`；当前 Mac 无 Qt/MSVC，页面和 JSON runtime 尚未声称通过。
+- 完整仓库已重新克隆到本地，`main` 与 `origin/main` 同步，拉取完成时工作树干净；旧稀疏副本已移入系统废纸篓。
+- P5-02C3 双人复核真值晋级与 P5-02C5 临时 ONNX Runtime CPU 基线均已完成独立 reviewer/QA 门禁；正式 TensorRT 基线仍按 KI-039 保持 BLOCKED / NOT VERIFIED。
+- P5-02C6 历史快照为 76/76；加入 P5-02C7 readiness 24 项回归后，当前 P5 全量 100/100。文档门、P1 静态门、Python 编译、SDK-free C++ contracts/offline/simulation 7/7、7/7、15/15、workflow、`git diff --check` 与 `light_gate.py` 均通过。
+- P5-02C7 最终独立 QA 与 clean-snapshot reviewer 均 PASS；P5 因 KI-039/KI-040、完整数据和业务确认转为外部阻断、未关闭，唯一阶段指针切换到 P6。
+- P6-01A 已新增 SDK-free 录制序列回放和 Simulation-only 剔除安全核心；P6-01B 已完成 Qt manifest/trace、simulation CLI 和只读 preflight。P6-02 已新增确定性多相机容量模型，simulation executable 总计 15/15，P6 Python 回归现为 17/17。时间线复核确认 P6-01B 历史切片只完成同代理降级检查；后续 P7/P8 独立门未明确覆盖该切片，不能反向升级。Windows/Qt runtime 和产品运行产物仍未验证。
+- `Local gates` GitHub Actions 定义当前覆盖文档/P1 静态、P5/P6/P8 Python 精确计数、无 SDK C++ 回归和 PowerShell 静态门；本轮没有在线运行 Actions。Windows/MSVC、TensorRT/GPU 和现场硬件继续保留为目标机/人工门禁。
+- P8 测试集总数仍为 76：preflight 17、soak 9、release 17、wrapper/collector 2、package manifest 7、evidence verify/import 24。安全返修已升级为 Windows/GPU host report v2、wrapper/receipt v4：每次生成 64-hex challenge，复制 provenance collector 后以 mandatory `-RepositoryRoot $repoRoot` 立即现场采集并绑定 package/capture/host/time；RepositoryRoot 与 OutputDirectory 不得重叠，不再接受历史 host input。collector 不执行 PATH 工具，只读版本、文件大小/SHA 与 CIM GPU；collector/wrapper 使用 ownership/reparse 防护且失败不递归清理。
+- v4 证据认证要求 Package、EvidenceRoot、DeploymentRoot 和 bundle 外的 exactly 32-byte key；manifest 在内存形成固定 UTF-8 bytes，以 `CreateNew + Flush(true)` 写入，SHA/HMAC 针对同一 bytes 计算并复读确认未漂移。verifier 精确复验 preflight 顶层/claims/inputs/9 项检查、v2 reports、采集窗口和 7 个受信 provenance；receipt v4 绑定 HMAC。返修前 full gate 曾通过，返修后最终 full gate 与独立 reviewer/QA 尚待执行。
+- 独立 PowerShell 静态门当前在本机 Colima/Linux arm64 使用 PowerShell 7.6.3、PSScriptAnalyzer 1.25.0 扫描 13 个 `.ps1`，parser/analyzer finding 均为 0；CLI 契约 7/7 PASS。结果固定 `windowsRuntimeClaimed=false`，不并入 P8 76/76。
+- 使用隔离的 Python 3.12 环境安装 ONNX Runtime 1.20.1，精确加载 SHA-256 为 `956554A92E8E7F9338B86E2B25FAE3E40F87DDF7F702E04B213AE46C5E26D0C4` 的模型；`images`/`output0` 运行时形状为 `[1,3,992,992]`/`[1,300,6]`，CPU 零输入推理输出为有限 FP32。该检查只证明当前 Mac 可运行 ONNX CPU 诊断链，不是图像效果、正式 TensorRT 或性能证据；受控 reviewed-truth artifact 未随 Git 克隆，完整 pilot 复算仍需恢复该外部输入。
+
+## 2026-07-26 - PowerShell parser/PSScriptAnalyzer 独立静态门
+
+- 新增 `scripts/validate_powershell_scripts.ps1`：递归扫描 `scripts/` 和 `tests/powershell/`，逐文件调用 PowerShell parser，并在要求时强制加载最低 1.25.0 的 PSScriptAnalyzer；报告 schema 为 `cigvision-powershell-static-gate-v1`，明确 `scope=parser-and-static-analysis-only` 和 `windowsRuntimeClaimed=false`。
+- PSScriptAnalyzer 显式启用 `PSUseCompatibleSyntax`，目标 Windows PowerShell 5.1；JSON 记录 `syntaxCompatibilityTargets=["5.1"]` 和 `scriptAnalyzerMinimumVersion="1.25.0"`。静态分析保留默认规则，仅透明排除三项与项目证据包装脚本约定冲突的低信号风格规则：`PSAvoidUsingWriteHost`、`PSAvoidUsingPositionalParameters`、`PSUseSingularNouns`。
+- 修复两个实际 analyzer finding：`run_windows_p3_offline.ps1` 不再向 PowerShell 自动变量 `$args` 赋值，改用 `$buildArguments`；`run_windows_p4_tensorrt.ps1` 的重复输入索引改为显式 `$sampleIndex` 循环，避免闭包索引的未使用赋值告警。
+- 新增 `tests/powershell/test_validate_powershell_scripts.ps1`，以子进程覆盖有效仓库 exit 0、畸形脚本 exit 1、PowerShell 7 三元语法被 5.1 门拒绝、缺失根目录 exit 3、缺失 scripts 目录 exit 3、空 scripts 目录 exit 3、缺 analyzer exit 2，共 7 个 CLI 契约；exit 2/3 均校验机器可读 JSON。
+- 本机 Colima/Linux arm64 当前实测 PowerShell 7.6.3 + PSScriptAnalyzer 1.25.0：13 个 `.ps1`，parser finding 0、analyzer finding 0；CLI 契约 7/7 PASS。5.1 兼容静态门不等于 Windows PowerShell 5.1 实跑，也不证明 Qt、GPU、D 盘或硬件运行。
+- `.github/workflows/p5-local-gates.yml` 已增加 `pwsh` 静态门和契约测试步骤；本轮没有在线触发或读取 GitHub Actions 结果，因此不声明 hosted workflow PASS。
+- P8 测试集仍为 76 项；PowerShell 7/7 单独记录。2026-07-25 的最终 reviewer/QA 只覆盖历史 70 项，PowerShell reviewer/QA 只覆盖当时静态门快照，均不自动覆盖当前 challenge/HMAC/v2/v4 返修。
+- PowerShell 增量独立 reviewer `019f9a17-7e58-7350-9ec3-7373f3151f4f` 在两项 P3 和一项文档计数 P2 修复后最终 PASS，P0/P1/P2/P3=0/0/0/0；确认 12 个脚本零 finding、CLI 7/7、exit 2/3 JSON、PowerShell 7 三元语法被 5.1 兼容门拒绝、文档防回退及文档门/`light_gate.py`/diff 全通过。
+- 独立 QA `019f9a17-98ad-7f23-9c36-6d62a7fa49ec` 最终 PASS，P0/P1/P2=0/0/0；验证 12 个脚本零 finding、7/7 CLI、exit 2/3 JSON、5.1 三元语法拒绝、`windowsRuntimeClaimed=false` 和验证前后文件哈希一致。
+- 最终 documentation maintenance 已同步 README、计划、证据、进度、P8 闭环、评审、QA、问题和可观测性边界；`./scripts/validate_project_docs.sh` PASS，`light_gate.py` 无 warning，`git diff --check` PASS。本轮切片集中、无临时缓存或重复工具漂移，cleanup 暂不触发；待目标机证据进入后重新判断。
+
+## 2026-07-25 - P7-01A 产品运行状态与最近结果复核
+
+- 新增 SDK-free `core/ProductRuntimeState.h`：显式 run/mode/detector/parameter/model identity、真实 IO 安全拒绝、Running/Stopping/Idle/Faulted 生命周期、逐帧与逐相机/逐类别统计、有界最近结果/诊断/重复窗口。
+- `tests/CigVision.ProductState/ProductStateTests.cpp` 当前 8/8，覆盖配置、参数 profile/golden SHA、守恒、无部分写入、复核修订、非法枚举、station/camera 复合身份不碰撞、故障重启和并发；新增独立 MSVC C++14 test project并接入 Linux local gates。
+- `OfflineInspectionWorker::publish` 现发送 frame/station/camera/cigarette/timestamps/parameter/defects/error；运行页从产品状态快照刷新计数，不再只信任 UI 回调中的累计数字。
+- 复用现有 `btn_search` 和页面索引 4，新增沿用深色风格的最近 NG/错误表、复核人、备注、确认/需修正/误报操作。`docs/p7-ui-inventory.md` 记录所有顶栏/导航控件的消费者和保留决策；本切片没有删除或隐藏功能。
+- 随后完成 P7-01B/P7-01C 本地源码：`btn_count` 展示运行/相机/类别统计，`btn_log` 展示结构化诊断；配置、状态、统计、最近结果、复核和诊断仅在启动、结束和复核时由 `QSaveFile` 原子写入 `product-session.json`；运行中品牌冻结，退出时先停止离线 worker。
+- 首轮独立 reviewer/QA 发现默认 UI 仍初始化硬件、在线停机失败仍可退出、启动即停止可能丢失、活动 source 指针竞态、非法枚举、相机键碰撞、待复核计数、逐帧落盘和最终落盘失败门等问题。现已逐项修复：`main.cpp` 固定 local-only；在线停机或最终落盘失败取消退出；pending stop 与 active source 受保护；枚举、复合键、待复核统计和非逐帧落盘补回归/静态门。
+- 修复后独立 reviewer 与 QA 均 PASS：C++14/C++17 strict、TSan、ASan/UBSan、offline/product 50/50、simulation 20/20 和启动窗口 BarrierSource stop 探针均通过；未发现新增 P0-P2。主代理最终全门为文档/P1、P5 100/100、P6 17/17、contracts/offline/simulation/product-state 7/7 + 7/7 + 15/15 + 7/7、Python/YAML/XML/diff 全通过。
+- 当前只取得 SDK-free 编译/运行和 Qt 源码接线证据。Windows/MSVC 主程序构建、页面截图、键鼠流程和 Computer Use 尚未验证。
+- P7 参数身份增量新增 `Sha256.h`、`ProductParameterProfile.h` 和 `docs/p7-parameter-profile.md`；TensorRT 配置升为严格 v2 并绑定完整 engine SHA-256、9 个逐类阈值与 profile 文件。fixture 运行明确保存 configured legacy profile 但标记未应用，避免把参数页值伪称为检测器参数。
+- P8 当时新增严格 local-only preflight，历史快照 12/12；覆盖外部 manifest SHA、逐文件 size/hash、重复 JSON key、非有限数、`..`/绝对路径、symlink/reparse、case/NFC 冲突、`rejectEnabled=false`、品牌和输出隔离。配置根改为 executable 目录，修复 `%General`、默认品牌、空 QRC、缺失图标变体与 UI 开发机绝对路径。
+- P8 SDK-free soak 9/9：多轮/重启使用新目录，记录 stdout/stderr、RSS、磁盘、输出量、超时/崩溃和进程残留；Windows 用 Toolhelp 跟踪父子 PID，First/Next API 失败与正常结束分离，枚举失败不能假绿；非有限 CLI 数值被拒绝；GPU 固定 `not-collected`。
+- P8 fixture release 17/17：严格 manifest、单快照 hash/parse、最终复验、外部 source manifest 约束 staging 复制、路径/symlink/reparse/case/NFC 防护、原子 activate/rollback、失败保持 current 和 shared 隔离。该历史快照的 Windows wrapper 静态契约为 1/1。
+- P8 Windows evidence v2 历史快照 24/24：覆盖外部顶层 SHA、可移植相对路径、Git/tool/gate provenance、子证据与 A→B→A 绑定、结束复扫、严格 run 守恒、真实 soak、receipt v2 和原子导入；该时点 P8 合计 70/70，目标 PowerShell/D 盘尚未运行。
+- 第一轮 P8 documentation maintenance agent 曾在 earlier evidence v2 切片后修正阶段与 PASS 漂移，并固化“每个实现切片后、独立 review/QA 后、最终门禁前”三次文档维护节奏。
+- cleanup 初审 FAIL 的 4 P1、3 P2 修复后，reviewer 返修复核又发现 2 P1、2 P2：gate/external 绑定、release 精确 schema、import 根白名单和文档边界；全部修复后 QA 再发现 1 P1，即 wrapper 不应提示执行待验 evidence 内 verifier。现已只提示独立可信仓库 verifier，并警告绝不能执行 provenance 代码。
+- 主代理定向复核为 32/32。
+- 最终 reviewer `019f99cb-7c02-7b23-b498-9b28e7ba761c` PASS，P0/P1/P2=0/0/0，P8 70/70、文档/diff PASS；最终 QA `019f99d7-8a02-7da1-8641-2d533409d06d` PASS，P0/P1/P2=0/0/0，wrapper 1/1 PASS；该结论仅对应历史 70 项快照。
+- 主代理 `./scripts/run_all_local_gates.sh --full` 最终 PASS：P5 100、P6 17、P8 70、C++17/C++14、repeat 20、ASan/UBSan、文档/P1/diff；`.ruff_cache` 已清除。
+- 第二轮 documentation maintenance agent 在 cleanup 修复切片后同步了 70 项计数和 Windows 手册；第三轮 documentation maintenance agent 在 reviewer/QA 关闭后更新历史独立门。当前 76 项增量另有定向 cleanup/reviewer/QA 待执行，P8 整体仍等待 Windows/PowerShell/Qt/GPU/D 盘、真实数据/许可/硬件外部证据。
+
+## 2026-07-25 - P5-02C7 受控输入就绪与 fresh-clone 复核
+
+- 新增 `scripts/p5_input_readiness.py` 和 24 项定向测试。默认 CLI 固定模型与类别目录 SHA-256；对 reviewed-truth/fallback 检查整个受控目录路径、manifest schema、必需输出、非负大小、SHA-256、reviewed attestation 语义及 GT/approved-manifest/catalog 交叉绑定；`--output` 在写入前拒绝与受控文件、artifact 根或其祖先重叠，并保守覆盖大小写与 Unicode 等价拼写。
+- exit 语义收口为：0=指定范围内部一致性通过；2=整个受控 reviewed/fallback 根目录未恢复；3=模型/类别目录缺失、artifact 目录内不完整、schema/hash/size/attestation 错配、`..`、目标/父目录/深层共同根 symlink 或其他非法输入。当前 strict fresh clone 为 exit 2，仅缺 `reviewed_truth` 与 `fallback_baseline`，invalid count 0。
+- readiness 被接入 `validate_project_docs.sh` 和 Linux `P5 local gates`；文档门只允许上述两个外部根目录缺失，其他 missing/invalid/mismatch 均失败，未跟踪 whitespace 检查已覆盖新增 `tests/`。
+- 独立 reviewer 在多轮对抗中发现并推动修复：缺失 `size_bytes` 假绿、断链 symlink 分类、base input/目录内缺失错误 exit、固定类别目录哈希、attestation 缺字段、父目录及 `symlink/..`/深层祖先绕过、非目录 artifact 祖先、case/NFC-NFD 等价别名、artifact 根祖先 output、output symlink loop、文档 pending 和 tests 未跟踪检查范围。最终代码复核 24/24、P5 100/100 及全门禁 PASS。
+- 独立 QA 对最终树复跑 targeted/full、strict exit、临时 success/missing/blocked/tamper/attestation/path/symlink/alias/output-overlap 矩阵、actionlint/workflow 等价步骤和 artifact 前后快照；最终 PASS，未创建或修改仓库 artifact，也未留下 tracked cache/build/pyc。
+- readiness 只证明 supplied manifest 的内部一致性，不认证 manifest 自身。受控恢复仍必须核对外部 evidence-manifest SHA-256；fallback 摘要已有历史记录，reviewed evidence-manifest 摘要当前未随 clone 提供。故工具切片通过，但 KI-040 与 P5 整体保持外部阻断、未关闭。
+
+## 2026-07-25 - P6-01A 核心回放与模拟剔除安全边界
+
+- 新增 `core/RealtimeSimulation.h`：可注入/可取消 replay pacer、逐帧 delay 的 `ReplayFrameSource`、正向 `SimulationClock`、只记录内存命令的 `SimulationRejectOutput` 和全链路 `SimulationRejectObserver`。
+- 新增 `tests/CigVision.Simulation/SimulationTests.cpp` 8 项核心场景：元数据与节拍、空/非法输入、停止取消、4 帧端到端模拟剔除、unsafe/throwing output、零编号/时间溢出、重复 frame-id，以及 session stop 取消阻塞 source。
+- 命令固定 `RejectMode::Simulation`；任何非法结果或非 Simulated 回执仅记录失败，不增加真实 IO 适配器，不接相机/DAQNavi。
+- GCC/Clang `-std=c++17 -Wall -Wextra -Wpedantic -Werror -pthread` 核心 8/8 PASS；后续 CLI 解析回归使 simulation executable 总计 10/10。
+
+## 2026-07-25 - P6-01B Qt manifest 与 Simulation CLI 源码切片
+
+- `QtOfflineInput` 增加可选 `stationId`、`cameraId`、`cigaretteNumber`、`delayBeforeMicros`；缺省时沿用 P3/P4 的 `offline`、文件名、顺序编号和零延迟语义，显式值先做类型/范围校验，local replay delay 上限为 60 秒。
+- `QtImageListFrameSource` 支持注入 `SteadyReplayPacer`；停止会取消等待。simulation 入口使用 `--simulation-batch-manifest` / `--simulation-output`，并支持 `--simulation-reject-delay-micros`、`--simulation-queue-capacity`、`--simulation-target-output`。
+- 新增无 SDK `core/BatchCommandLine.h`，保证 fixture/TensorRT/simulation 互斥并拒绝重复选项、负/溢出 delay、零/超限队列和空 target；Simulation 路径只构造 `SimulationRejectOutput`。
+- 新增原子 `simulation-trace.json`：记录配置、运行统计、station/camera/cigarette、observed/scheduled/completed clock、Simulation command、回执和错误状态；`validateSimulationTrace` 拒绝计数、状态、clock 或 frame/receipt 绑定不一致。
+- 本机验证（该源码切片当时的增量门）：strict C++ 编译后 contracts 7/7、offline 7/7、simulation 10/10；随后 P6-02 将 simulation 回归扩展到 15/15。Qt/Windows 编译、manifest 实际解析和 trace 文件运行证据尚未取得，不把代码检查写成 runtime PASS。
+
+## 2026-07-25 - P6-01B manifest/trace 只读预检加固
+
+- 新增 `scripts/p6_simulation_preflight.py`：不依赖 Qt/TensorRT，只读验证 manifest root/sample containment、SHA-256、重复/符号链接和 station/camera/cigarette/delay/expected 范围。
+- 可选 trace 审计要求 `cigvision-simulation-trace-v1`、`realIoEnabled=false`、manifest/frame metadata 绑定、Simulation command、计划/回执时间、失败错误字段和计数守恒；输出 report 原子写且不能覆盖 manifest/trace。
+- 新增 `tests/p6/test_p6_simulation_preflight.py` 9 项对抗回归，并接入 Linux local gates 和项目文档门。当前仓库 4 图 fixture 的 manifest-only 预检 PASS，缺产品 trace 时 `--require-trace` 按设计 exit 2。
+- 该切片只提高目标机执行前后的输入/产物检查能力；不解码图片、不运行 Qt/MSVC/GPU，也不认证 manifest 来源。当前无独立代理门，保持 degraded review/QA 和 P6 进行中。
+
+## 2026-07-25 - P6-02 多相机、异常与容量曲线 SDK-free 切片
+
+- 新增 `core/RealtimeLoadSimulation.h`：用虚拟时钟模拟多相机输入进入单个有界检测 worker，逐帧记录 arrival/admit/start/complete、queue wait、end-to-end、queue/pipeline depth、drop/cancel/invalid disposition、相机和烟支编号。
+- 序列审计覆盖 arrival 逆序、全局 frame-id 重复/前向跳号/回退、逐相机 cigarette 重复/跳号/回退；非法帧、processing overflow、零烟支号和 reject schedule overflow均显式失败。
+- 容量矩阵固定为 20 帧、10 µs 到达间隔、50 µs 处理：RejectNewest 容量 1/4/32 的 processed 为 5/8/20、dropped 为 15/12/0、P95 queue wait 为 50/200/720 µs、P95 end-to-end 为 101/251/771 µs；该曲线只验证确定性模型，不代表真实吞吐。
+- DropOldest 容量 2 为 processed 6、dropped 14、P95 queue/end-to-end 60/111 µs；逐帧 trace 可区分 newest reject 与 oldest eviction。
+- stop boundary 分别验证 drain 和 cancel；同一 simulator 实例重跑后状态干净。trace validator 会拒绝 Real mode、未完成 disposition、早于计划时间的回执、命令烟支号篡改、逐相机统计和 P95 统计篡改。
+- 本机 C++14/C++17 严格警告 simulation 15/15，连续 20/20，ASan/UBSan 15/15。当前会话受上层约束未启动新独立代理，故只记同代理审查/QA 式运行；Windows/Qt runtime 与独立 reviewer/QA 保持未验证。
+- 文档同步后综合门最终通过：文档门（P5 readiness 预期 exit 2）、P1 静态、P5 100/100、C++17 contracts/offline/simulation 7/7 + 7/7 + 15/15、C++14/Clang simulation、ASan/UBSan、repeat 20/20、三个 SDK-free 头文件自包含编译、Python 编译、XML/YAML、`light_gate.py` 和 `git diff --check` 均 PASS。
+
+## 2026-07-25 - P6 目标机证据编排器
+
+- 新增 `scripts/p6_windows_simulation_evidence.py`：先调用 SDK-free manifest preflight，再执行目标 `CigVision.exe --simulation-batch-manifest`，核对 `input-manifest.json`、逐帧 JSON/PNG、`summary.json`、`simulation-trace.json` 和 trace preflight；拒绝 `rejectEnabled=true`，并把 real IO、TensorRT accuracy 和硬件能力固定标为不声明。
+- 目标驱动为每次命令保存结构化参数、stdout/stderr、超时/退出码和 SHA-256；六类负路径覆盖缺少输出、fixture/Simulation 冲突、零队列、超限 delay、空 target 和残缺 manifest，并要求拒绝调用不创建输出目录。
+- 新增 `scripts/run_windows_p6_simulation.ps1`：在目标 Windows 上调用 Release P1 构建、补齐运行时 DLL 搜索路径，再调用 Python 驱动并写 wrapper manifest；`-SkipBuild` 只用于已有 Release 产物的受控复跑，默认仍先构建。
+- `tests/p6/test_p6_windows_simulation_evidence.py` 8/8 通过：成功路径、六类输出篡改/类型风险（含 PNG signature）、负路径错误退出、rejectEnabled、防覆盖、非法 manifest、非 Windows 默认拒绝和 PowerShell 接线均覆盖。该历史切片执行时 Mac 宿主机没有原生 PowerShell/Qt/MSVC；2026-07-26 的 Colima/Linux PowerShell 静态兼容门不替代目标 Windows。所有伪目标结果写为 `passed-test-only`，没有生成或声称 Windows runtime 证据。
+
+## 2026-07-25 - P6-02 trace/validator 安全加固复核
+
+- 修复模拟剔除正延迟时回执早于计划时间的问题：`SimulationRejectOutput` 现在先复核 command 契约，再以不早于 `scheduledAt` 的逻辑时间记录回执；失败回执同步保留 error code/message。
+- `validateSimulationTrace` 现在核对命令烟支号、命令契约、NG 不得无回执、回执不得早于计划时间；`ReplayFrameSource` 和 `QtImageListFrameSource` 在非 Qt/Qt 两条入口都拒绝超过 60 秒的单帧延迟。
+- `validateRealtimeSimulationSummary` 增强为重算逐相机 offered/accepted/processed/dropped/序列账目及 queue/end-to-end max/P95；现有 15 项测试内加入早回执、命令篡改、逐相机统计和 P95 统计篡改负路径。
+- 修复 `RealtimeSimulation.h` 的隐式 include 依赖，三个 SDK-free 头文件均可单独 C++14 严格编译；GitHub Actions workflow 已把自包含头文件门纳入回归。
+
+## 2026-07-25 - P5-02C6 工具跨平台回归与提交门硬化
+
+- 修复 `p5_visual_disagreement_pack.py` 在 Pillow 11.3 FreeType/TrueType 加载失败时错误调用 `load_default()` 的问题，优先走 FreeType 无关的 PIL 位图字体；测试同时阻断 `truetype` 和 `load_default` 仍可生成完整视觉包。
+- 新增 `requirements-p5.txt`（`Pillow==11.3.0`），并在 README、文档门和 Linux GitHub Actions 中固定安装/回归路径。
+- `validate_project_docs.sh` 新增 requirements、重复 `KI` ID、详细 issue 对应、P5-02C4/C5 唯一编号、README/验收标准/证据矩阵当前状态和 stale pending 检查。
+- 本机门禁：P5 76/76；文档/P1 静态、Python 编译、C++ contracts/offline 7/7+7/7、workflow YAML/等价结构检查、`git diff --check` 和 `light_gate.py` 全通过。
+- 独立 reviewer 用 `git archive HEAD` 加最终 diff 建立 clean snapshot 后复跑上述门禁并 PASS；独立 QA 在新 Python 3.11 venv、完整字体失败注入和 workflow 等价命令下 PASS。仅保留 actionlint 未在本快照独立验证、旧 Pillow、hosted Ubuntu 未直接执行及 action/dependency 未 SHA pin 等非阻断备注。
+
 ## 2026-07-10 - P0 启动
 
 - 项目已整理到 `/Users/c/Desktop/烟支检测项目_整理版`，Git 分支为 `main`，远端为私有仓库 `pow1035/cigarette-inspection`。
@@ -157,7 +270,7 @@
 - 同一 reviewer 返修复核确认首轮 8 项全部 resolved，reviewer gate PASS。最终独立 QA `artifacts/p5-qa-independent-20260711-170802`：主脚本 20/20、独立 20/20、对抗 12/12、证据门 12/12，116 张源图哈希不变，最终 gate PASS。
 - P5-01 工具切片关闭；P5 整体保持进行中。下一切片仍需人工 20-30 图试标、业务确认 `wuzi/jietou`、数据授权和冻结 split，当前没有实际准确率。
 - documentation maintenance agent 随后完整检查并维护 README、AGENTS 与 `docs/*.md`：清除 README 停在 P1、P5/P6 现场路线、P7/P8 归属漂移等当前计划误导；P0-P4 历史证据保持不变。
-- 验证：长期任务 `light_gate.py` 无 warning；全工作树 `git diff --check` exit 0；唯一阶段标记为 P5；旧路线扫描无命中；PowerShell 等价执行文档结构、关键 ID、未跟踪文件空白和 P5 受限目录检查通过。
+- 验证（当时的 P5 documentation-maintenance 记录）：长期任务 `light_gate.py` 无 warning；全工作树 `git diff --check` exit 0；唯一阶段标记为 P5；旧路线扫描无命中；PowerShell 等价执行文档结构、关键 ID、未跟踪文件空白和 P5 受限目录检查通过。当前阶段已在后续记录切换为 P8。
 - 已通过 `D:\git\Git\bin\bash.exe` 启动 `scripts/validate_project_docs.sh`，但脚本的未跟踪文件 `git diff --no-index --check` 在当前 Windows CRLF 工作树中会把换行转换提示或 CR 字节判为 whitespace，不能形成可信的原命令通过证据；已用 PowerShell 等价复核并记录 degraded validator compatibility。该条记录发生在 P5 实现开始前；当前已进入 P5-02。
 
 ## 2026-07-11 - P5-02 本地试标集与人工复核入口
@@ -238,9 +351,9 @@
 - 门禁返修：旧候选 `123517` 的数据内容通过 reviewer，但 QA 发现晋级脚本允许 `reviewed_at` 相对源 mtime 偏差 ±500ms；改为 datetime 精确相等，增加 250ms 漂移拒绝测试，并重新生成不可变候选 `artifacts/p5-reviewed-truth-20260719-124537`。
 - 最终独立门：reviewer `019f789f-575c-7ed0-ab72-809d63f11c1f` PASS、QA `019f789f-7a77-7be3-a447-fc32133c0534` PASS；无开放 P0-P3 finding。P5-02C3 技术切片关闭，P5 整体继续进行且不声明商业效果。
 
-## P5-02C4 provisional fallback pilot baseline (2026-07-19)
+## P5-02C5 provisional fallback pilot baseline (2026-07-19)
 
-- Status: implementation and local verification PASS; independent review/QA pending.
+- Status: implementation, local verification, independent review, and QA PASS; formal TensorRT remains blocked.
 - Artifact: `artifacts/p5-fallback-baseline-20260719-161114/` (local evidence only; never commit).
 - Classification: ONNX Runtime 1.20.1 CPU fallback, **not** formal P4 TensorRT evidence.
 - Frozen inputs: approved 30-image pilot, reviewed GT, model SHA-256 `956554A92E8E7F9338B86E2B25FAE3E40F87DDF7F702E04B213AE46C5E26D0C4`, confidence threshold 0.25, IoU 0.50. No training or threshold/NMS tuning occurred.
@@ -251,7 +364,7 @@
 - TensorRT remains blocked: all available engines fail TensorRT 8.6.1 deserialization; rebuilding from ONNX fails because the `Mod` node plugin is unavailable.
 - This pilot result is diagnostic only and is not a product-acceptance or commercial-performance claim.
 
-## P5-02C4 final independent review (2026-07-19)
+## P5-02C5 final independent review (2026-07-19)
 
 - Initial reviewer: FAIL because `runtime_contract` was hash-bound but not semantically validated.
 - Repair: strict schema/backend/provider/version/scope validation; model and predictions cross-hash checks; source runtime manifest hash check; detector-config identity check; explicit report classification; negative tests.
@@ -260,4 +373,4 @@
 - Regression after repair: 76/76 PASS; `git diff --check` PASS (line-ending warnings only).
 - Evidence report SHA-256: `2bc9b7115ba67563308fcb70fe3c4435c8849b89346962b8148d6487917b24d3`.
 - Evidence manifest SHA-256: `9a9fd67471413eebcd8cd57179a8048bf7e868f313035921459046b6735968d6`.
-- Formal TensorRT baseline remains BLOCKED / NOT VERIFIED under KI-037.
+- Formal TensorRT baseline remains BLOCKED / NOT VERIFIED under KI-039.

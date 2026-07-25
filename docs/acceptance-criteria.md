@@ -39,10 +39,11 @@
 | AC-04-01 | TensorRT 模型路径、输入尺寸、阈值和类别映射可配置 | 通过（技术集成） |
 | AC-04-02 | 固定测试清单记录逐图结果、汇总指标和推理时延 | 通过（不声明准确率） |
 | AC-05-01 | 标注规则、数据来源、重复清理和训练/验证/冻结测试划分可审计 | 进行中（30 图 approved/reviewed pilot 已形成；完整 train/validation/test 划分与代表性覆盖未完成） |
-| AC-05-02 | 逐类及烟支级指标可复现，错误样本可追踪到模型、配置和输入哈希 | 进行中（reviewed pilot 已形成，待绑定 P4 模型/engine/config 运行正式小规模基线；尚不声明商业效果） |
+| AC-05-02 | 逐类及烟支级指标可复现，错误样本可追踪到模型、配置和输入哈希 | 进行中（P5-02C5 已对 reviewed pilot 运行 ONNX Runtime CPU 诊断基线；正式 TensorRT 仍由 KI-039 阻断，完整数据与商业效果尚未验证） |
 | AC-05-03 | 阈值、NMS、异常框过滤或模型改进均有前后对照，不以主观截图代替指标 | 未开始 |
 | AC-05-04 | 试标样本按唯一哈希确定性选择，覆盖来源/尺寸/判定/已出现类别，并提供只读原图、预览、COCO/CSV 和源图哈希证据 | 通过（技术复核包；双人真值已由 P5-02C3 独立门确认） |
 | AC-05-05 | 本地首标工作台严格绑定 30 图身份，支持安全保存/恢复和人工首轮导出，并阻止未完成、未确认类别及未经独立复核的真值导出 | 通过（技术切片；原 pass1 保持非真值，双人复核事实经独立 attestation 晋级，不绕过工作台真值门） |
+| AC-05-06 | 受控 P5 评估开始前校验模型、类别目录、artifact manifest 内部 schema/输出大小/SHA-256 与 reviewed attestation；缺失或错配时不得开始指定范围 pilot，并要求外部 evidence-manifest 摘要核对 | 进行中（工具门通过；当前 fresh clone 缺少受控 reviewed-truth/fallback artifacts，manifest 自身认证需走受控恢复渠道） |
 
 P2 正式证据：`artifacts/p2-contracts-20260711-122211` 的 Debug/Release 纯 C++ 契约工程均 MSBuild/test exit 0，7/7 测试通过；`artifacts/p2-main-regression-20260711-120926` 的 CigVision Release 回归 Rebuild exit 0。独立 reviewer/QA 返修复核均 PASS，AC-02 已关闭；不据此声明相机、算法、离线闭环或剔除通过。
 
@@ -54,12 +55,14 @@ P4 正式证据：`artifacts/p4-tensorrt-20260711-150510` 顶层 exit 0，Releas
 
 | ID | 标准 | 状态 |
 | --- | --- | --- |
-| AC-06-01 | 文件/录制流可按可配置节拍模拟多相机、编号、队列和异常 | 未开始 |
-| AC-06-02 | 模拟剔除可由 frame_id 追踪到烟支编号、判定、时钟和配置，且无真实 IO | 未开始 |
-| AC-07-01 | Qt 主流程围绕深度学习检测、复核、统计、配置和诊断可用 | 未开始 |
-| AC-07-02 | 沿用现有 UI 风格；删除/隐藏旧功能前有清单、依赖分析、回归和 UI 运行证据 | 未开始 |
-| AC-08-01 | 连续运行时长、CPU/GPU/内存/磁盘、队列和时延满足已确认阈值 | 未开始 |
-| AC-08-02 | D 盘部署、配置/模型哈希、升级回滚、review、QA、清理和本地提交门通过 | 未开始 |
+| AC-06-01 | 文件/录制流可按可配置节拍模拟多相机、编号、队列和异常 | 进行中（P6 simulation 15/15；P6-02 已用虚拟时钟覆盖多相机、乱序/重复/跳号、队列溢出和停止重启；`p6_simulation_preflight.py` 与 `p6_windows_simulation_evidence.py` 另核对 manifest/产物路径、哈希和元数据；目标 Qt/Windows runtime 尚未执行） |
+| AC-06-02 | 模拟剔除可由 frame_id 追踪到烟支编号、判定、时钟和配置，且无真实 IO | 进行中（SDK-free trace validator、只读 preflight 和目标机证据驱动只接受 Simulation command，核对命令烟支号、计划/回执时间、错误绑定、summary 账目及 CLI 负路径；P6-01B 已原子写 `simulation-trace.json`，但目标机产品运行产物尚未取得） |
+| AC-06-03 | 固定负载矩阵可复现队列深度、丢弃数、P95 排队/端到端时延及容量取舍 | 进行中（20 帧、10 µs 到达间隔、50 µs 处理的确定性矩阵已通过；这些数值仅验证模型，不是生产节拍门槛） |
+| AC-07-01 | Qt 主流程围绕深度学习检测、复核、统计、配置和诊断可用 | 进行中（产品状态 8/8；configured/applied typed profile、canonical SHA-256、帧级绑定、七阈值页面/品牌持久化、统计/复核/诊断和原子 session JSON 源码已接入；当前 UI 固定 local-only；Windows UI/JSON runtime 未完成） |
+| AC-07-02 | 沿用现有 UI 风格；删除/隐藏旧功能前有清单、依赖分析、回归和 UI 运行证据 | 进行中（`docs/p7-ui-inventory.md` 已建立；本切片沿用深色样式且未删除控件，Computer Use/人工 UI 证据仍未取得） |
+| AC-08-01 | 连续运行时长、CPU/GPU/内存/磁盘、队列和时延满足已确认阈值 | 进行中（SDK-free soak 9/9，只验证短 CI 编排；产品阈值和 Windows/GPU 长稳未验证） |
+| AC-08-02 | D 盘部署、配置/模型哈希、升级回滚、review、QA、清理和本地提交门通过 | 进行中（P8 测试集仍为 76 项；v4 wrapper 每次生成 challenge 并立即调用 provenance collector 现场生成 Windows/GPU v2 报告，绑定 package manifest 与采集窗口；collector/wrapper ownership/reparse 防护和非递归失败处理已返修。PowerShell 静态门仍为 13 个 `.ps1`、CLI 7/7，但 `windowsRuntimeClaimed=false`。返修后的最终 full gate 与独立 reviewer/QA 尚待执行；真实 Windows + Qt/HALCON/MVS/DAQNavi/CUDA/TensorRT/OpenCV、D 盘运行/回滚、数据、许可和硬件未验证） |
+| AC-08-03 | 目标机证据可通过独立保存的摘要与认证码跨机验真，并以无覆盖事务导入本地证据库 | 进行中（v4 verifier/import 测试集仍为 24 项；精确复验 preflight 顶层/claims/inputs/9 项检查、host report v2、采集窗口和 7 个受信 provenance。wrapper 用 Package/EvidenceRoot/DeploymentRoot 外 exactly 32-byte key 对固定 manifest bytes 计算 HMAC-SHA-256；verify/import 必须同时提供外部 manifest SHA、HMAC 和 bundle 外 key，receipt v4 固定 `productAcceptanceClaimed=false`。返修后最终 full gate 尚待执行，且尚无真实 Windows bundle） |
 
 真实相机、DAQNavi 和真实剔除验收因无现场条件而冻结，不属于当前 P5-P8 通过声明。未来恢复时必须新增阶段和独立验收标准，不能复用本地仿真通过状态。
 

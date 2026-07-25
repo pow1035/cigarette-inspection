@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cctype>
 #include <cmath>
 #include <cstddef>
 #include <cstdio>
@@ -150,6 +151,17 @@ void validateConfig(const TensorRtDetectorConfig& config)
         config.confidenceThreshold < 0.0F || config.confidenceThreshold > 1.0F) {
         throw std::runtime_error("confidenceThreshold must be finite and within [0, 1]");
     }
+    if (!config.classConfidenceThresholds.empty() &&
+        config.classConfidenceThresholds.size() != kClassCount) {
+        throw std::runtime_error(
+            "classConfidenceThresholds must be empty or contain exactly 9 entries");
+    }
+    for (const float threshold : config.classConfidenceThresholds) {
+        if (!std::isfinite(threshold) || threshold < 0.0F || threshold > 1.0F) {
+            throw std::runtime_error(
+                "classConfidenceThresholds values must be finite and within [0, 1]");
+        }
+    }
     if (config.classNames.size() != kClassCount) {
         throw std::runtime_error("classNames must contain exactly 9 entries");
     }
@@ -166,8 +178,15 @@ void validateConfig(const TensorRtDetectorConfig& config)
     if (config.detectorVersion.empty()) {
         throw std::runtime_error("detectorVersion is required");
     }
+    if (config.parameterVersion.empty() || !isSha256Hex(config.modelSha256)) {
+        throw std::runtime_error("parameterVersion and modelSha256 are required");
+    }
     if (config.preprocessMode != kPreprocessMode) {
         throw std::runtime_error("preprocessMode must be stretch-rgb-f32");
+    }
+    std::string profileError;
+    if (!tensorRtParameterProfile(config).validate(&profileError)) {
+        throw std::runtime_error("TensorRT parameter profile is invalid: " + profileError);
     }
 }
 
@@ -237,7 +256,19 @@ public:
               config_.inputWidth, config_.inputHeight, 3)),
           hostInput_(inputElementCount_), hostOutput_(kOutputRows * kOutputColumns)
     {
+        parameterVersion_ = config_.parameterVersion;
+        parameterSha256_ = tensorRtParameterProfile(config_).sha256();
         const std::vector<char> engineBytes = readEngineFile(config_.enginePath);
+        const std::string actualModelSha256 = sha256Hex(std::string(
+            engineBytes.data(), engineBytes.size()));
+        std::string expectedModelSha256 = config_.modelSha256;
+        std::transform(expectedModelSha256.begin(), expectedModelSha256.end(),
+            expectedModelSha256.begin(), [](unsigned char character) {
+                return static_cast<char>(std::tolower(character));
+            });
+        if (actualModelSha256 != expectedModelSha256) {
+            throw std::runtime_error("TensorRT engine SHA-256 does not match configuration");
+        }
 
         runtime_.reset(nvinfer1::createInferRuntime(logger_));
         if (!runtime_) {
@@ -287,6 +318,8 @@ public:
         DetectionBatch batch;
         batch.frameId = frame.frameId;
         batch.detectorVersion = config_.detectorVersion;
+        batch.parameterVersion = parameterVersion_;
+        batch.parameterSha256 = parameterSha256_;
 
         try {
             std::lock_guard<std::mutex> lock(mutex_);
@@ -313,6 +346,9 @@ public:
     }
 
 private:
+    std::string parameterVersion_;
+    std::string parameterSha256_;
+
     void validateEngine() const
     {
         const std::int32_t tensorCount = engine_->getNbIOTensors();
@@ -457,10 +493,6 @@ private:
             if (!std::isfinite(score) || score < 0.0F || score > 1.0F) {
                 throw invalidOutput(row, "score must be finite and within [0, 1]");
             }
-            if (score < config_.confidenceThreshold) {
-                continue;
-            }
-
             for (std::size_t column = 0; column < kOutputColumns; ++column) {
                 if (!std::isfinite(values[column])) {
                     throw invalidOutput(row, "all six values must be finite");
@@ -472,6 +504,12 @@ private:
                 throw invalidOutput(row, "class ID must be an integer within [0, 8]");
             }
             const std::int32_t classId = static_cast<std::int32_t>(roundedClassId);
+            const float confidenceThreshold = config_.classConfidenceThresholds.empty()
+                ? config_.confidenceThreshold
+                : config_.classConfidenceThresholds[static_cast<std::size_t>(classId)];
+            if (score < confidenceThreshold) {
+                continue;
+            }
             if (values[2] <= values[0] || values[3] <= values[1]) {
                 throw invalidOutput(row, "box must satisfy x2 > x1 and y2 > y1");
             }

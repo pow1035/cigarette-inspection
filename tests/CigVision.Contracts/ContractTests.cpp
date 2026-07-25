@@ -96,6 +96,8 @@ public:
         batch.detections.push_back(makeDetection());
         batch.elapsedMicros = 120;
         batch.detectorVersion = "fake-detector-v1";
+        batch.parameterVersion = "brand-a-v1";
+        batch.parameterSha256 = std::string(64, 'a');
         return batch;
     }
 };
@@ -166,8 +168,12 @@ void testDetectionAndInspectionResultContracts()
     result.defects.push_back(detection);
     result.elapsedMicros = 250;
     result.parameterVersion = "brand-a-v1";
+    result.parameterSha256 = std::string(64, 'a');
     CHECK_TRUE(result.validate());
 
+    result.parameterSha256.clear();
+    CHECK_TRUE(!result.validate());
+    result.parameterSha256 = std::string(64, 'a');
     result.decision = InspectionDecision::Ok;
     CHECK_TRUE(!result.validate());
 
@@ -200,6 +206,7 @@ void testInterfacesAreReplaceableWithoutSdkDependencies()
     result.defects = batch.detections;
     result.elapsedMicros = batch.elapsedMicros;
     result.parameterVersion = "brand-a-v1";
+    result.parameterSha256 = std::string(64, 'a');
     CHECK_TRUE(result.validate());
     CHECK_TRUE(sink.store(result, errorMessage));
     CHECK_TRUE(sink.storedAny());

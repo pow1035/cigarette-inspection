@@ -1,0 +1,12 @@
+{
+  "schemaVersion": "p8-local-preflight-v1",
+  "localOnly": true,
+  "realIoEnabled": false,
+  "realRejectEnabled": false,
+  "packageManifestSchemaVersion": "p8-package-manifest-v1",
+  "configIniPath": "config.ini",
+  "brandRootPath": "品牌设置",
+  "brandParameterFileName": "para.ini",
+  "brandTemplateDirectoryName": "模版图片",
+  "reportFileName": "p8-preflight-report.json"
+}

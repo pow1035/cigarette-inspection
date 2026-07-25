@@ -1,0 +1,4 @@
+# Runtime/test dependency for the P5 visual disagreement pack.
+# The other P5 data, promotion, consistency, and workbench modules use only
+# Python's standard library.
+Pillow==11.3.0

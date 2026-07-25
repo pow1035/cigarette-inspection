@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/OfflineInspection.h"
+#include "core/RealtimeSimulation.h"
 
 #include <QImage>
 #include <QObject>
@@ -8,7 +9,11 @@
 #include <QStringList>
 #include <QVariantMap>
 
+#include <cstddef>
+#include <cstdint>
 #include <map>
+#include <atomic>
+#include <utility>
 #include <vector>
 
 namespace cigvision {
@@ -21,19 +26,25 @@ struct QtOfflineInput {
     QString path;
     QString expectedSha256;
     InspectionDecision expectedDecision = InspectionDecision::Unknown;
+    QString stationId;
+    QString cameraId;
+    std::uint32_t cigaretteNumber = 0;
+    TimestampMicros delayBeforeMicros = 0;
 };
 
 class QtImageListFrameSource final : public IFrameSource {
 public:
-    explicit QtImageListFrameSource(std::vector<QtOfflineInput> inputs);
+    explicit QtImageListFrameSource(std::vector<QtOfflineInput> inputs,
+        IReplayPacer* pacer = nullptr);
     bool start(std::string& errorMessage) override;
     void stop() noexcept override;
     bool tryRead(FramePacket& frame, std::string& errorMessage) override;
 
 private:
     std::vector<QtOfflineInput> inputs_;
+    IReplayPacer* pacer_ = nullptr;
     std::size_t index_ = 0;
-    bool running_ = false;
+    std::atomic<bool> running_{ false };
 };
 
 class QtAtomicResultSink final : public IInspectionResultSink {
@@ -61,7 +72,8 @@ private:
 class OfflineInspectionWorker final : public QObject {
     Q_OBJECT
 public:
-    OfflineInspectionWorker(QStringList files, QString outputDirectory);
+    OfflineInspectionWorker(QStringList files, QString outputDirectory,
+        std::string parameterVersion, std::string parameterSha256);
     void requestStop() noexcept { session_.requestStop(); }
     void publish(const FramePacket& frame, const InspectionResult& result,
         const InspectionStatistics& statistics);
@@ -77,11 +89,16 @@ signals:
 private:
     QStringList files_;
     QString outputDirectory_;
+    std::string parameterVersion_;
+    std::string parameterSha256_;
     OfflineInspectionSession session_;
 };
 
 int runOfflineBatchManifest(const QString& manifestPath, const QString& outputDirectory);
 int runTensorRtBatchManifest(const QString& manifestPath, const QString& outputDirectory,
     const QString& detectorConfigPath);
+int runSimulationBatchManifest(const QString& manifestPath, const QString& outputDirectory,
+    TimestampMicros rejectDelayMicros, std::size_t queueCapacity,
+    const QString& targetOutput);
 
 } // namespace cigvision

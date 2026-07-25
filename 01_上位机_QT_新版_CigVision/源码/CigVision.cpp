@@ -13,10 +13,22 @@
 #include <QDateTime>
 #include <QDir>
 #include <QFileDialog>
+#include <QCloseEvent>
+#include <QHBoxLayout>
+#include <QHeaderView>
+#include <QLabel>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QSaveFile>
 #include <QStandardPaths>
 #include <QThread>
+#include <QVariantList>
 #include <QVariantMap>
+#include <QVBoxLayout>
 #include "adapters/qt/QtOfflineInspection.h"
+#include <cmath>
+#include <string>
 #include <vector>
 
 
@@ -24,6 +36,141 @@
 namespace
 {
 constexpr int kMaxPendingFrames = 10;
+
+std::string utf8String(const QString& value)
+{
+    const QByteArray bytes = value.toUtf8();
+    return std::string(bytes.constData(), static_cast<std::size_t>(bytes.size()));
+}
+
+cigvision::TimestampMicros currentTimestampMicros()
+{
+    return static_cast<cigvision::TimestampMicros>(
+        QDateTime::currentMSecsSinceEpoch()) * 1000;
+}
+
+QString decisionDisplayName(cigvision::InspectionDecision decision)
+{
+    switch (decision) {
+    case cigvision::InspectionDecision::Ok: return QStringLiteral("OK");
+    case cigvision::InspectionDecision::Ng: return QStringLiteral("NG");
+    case cigvision::InspectionDecision::Error: return QStringLiteral("ERROR");
+    default: return QStringLiteral("UNKNOWN");
+    }
+}
+
+QString reviewOutcomeName(cigvision::ProductReviewOutcome outcome)
+{
+    switch (outcome) {
+    case cigvision::ProductReviewOutcome::Confirmed: return QStringLiteral("CONFIRMED");
+    case cigvision::ProductReviewOutcome::Corrected: return QStringLiteral("CORRECTED");
+    case cigvision::ProductReviewOutcome::Dismissed: return QStringLiteral("DISMISSED");
+    default: return QStringLiteral("UNREVIEWED");
+    }
+}
+
+QString diagnosticSeverityName(cigvision::ProductDiagnosticSeverity severity)
+{
+    switch (severity) {
+    case cigvision::ProductDiagnosticSeverity::Warning: return QStringLiteral("WARNING");
+    case cigvision::ProductDiagnosticSeverity::Error: return QStringLiteral("ERROR");
+    default: return QStringLiteral("INFORMATION");
+    }
+}
+
+bool buildLegacyDeepLearningProfile(const DeepLearningParams& parameters,
+    cigvision::ProductParameterProfile& profile, QString& errorMessage)
+{
+    profile = cigvision::ProductParameterProfile();
+    profile.kind = cigvision::ProductParameterProfileKind::LegacyDeepLearningPage;
+    profile.profileId = "legacy-deep-learning-page";
+    profile.parameterVersion = "legacy-deep-learning-page-v1";
+    const char* names[] = {
+        "dakoucuoya", "feiyan", "jiamo", "lvzuizhezhou", "quezui",
+        "yanbangposun", "yanbangzangwu", "wuzi", "jietou"
+    };
+    const double thresholds[] = {
+        parameters.jointRollThreshold,
+        parameters.flyingTobaccoThreshold,
+        parameters.tobaccoClipsThreshold,
+        parameters.filterWrinkleThreshold,
+        parameters.missingFilterThreshold,
+        parameters.rodDamageThreshold,
+        parameters.rodStainThreshold
+    };
+    for (std::int32_t classId = 0; classId < 9; ++classId) {
+        cigvision::ProductClassParameter rule;
+        rule.classId = classId;
+        rule.className = names[classId];
+        if (classId < 7) {
+            const double threshold = thresholds[classId];
+            if (!std::isfinite(threshold) || threshold < 0.0 || threshold > 1.0) {
+                errorMessage = QStringLiteral("深度学习类别 %1 阈值必须位于 [0,1]")
+                    .arg(classId);
+                return false;
+            }
+            rule.confidenceThreshold = static_cast<float>(threshold);
+            rule.enabled = true;
+        } else {
+            rule.confidenceThreshold = 1.0F;
+            rule.enabled = false;
+        }
+        profile.classes.push_back(rule);
+    }
+    std::string profileError;
+    if (!profile.validate(&profileError)) {
+        errorMessage = QString::fromUtf8(profileError.c_str());
+        return false;
+    }
+    errorMessage.clear();
+    return true;
+}
+
+cigvision::ProductParameterProfile fixtureParameterProfile()
+{
+    cigvision::ProductParameterProfile profile;
+    profile.kind = cigvision::ProductParameterProfileKind::DeterministicFixture;
+    profile.profileId = "offline-fixture";
+    profile.parameterVersion = "offline-fixture-v1";
+    profile.detectorVersion = "deterministic-fixture-v1";
+    return profile;
+}
+
+QJsonObject parameterProfileJson(const cigvision::ProductParameterProfile& profile)
+{
+    QJsonObject value;
+    value.insert(QStringLiteral("schemaVersion"),
+        QString::fromUtf8(profile.schemaVersion.c_str()));
+    value.insert(QStringLiteral("kind"), QString::fromLatin1(
+        cigvision::productParameterProfileKindName(profile.kind)));
+    value.insert(QStringLiteral("profileId"), QString::fromUtf8(profile.profileId.c_str()));
+    value.insert(QStringLiteral("parameterVersion"),
+        QString::fromUtf8(profile.parameterVersion.c_str()));
+    value.insert(QStringLiteral("detectorVersion"),
+        QString::fromUtf8(profile.detectorVersion.c_str()));
+    value.insert(QStringLiteral("modelSha256"),
+        QString::fromLatin1(profile.modelSha256.c_str()));
+    value.insert(QStringLiteral("inputTensorName"),
+        QString::fromUtf8(profile.inputTensorName.c_str()));
+    value.insert(QStringLiteral("outputTensorName"),
+        QString::fromUtf8(profile.outputTensorName.c_str()));
+    value.insert(QStringLiteral("inputWidth"), static_cast<qint64>(profile.inputWidth));
+    value.insert(QStringLiteral("inputHeight"), static_cast<qint64>(profile.inputHeight));
+    value.insert(QStringLiteral("preprocessMode"),
+        QString::fromUtf8(profile.preprocessMode.c_str()));
+    value.insert(QStringLiteral("sha256"), QString::fromLatin1(profile.sha256().c_str()));
+    QJsonArray classes;
+    for (const cigvision::ProductClassParameter& rule : profile.classes) {
+        QJsonObject item;
+        item.insert(QStringLiteral("classId"), rule.classId);
+        item.insert(QStringLiteral("className"), QString::fromUtf8(rule.className.c_str()));
+        item.insert(QStringLiteral("confidenceThreshold"), rule.confidenceThreshold);
+        item.insert(QStringLiteral("enabled"), rule.enabled);
+        classes.append(item);
+    }
+    value.insert(QStringLiteral("classes"), classes);
+    return value;
+}
 
 class CameraCallbackContext
 {
@@ -329,6 +476,8 @@ CigVision::CigVision(QWidget *parent, bool offlineOnly)
     }
     //参数设置界面
     initParaView();
+    initReviewView();
+    initInsightsViews();
     ui.label_brandName->setText(params.getCurrentBrand());
     //统计查询界面
 
@@ -543,6 +692,517 @@ void CigVision::initParaView() {
     ui.stackedWidget->addWidget(params.sysParamsWidget);
 }
 
+void CigVision::initReviewView()
+{
+    QWidget* reviewPage = new QWidget(ui.stackedWidget);
+    QVBoxLayout* layout = new QVBoxLayout(reviewPage);
+    layout->setContentsMargins(24, 18, 24, 18);
+    layout->setSpacing(12);
+
+    QLabel* title = new QLabel(QStringLiteral("缺陷结果复核"), reviewPage);
+    title->setStyleSheet(QStringLiteral(
+        "color: white; font-size: 24px; font-weight: bold;"));
+    layout->addWidget(title);
+
+    reviewStatusLabel = new QLabel(QStringLiteral("尚无本地检测结果"), reviewPage);
+    reviewStatusLabel->setStyleSheet(QStringLiteral(
+        "color: #C8D1DA; font-size: 15px;"));
+    layout->addWidget(reviewStatusLabel);
+
+    reviewTable = new QTableView(reviewPage);
+    reviewModel = new QStandardItemModel(0, 8, reviewPage);
+    reviewModel->setHorizontalHeaderLabels(QStringList()
+        << QStringLiteral("帧")
+        << QStringLiteral("工位/相机")
+        << QStringLiteral("烟支")
+        << QStringLiteral("判定")
+        << QStringLiteral("缺陷")
+        << QStringLiteral("置信度")
+        << QStringLiteral("复核")
+        << QStringLiteral("复核人"));
+    reviewTable->setModel(reviewModel);
+    reviewTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    reviewTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    reviewTable->setSelectionMode(QAbstractItemView::SingleSelection);
+    reviewTable->setAlternatingRowColors(true);
+    reviewTable->verticalHeader()->setVisible(false);
+    reviewTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    reviewTable->setStyleSheet(QStringLiteral(
+        "QTableView { color: white; background: #333333; alternate-background-color: #414141;"
+        " gridline-color: #666666; border: 1px solid #777777; font-size: 14px; }"
+        "QTableView::item:selected { background: #1769AA; }"
+        "QHeaderView::section { color: white; background: #252525; padding: 8px;"
+        " border: 1px solid #555555; font-weight: bold; }"));
+    layout->addWidget(reviewTable, 1);
+
+    QHBoxLayout* editor = new QHBoxLayout();
+    QLabel* operatorLabel = new QLabel(QStringLiteral("复核人"), reviewPage);
+    QLabel* noteLabel = new QLabel(QStringLiteral("备注"), reviewPage);
+    operatorLabel->setStyleSheet(QStringLiteral("color: white; font-size: 14px;"));
+    noteLabel->setStyleSheet(QStringLiteral("color: white; font-size: 14px;"));
+    reviewOperatorEdit = new QLineEdit(reviewPage);
+    reviewOperatorEdit->setPlaceholderText(QStringLiteral("必填"));
+    reviewOperatorEdit->setMaximumWidth(180);
+    reviewNoteEdit = new QLineEdit(reviewPage);
+    reviewNoteEdit->setPlaceholderText(QStringLiteral("可填写判断依据或修正说明"));
+    editor->addWidget(operatorLabel);
+    editor->addWidget(reviewOperatorEdit);
+    editor->addWidget(noteLabel);
+    editor->addWidget(reviewNoteEdit, 1);
+
+    QPushButton* confirmButton = new QPushButton(QStringLiteral("确认结果"), reviewPage);
+    QPushButton* correctButton = new QPushButton(QStringLiteral("标记需修正"), reviewPage);
+    QPushButton* dismissButton = new QPushButton(QStringLiteral("标记误报"), reviewPage);
+    const QString buttonStyle = QStringLiteral(
+        "QPushButton { color: white; background: #1769AA; border: 1px solid #4A90C2;"
+        " border-radius: 3px; padding: 8px 14px; font-size: 14px; }"
+        "QPushButton:hover { background: #2185D0; }"
+        "QPushButton:pressed { background: #0F4F82; }");
+    confirmButton->setStyleSheet(buttonStyle);
+    correctButton->setStyleSheet(buttonStyle);
+    dismissButton->setStyleSheet(buttonStyle);
+    editor->addWidget(confirmButton);
+    editor->addWidget(correctButton);
+    editor->addWidget(dismissButton);
+    layout->addLayout(editor);
+
+    connect(confirmButton, &QPushButton::clicked, this, [this] {
+        applySelectedReview(cigvision::ProductReviewOutcome::Confirmed);
+    });
+    connect(correctButton, &QPushButton::clicked, this, [this] {
+        applySelectedReview(cigvision::ProductReviewOutcome::Corrected);
+    });
+    connect(dismissButton, &QPushButton::clicked, this, [this] {
+        applySelectedReview(cigvision::ProductReviewOutcome::Dismissed);
+    });
+
+    ui.stackedWidget->addWidget(reviewPage);
+}
+
+void CigVision::refreshReviewView()
+{
+    if (reviewModel == nullptr || reviewStatusLabel == nullptr) {
+        return;
+    }
+    const cigvision::ProductRuntimeSnapshot snapshot = productRuntimeState.snapshot();
+    reviewModel->removeRows(0, reviewModel->rowCount());
+    int unreviewedRows = 0;
+    for (const cigvision::ProductRecentResult& recent : snapshot.recentResults) {
+        if (recent.frame.decision == cigvision::InspectionDecision::Ok) {
+            continue;
+        }
+        QList<QStandardItem*> row;
+        QStandardItem* frameItem = new QStandardItem(QString::number(
+            static_cast<qulonglong>(recent.frame.frameId)));
+        frameItem->setData(static_cast<qulonglong>(recent.frame.frameId), Qt::UserRole);
+        row << frameItem;
+        row << new QStandardItem(QStringLiteral("%1/%2")
+            .arg(QString::fromUtf8(recent.frame.stationId.c_str()))
+            .arg(QString::fromUtf8(recent.frame.cameraId.c_str())));
+        row << new QStandardItem(QString::number(recent.frame.cigaretteNumber));
+        row << new QStandardItem(recent.frame.decision == cigvision::InspectionDecision::Ng
+            ? QStringLiteral("NG") : QStringLiteral("错误"));
+
+        QStringList defectNames;
+        QStringList confidences;
+        for (const cigvision::ProductDefectSummary& defect : recent.frame.defects) {
+            defectNames << QString::fromUtf8(defect.className.c_str());
+            confidences << QString::number(defect.confidence, 'f', 3);
+        }
+        row << new QStandardItem(defectNames.isEmpty()
+            ? QString::fromUtf8(recent.frame.errorCode.c_str())
+            : defectNames.join(QStringLiteral(", ")));
+        row << new QStandardItem(confidences.join(QStringLiteral(", ")));
+
+        QString reviewText = QStringLiteral("未复核");
+        switch (recent.review.outcome) {
+        case cigvision::ProductReviewOutcome::Confirmed:
+            reviewText = QStringLiteral("已确认");
+            break;
+        case cigvision::ProductReviewOutcome::Corrected:
+            reviewText = QStringLiteral("需修正");
+            break;
+        case cigvision::ProductReviewOutcome::Dismissed:
+            reviewText = QStringLiteral("误报");
+            break;
+        default:
+            ++unreviewedRows;
+            break;
+        }
+        row << new QStandardItem(reviewText);
+        row << new QStandardItem(QString::fromUtf8(recent.review.reviewer.c_str()));
+        reviewModel->appendRow(row);
+    }
+    reviewStatusLabel->setText(
+        QStringLiteral("运行 %1 | 保留 %2 条，待复核 %3 条 | 已复核 %4 条")
+            .arg(QString::fromUtf8(snapshot.configuration.runId.c_str()))
+            .arg(static_cast<qulonglong>(snapshot.recentResults.size()))
+            .arg(unreviewedRows)
+            .arg(static_cast<qulonglong>(snapshot.statistics.reviewed)));
+}
+
+void CigVision::applySelectedReview(cigvision::ProductReviewOutcome outcome)
+{
+    if (reviewTable == nullptr || reviewModel == nullptr ||
+        reviewTable->selectionModel() == nullptr) {
+        return;
+    }
+    const QModelIndexList selected = reviewTable->selectionModel()->selectedRows();
+    if (selected.isEmpty()) {
+        reviewStatusLabel->setText(QStringLiteral("请先选择一条结果"));
+        return;
+    }
+    const QModelIndex frameIndex = reviewModel->index(selected.first().row(), 0);
+    const std::uint64_t frameId = frameIndex.data(Qt::UserRole).toULongLong();
+    const std::string reviewer = utf8String(reviewOperatorEdit->text().trimmed());
+    const std::string note = utf8String(reviewNoteEdit->text().trimmed());
+    std::string errorMessage;
+    if (!productRuntimeState.reviewResult(frameId, outcome, reviewer, note,
+            currentTimestampMicros(), errorMessage)) {
+        reviewStatusLabel->setText(QStringLiteral("复核保存失败：%1")
+            .arg(QString::fromUtf8(errorMessage.c_str())));
+        return;
+    }
+    QString persistenceError;
+    if (!persistProductState(persistenceError)) {
+        reviewStatusLabel->setText(QStringLiteral("复核已更新，但落盘失败：%1")
+            .arg(persistenceError));
+        return;
+    }
+    refreshReviewView();
+}
+
+void CigVision::initInsightsViews()
+{
+    const QString tableStyle = QStringLiteral(
+        "QTableView { color: white; background: #333333; alternate-background-color: #414141;"
+        " gridline-color: #666666; border: 1px solid #777777; font-size: 14px; }"
+        "QHeaderView::section { color: white; background: #252525; padding: 8px;"
+        " border: 1px solid #555555; font-weight: bold; }");
+
+    QWidget* statisticsPage = new QWidget(ui.stackedWidget);
+    QVBoxLayout* statisticsLayout = new QVBoxLayout(statisticsPage);
+    statisticsLayout->setContentsMargins(24, 18, 24, 18);
+    statisticsLayout->setSpacing(12);
+    QLabel* statisticsTitle = new QLabel(QStringLiteral("检测统计"), statisticsPage);
+    statisticsTitle->setStyleSheet(QStringLiteral(
+        "color: white; font-size: 24px; font-weight: bold;"));
+    statisticsLayout->addWidget(statisticsTitle);
+    statisticsIdentityLabel = new QLabel(statisticsPage);
+    statisticsSummaryLabel = new QLabel(statisticsPage);
+    statisticsIdentityLabel->setStyleSheet(QStringLiteral(
+        "color: #9CCBFF; font-size: 15px;"));
+    statisticsSummaryLabel->setStyleSheet(QStringLiteral(
+        "color: white; font-size: 18px; font-weight: bold; padding: 8px;"));
+    statisticsLayout->addWidget(statisticsIdentityLabel);
+    statisticsLayout->addWidget(statisticsSummaryLabel);
+
+    QHBoxLayout* statisticsTables = new QHBoxLayout();
+    QTableView* cameraTable = new QTableView(statisticsPage);
+    statisticsCameraModel = new QStandardItemModel(0, 5, statisticsPage);
+    statisticsCameraModel->setHorizontalHeaderLabels(QStringList()
+        << QStringLiteral("工位/相机") << QStringLiteral("处理")
+        << QStringLiteral("OK") << QStringLiteral("NG") << QStringLiteral("错误"));
+    cameraTable->setModel(statisticsCameraModel);
+    cameraTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    cameraTable->setAlternatingRowColors(true);
+    cameraTable->verticalHeader()->setVisible(false);
+    cameraTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    cameraTable->setStyleSheet(tableStyle);
+    statisticsTables->addWidget(cameraTable, 3);
+
+    QTableView* classTable = new QTableView(statisticsPage);
+    statisticsClassModel = new QStandardItemModel(0, 2, statisticsPage);
+    statisticsClassModel->setHorizontalHeaderLabels(QStringList()
+        << QStringLiteral("缺陷类别 ID") << QStringLiteral("数量"));
+    classTable->setModel(statisticsClassModel);
+    classTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    classTable->setAlternatingRowColors(true);
+    classTable->verticalHeader()->setVisible(false);
+    classTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    classTable->setStyleSheet(tableStyle);
+    statisticsTables->addWidget(classTable, 2);
+    statisticsLayout->addLayout(statisticsTables, 1);
+    ui.stackedWidget->addWidget(statisticsPage);
+
+    QWidget* diagnosticsPage = new QWidget(ui.stackedWidget);
+    QVBoxLayout* diagnosticsLayout = new QVBoxLayout(diagnosticsPage);
+    diagnosticsLayout->setContentsMargins(24, 18, 24, 18);
+    diagnosticsLayout->setSpacing(12);
+    QLabel* diagnosticsTitle = new QLabel(QStringLiteral("运行日志与诊断"), diagnosticsPage);
+    diagnosticsTitle->setStyleSheet(QStringLiteral(
+        "color: white; font-size: 24px; font-weight: bold;"));
+    diagnosticsLayout->addWidget(diagnosticsTitle);
+    diagnosticsSummaryLabel = new QLabel(QStringLiteral("尚无诊断事件"), diagnosticsPage);
+    diagnosticsSummaryLabel->setStyleSheet(QStringLiteral(
+        "color: #C8D1DA; font-size: 15px;"));
+    diagnosticsLayout->addWidget(diagnosticsSummaryLabel);
+    QTableView* diagnosticsTable = new QTableView(diagnosticsPage);
+    diagnosticsModel = new QStandardItemModel(0, 6, diagnosticsPage);
+    diagnosticsModel->setHorizontalHeaderLabels(QStringList()
+        << QStringLiteral("时间(µs)") << QStringLiteral("级别")
+        << QStringLiteral("组件") << QStringLiteral("代码")
+        << QStringLiteral("帧") << QStringLiteral("消息"));
+    diagnosticsTable->setModel(diagnosticsModel);
+    diagnosticsTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    diagnosticsTable->setAlternatingRowColors(true);
+    diagnosticsTable->verticalHeader()->setVisible(false);
+    diagnosticsTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    diagnosticsTable->setStyleSheet(tableStyle);
+    diagnosticsLayout->addWidget(diagnosticsTable, 1);
+    ui.stackedWidget->addWidget(diagnosticsPage);
+}
+
+void CigVision::refreshStatisticsView()
+{
+    if (statisticsSummaryLabel == nullptr || statisticsIdentityLabel == nullptr ||
+        statisticsCameraModel == nullptr || statisticsClassModel == nullptr) {
+        return;
+    }
+    const cigvision::ProductRuntimeSnapshot snapshot = productRuntimeState.snapshot();
+    const cigvision::ProductRuntimeStatistics& totals = snapshot.statistics;
+    statisticsIdentityLabel->setText(
+        QStringLiteral("运行 %1 | 品牌 %2 | 模式 %3 | 检测器 %4 | 参数 %5 | 应用哈希 %6 | 状态 %7")
+            .arg(QString::fromUtf8(snapshot.configuration.runId.c_str()))
+            .arg(QString::fromUtf8(snapshot.configuration.brandName.c_str()))
+            .arg(QString::fromLatin1(cigvision::productRunModeName(
+                snapshot.configuration.mode)))
+            .arg(QString::fromUtf8(snapshot.configuration.detectorVersion.c_str()))
+            .arg(QString::fromUtf8(snapshot.configuration.parameterVersion.c_str()))
+            .arg(QString::fromLatin1(
+                snapshot.configuration.appliedParameters.sha256().substr(0, 12).c_str()))
+            .arg(QString::fromLatin1(cigvision::productRuntimeStatusName(snapshot.status))));
+    statisticsSummaryLabel->setText(
+        QStringLiteral("处理 %1 | OK %2 | NG %3 | 错误 %4 | 已复核 %5 | 最大耗时 %6 µs | 最大队列 %7")
+            .arg(static_cast<qulonglong>(totals.processed))
+            .arg(static_cast<qulonglong>(totals.ok))
+            .arg(static_cast<qulonglong>(totals.ng))
+            .arg(static_cast<qulonglong>(totals.error))
+            .arg(static_cast<qulonglong>(totals.reviewed))
+            .arg(static_cast<qulonglong>(totals.maximumElapsedMicros))
+            .arg(static_cast<qulonglong>(totals.maximumQueueDepth)));
+
+    statisticsCameraModel->removeRows(0, statisticsCameraModel->rowCount());
+    for (const auto& entry : totals.cameras) {
+        QList<QStandardItem*> row;
+        row << new QStandardItem(QStringLiteral("%1/%2")
+                .arg(QString::fromUtf8(entry.first.stationId.c_str()))
+                .arg(QString::fromUtf8(entry.first.cameraId.c_str())))
+            << new QStandardItem(QString::number(
+                static_cast<qulonglong>(entry.second.processed)))
+            << new QStandardItem(QString::number(
+                static_cast<qulonglong>(entry.second.ok)))
+            << new QStandardItem(QString::number(
+                static_cast<qulonglong>(entry.second.ng)))
+            << new QStandardItem(QString::number(
+                static_cast<qulonglong>(entry.second.error)));
+        statisticsCameraModel->appendRow(row);
+    }
+    statisticsClassModel->removeRows(0, statisticsClassModel->rowCount());
+    for (const auto& entry : totals.defectsByClass) {
+        QList<QStandardItem*> row;
+        row << new QStandardItem(QString::number(entry.first))
+            << new QStandardItem(QString::number(
+                static_cast<qulonglong>(entry.second)));
+        statisticsClassModel->appendRow(row);
+    }
+}
+
+void CigVision::refreshDiagnosticsView()
+{
+    if (diagnosticsSummaryLabel == nullptr || diagnosticsModel == nullptr) {
+        return;
+    }
+    const cigvision::ProductRuntimeSnapshot snapshot = productRuntimeState.snapshot();
+    diagnosticsModel->removeRows(0, diagnosticsModel->rowCount());
+    for (const cigvision::ProductDiagnosticEvent& event : snapshot.diagnostics) {
+        QString severity = QStringLiteral("信息");
+        if (event.severity == cigvision::ProductDiagnosticSeverity::Warning) {
+            severity = QStringLiteral("警告");
+        } else if (event.severity == cigvision::ProductDiagnosticSeverity::Error) {
+            severity = QStringLiteral("错误");
+        }
+        QList<QStandardItem*> row;
+        row << new QStandardItem(QString::number(
+                static_cast<qlonglong>(event.occurredAtMicros)))
+            << new QStandardItem(severity)
+            << new QStandardItem(QString::fromUtf8(event.component.c_str()))
+            << new QStandardItem(QString::fromUtf8(event.code.c_str()))
+            << new QStandardItem(event.frameId == 0 ? QStringLiteral("-") :
+                QString::number(static_cast<qulonglong>(event.frameId)))
+            << new QStandardItem(QString::fromUtf8(event.message.c_str()));
+        diagnosticsModel->appendRow(row);
+    }
+    diagnosticsSummaryLabel->setText(
+        QStringLiteral("运行 %1 | 状态 %2 | 保留诊断 %3 条（容量 %4）")
+            .arg(QString::fromUtf8(snapshot.configuration.runId.c_str()))
+            .arg(QString::fromLatin1(cigvision::productRuntimeStatusName(snapshot.status)))
+            .arg(diagnosticsModel->rowCount())
+            .arg(static_cast<qulonglong>(snapshot.configuration.diagnosticCapacity)));
+}
+
+bool CigVision::persistProductState(QString& errorMessage) const
+{
+    if (activeProductOutputDirectory.isEmpty()) {
+        errorMessage = QStringLiteral("产品运行输出目录尚未建立");
+        return false;
+    }
+    const cigvision::ProductRuntimeSnapshot snapshot = productRuntimeState.snapshot();
+    QJsonObject root;
+    root.insert(QStringLiteral("schemaVersion"),
+        QStringLiteral("cigvision-product-session-v1"));
+    root.insert(QStringLiteral("revision"), static_cast<qint64>(snapshot.revision));
+    root.insert(QStringLiteral("status"), QString::fromLatin1(
+        cigvision::productRuntimeStatusName(snapshot.status)));
+    root.insert(QStringLiteral("startedAtMicros"),
+        static_cast<qint64>(snapshot.startedAtMicros));
+    root.insert(QStringLiteral("stoppedAtMicros"),
+        static_cast<qint64>(snapshot.stoppedAtMicros));
+
+    QJsonObject configuration;
+    configuration.insert(QStringLiteral("runId"),
+        QString::fromUtf8(snapshot.configuration.runId.c_str()));
+    configuration.insert(QStringLiteral("brandName"),
+        QString::fromUtf8(snapshot.configuration.brandName.c_str()));
+    configuration.insert(QStringLiteral("mode"), QString::fromLatin1(
+        cigvision::productRunModeName(snapshot.configuration.mode)));
+    configuration.insert(QStringLiteral("detectorVersion"),
+        QString::fromUtf8(snapshot.configuration.detectorVersion.c_str()));
+    configuration.insert(QStringLiteral("parameterVersion"),
+        QString::fromUtf8(snapshot.configuration.parameterVersion.c_str()));
+    configuration.insert(QStringLiteral("modelSha256"),
+        QString::fromLatin1(snapshot.configuration.modelSha256.c_str()));
+    configuration.insert(QStringLiteral("queueCapacity"),
+        static_cast<qint64>(snapshot.configuration.queueCapacity));
+    configuration.insert(QStringLiteral("recentResultCapacity"),
+        static_cast<qint64>(snapshot.configuration.recentResultCapacity));
+    configuration.insert(QStringLiteral("diagnosticCapacity"),
+        static_cast<qint64>(snapshot.configuration.diagnosticCapacity));
+    configuration.insert(QStringLiteral("realIoEnabled"),
+        snapshot.configuration.realIoEnabled);
+    configuration.insert(QStringLiteral("configuredParametersApplied"),
+        snapshot.configuration.configuredParametersApplied);
+    configuration.insert(QStringLiteral("configuredParameters"),
+        parameterProfileJson(snapshot.configuration.configuredParameters));
+    configuration.insert(QStringLiteral("appliedParameters"),
+        parameterProfileJson(snapshot.configuration.appliedParameters));
+    root.insert(QStringLiteral("configuration"), configuration);
+
+    const cigvision::ProductRuntimeStatistics& totals = snapshot.statistics;
+    QJsonObject statistics;
+    statistics.insert(QStringLiteral("processed"), static_cast<qint64>(totals.processed));
+    statistics.insert(QStringLiteral("ok"), static_cast<qint64>(totals.ok));
+    statistics.insert(QStringLiteral("ng"), static_cast<qint64>(totals.ng));
+    statistics.insert(QStringLiteral("error"), static_cast<qint64>(totals.error));
+    statistics.insert(QStringLiteral("reviewed"), static_cast<qint64>(totals.reviewed));
+    statistics.insert(QStringLiteral("confirmed"), static_cast<qint64>(totals.confirmed));
+    statistics.insert(QStringLiteral("corrected"), static_cast<qint64>(totals.corrected));
+    statistics.insert(QStringLiteral("dismissed"), static_cast<qint64>(totals.dismissed));
+    statistics.insert(QStringLiteral("totalElapsedMicros"),
+        static_cast<qint64>(totals.totalElapsedMicros));
+    statistics.insert(QStringLiteral("maximumElapsedMicros"),
+        static_cast<qint64>(totals.maximumElapsedMicros));
+    statistics.insert(QStringLiteral("maximumQueueDepth"),
+        static_cast<qint64>(totals.maximumQueueDepth));
+    QJsonObject classCounts;
+    for (const auto& entry : totals.defectsByClass) {
+        classCounts.insert(QString::number(entry.first), static_cast<qint64>(entry.second));
+    }
+    statistics.insert(QStringLiteral("defectsByClass"), classCounts);
+    QJsonArray cameras;
+    for (const auto& entry : totals.cameras) {
+        QJsonObject camera;
+        camera.insert(QStringLiteral("stationId"),
+            QString::fromUtf8(entry.first.stationId.c_str()));
+        camera.insert(QStringLiteral("cameraId"),
+            QString::fromUtf8(entry.first.cameraId.c_str()));
+        camera.insert(QStringLiteral("processed"),
+            static_cast<qint64>(entry.second.processed));
+        camera.insert(QStringLiteral("ok"), static_cast<qint64>(entry.second.ok));
+        camera.insert(QStringLiteral("ng"), static_cast<qint64>(entry.second.ng));
+        camera.insert(QStringLiteral("error"), static_cast<qint64>(entry.second.error));
+        cameras.append(camera);
+    }
+    statistics.insert(QStringLiteral("cameras"), cameras);
+    root.insert(QStringLiteral("statistics"), statistics);
+
+    QJsonArray recentResults;
+    for (const cigvision::ProductRecentResult& recent : snapshot.recentResults) {
+        QJsonObject item;
+        item.insert(QStringLiteral("frameId"),
+            static_cast<qint64>(recent.frame.frameId));
+        item.insert(QStringLiteral("stationId"),
+            QString::fromUtf8(recent.frame.stationId.c_str()));
+        item.insert(QStringLiteral("cameraId"),
+            QString::fromUtf8(recent.frame.cameraId.c_str()));
+        item.insert(QStringLiteral("cigaretteNumber"),
+            static_cast<qint64>(recent.frame.cigaretteNumber));
+        item.insert(QStringLiteral("capturedAtMicros"),
+            static_cast<qint64>(recent.frame.capturedAtMicros));
+        item.insert(QStringLiteral("completedAtMicros"),
+            static_cast<qint64>(recent.frame.completedAtMicros));
+        item.insert(QStringLiteral("decision"), decisionDisplayName(recent.frame.decision));
+        item.insert(QStringLiteral("elapsedMicros"),
+            static_cast<qint64>(recent.frame.elapsedMicros));
+        item.insert(QStringLiteral("parameterVersion"),
+            QString::fromUtf8(recent.frame.parameterVersion.c_str()));
+        item.insert(QStringLiteral("parameterSha256"),
+            QString::fromLatin1(recent.frame.parameterSha256.c_str()));
+        item.insert(QStringLiteral("errorCode"),
+            QString::fromUtf8(recent.frame.errorCode.c_str()));
+        item.insert(QStringLiteral("errorMessage"),
+            QString::fromUtf8(recent.frame.errorMessage.c_str()));
+        QJsonArray defects;
+        for (const cigvision::ProductDefectSummary& defect : recent.frame.defects) {
+            QJsonObject defectValue;
+            defectValue.insert(QStringLiteral("classId"), defect.classId);
+            defectValue.insert(QStringLiteral("className"),
+                QString::fromUtf8(defect.className.c_str()));
+            defectValue.insert(QStringLiteral("confidence"), defect.confidence);
+            defects.append(defectValue);
+        }
+        item.insert(QStringLiteral("defects"), defects);
+        QJsonObject review;
+        review.insert(QStringLiteral("outcome"), reviewOutcomeName(recent.review.outcome));
+        review.insert(QStringLiteral("reviewer"),
+            QString::fromUtf8(recent.review.reviewer.c_str()));
+        review.insert(QStringLiteral("note"),
+            QString::fromUtf8(recent.review.note.c_str()));
+        review.insert(QStringLiteral("reviewedAtMicros"),
+            static_cast<qint64>(recent.review.reviewedAtMicros));
+        item.insert(QStringLiteral("review"), review);
+        recentResults.append(item);
+    }
+    root.insert(QStringLiteral("recentResults"), recentResults);
+
+    QJsonArray diagnostics;
+    for (const cigvision::ProductDiagnosticEvent& event : snapshot.diagnostics) {
+        QJsonObject item;
+        item.insert(QStringLiteral("occurredAtMicros"),
+            static_cast<qint64>(event.occurredAtMicros));
+        item.insert(QStringLiteral("severity"), diagnosticSeverityName(event.severity));
+        item.insert(QStringLiteral("component"),
+            QString::fromUtf8(event.component.c_str()));
+        item.insert(QStringLiteral("code"), QString::fromUtf8(event.code.c_str()));
+        item.insert(QStringLiteral("message"), QString::fromUtf8(event.message.c_str()));
+        item.insert(QStringLiteral("frameId"), static_cast<qint64>(event.frameId));
+        diagnostics.append(item);
+    }
+    root.insert(QStringLiteral("diagnostics"), diagnostics);
+
+    QSaveFile file(QDir(activeProductOutputDirectory).filePath(
+        QStringLiteral("product-session.json")));
+    if (!file.open(QIODevice::WriteOnly) ||
+        file.write(QJsonDocument(root).toJson(QJsonDocument::Indented)) < 0 ||
+        !file.commit()) {
+        errorMessage = file.errorString().isEmpty()
+            ? QStringLiteral("product session write failed") : file.errorString();
+        return false;
+    }
+    errorMessage.clear();
+    return true;
+}
+
 void CigVision::on_btn_run_clicked()
 {
     QMutexLocker runtimeLock(&runtimeMutex);
@@ -550,6 +1210,14 @@ void CigVision::on_btn_run_clicked()
 
     if (!machineState.systemRun.load())
     {
+        const cigvision::ProductRuntimeStatus productStatus =
+            productRuntimeState.snapshot().status;
+        if (productStatus == cigvision::ProductRuntimeStatus::Running ||
+            productStatus == cigvision::ProductRuntimeStatus::Stopping) {
+            offlineStatusLabel->setText(QStringLiteral(
+                "请先停止离线任务，再启动在线运行"));
+            return;
+        }
         if (ioTask == nullptr)
         {
             qDebug() << QString::fromLocal8Bit("错误：IO板卡未就绪，系统未进入运行状态");
@@ -578,17 +1246,28 @@ void CigVision::on_btn_run_clicked()
     else
     {
         machineState.systemRun.store(false);
-        stopCameras();
+        const bool camerasStopped = stopCameras();
+        cameraLifecycleFault = !camerasStopped;
         detachCameraCallbacks();
         waitForCameraCallbacks();
         stopIOReading();
         clearFrameQueues();
+        if (!camerasStopped) {
+            offlineStatusLabel->setText(QStringLiteral(
+                "相机停止失败，运行已锁定且禁止退出"));
+        }
     }
     btnColorUpdate();
 }
 void CigVision::on_btn_edit_clicked()
 {
     qDebug() << "edit clicked";
+    const cigvision::ProductRuntimeStatus status = productRuntimeState.snapshot().status;
+    if (status == cigvision::ProductRuntimeStatus::Running ||
+        status == cigvision::ProductRuntimeStatus::Stopping) {
+        offlineStatusLabel->setText(QStringLiteral("运行中参数已冻结，停止后再编辑"));
+        return;
+    }
     if (ui.stackedWidget->currentIndex() != current_stackedwidget::edit)
     {
         ui.stackedWidget->setCurrentIndex(current_stackedwidget::edit);
@@ -602,7 +1281,16 @@ void CigVision::on_btn_edit_clicked()
 void CigVision::on_btn_log_clicked()
 {
     qDebug() << "log clicked";
-
+    if (ui.stackedWidget->currentIndex() != current_stackedwidget::logTxt)
+    {
+        refreshDiagnosticsView();
+        ui.stackedWidget->setCurrentIndex(current_stackedwidget::logTxt);
+    }
+    else
+    {
+        ui.stackedWidget->setCurrentIndex(current_stackedwidget::run);
+    }
+    btnColorUpdate();
 }
 void CigVision::on_btn_alarm_clicked()
 {
@@ -611,6 +1299,12 @@ void CigVision::on_btn_alarm_clicked()
 void CigVision::on_btn_change_clicked()
 {
     qDebug() << "change_brand clicked";
+    const cigvision::ProductRuntimeStatus status = productRuntimeState.snapshot().status;
+    if (status == cigvision::ProductRuntimeStatus::Running ||
+        status == cigvision::ProductRuntimeStatus::Stopping) {
+        offlineStatusLabel->setText(QStringLiteral("运行中品牌已冻结，停止后再切换"));
+        return;
+    }
 	if (ui.stackedWidget->currentIndex() != current_stackedwidget::change_brand)
 	{
 		ui.stackedWidget->setCurrentIndex(current_stackedwidget::change_brand);
@@ -628,10 +1322,55 @@ void CigVision::on_btn_login_clicked()
 void CigVision::on_btn_quit_clicked()
 {
     qDebug() << "quit clicked";
+    close();
+}
+
+void CigVision::closeEvent(QCloseEvent* event)
+{
+    if (offlineWorker != nullptr) {
+        closeWhenOfflineStops = true;
+        std::string stateError;
+        const cigvision::ProductRuntimeSnapshot snapshot = productRuntimeState.snapshot();
+        if (snapshot.status == cigvision::ProductRuntimeStatus::Running) {
+            (void)productRuntimeState.requestStop(currentTimestampMicros(), stateError);
+        }
+        offlineWorker->requestStop();
+        ui.btn_quit->setEnabled(false);
+        ui.btn_switch->setEnabled(false);
+        offlineStatusLabel->setText(QStringLiteral("正在安全停止离线任务后退出"));
+        event->ignore();
+        return;
+    }
+    if (machineState.systemRun.load()) {
+        on_btn_run_clicked();
+    }
+    if (machineState.systemRun.load() || cameraLifecycleFault) {
+        offlineStatusLabel->setText(QStringLiteral(
+            "在线任务未能安全停止，已取消退出"));
+        event->ignore();
+        return;
+    }
+    if (!activeProductOutputDirectory.isEmpty()) {
+        QString persistenceError;
+        if (!persistProductState(persistenceError)) {
+            offlineStatusLabel->setText(QStringLiteral(
+                "最终会话证据落盘失败，已取消退出：%1").arg(persistenceError));
+            ui.btn_quit->setEnabled(true);
+            event->ignore();
+            return;
+        }
+    }
+    event->accept();
 }
 void CigVision::on_btn_system_clicked()
 {
     qDebug() << "system clicked";
+    const cigvision::ProductRuntimeStatus status = productRuntimeState.snapshot().status;
+    if (status == cigvision::ProductRuntimeStatus::Running ||
+        status == cigvision::ProductRuntimeStatus::Stopping) {
+        offlineStatusLabel->setText(QStringLiteral("运行中系统配置已冻结，停止后再修改"));
+        return;
+    }
     if (ui.stackedWidget->currentIndex() != current_stackedwidget::system_set)
     {
         ui.stackedWidget->setCurrentIndex(current_stackedwidget::system_set);
@@ -645,17 +1384,39 @@ void CigVision::on_btn_system_clicked()
 void CigVision::on_btn_count_clicked()
 {
     qDebug() << "count clicked";
+    if (ui.stackedWidget->currentIndex() != current_stackedwidget::count)
+    {
+        refreshStatisticsView();
+        ui.stackedWidget->setCurrentIndex(current_stackedwidget::count);
+    }
+    else
+    {
+        ui.stackedWidget->setCurrentIndex(current_stackedwidget::run);
+    }
+    btnColorUpdate();
 }
 
 
 void CigVision::on_btn_search_clicked()
 {
     qDebug() << "search clicked";
+    if (ui.stackedWidget->currentIndex() != current_stackedwidget::search)
+    {
+        refreshReviewView();
+        ui.stackedWidget->setCurrentIndex(current_stackedwidget::search);
+    }
+    else
+    {
+        ui.stackedWidget->setCurrentIndex(current_stackedwidget::run);
+    }
+    btnColorUpdate();
 }
 
 void CigVision::onOfflineButtonClicked()
 {
     if (offlineWorker != nullptr) {
+        std::string stateError;
+        (void)productRuntimeState.requestStop(currentTimestampMicros(), stateError);
         offlineWorker->requestStop();
         ui.btn_switch->setText(QStringLiteral("正在停止"));
         ui.btn_switch->setEnabled(false);
@@ -685,8 +1446,49 @@ void CigVision::onOfflineButtonClicked()
         return;
     }
 
+    cigvision::ProductRunConfiguration runConfiguration;
+    runConfiguration.runId = utf8String(QFileInfo(outputRoot).fileName());
+    runConfiguration.brandName = utf8String(params.getCurrentBrand());
+    runConfiguration.mode = cigvision::ProductRunMode::OfflineFixture;
+    runConfiguration.detectorVersion = "deterministic-fixture-v1";
+    runConfiguration.parameterVersion = "offline-fixture-v1";
+    runConfiguration.queueCapacity = 4;
+    runConfiguration.realIoEnabled = false;
+    QString parameterProfileError;
+    if (!buildLegacyDeepLearningProfile(params.getDeepLearningParams(),
+            runConfiguration.configuredParameters, parameterProfileError)) {
+        offlineStatusLabel->setText(QStringLiteral("参数快照校验失败：%1")
+            .arg(parameterProfileError));
+        return;
+    }
+    runConfiguration.appliedParameters = fixtureParameterProfile();
+    runConfiguration.configuredParametersApplied = false;
+    std::string stateError;
+    if (!productRuntimeState.start(runConfiguration, currentTimestampMicros(), stateError)) {
+        offlineStatusLabel->setText(QStringLiteral("运行看板初始化失败：%1")
+            .arg(QString::fromUtf8(stateError.c_str())));
+        return;
+    }
+    activeProductOutputDirectory = outputRoot;
+    cigvision::ProductDiagnosticEvent startEvent;
+    startEvent.occurredAtMicros = currentTimestampMicros();
+    startEvent.component = "runtime";
+    startEvent.code = "RUN_STARTED";
+    startEvent.message = "offline fixture workflow started";
+    (void)productRuntimeState.appendDiagnostic(startEvent, stateError);
+    QString persistenceError;
+    if (!persistProductState(persistenceError)) {
+        (void)productRuntimeState.fail("PRODUCT_SESSION_WRITE_FAILED",
+            utf8String(persistenceError), currentTimestampMicros(), stateError);
+        offlineStatusLabel->setText(QStringLiteral("产品运行状态初始化落盘失败：%1")
+            .arg(persistenceError));
+        return;
+    }
+
     offlineThread = new QThread(this);
-    offlineWorker = new cigvision::OfflineInspectionWorker(files, outputRoot);
+    offlineWorker = new cigvision::OfflineInspectionWorker(
+        files, outputRoot, runConfiguration.parameterVersion,
+        runConfiguration.appliedParameters.sha256());
     offlineWorker->moveToThread(offlineThread);
     connect(offlineThread, &QThread::started, offlineWorker,
         &cigvision::OfflineInspectionWorker::run);
@@ -701,9 +1503,25 @@ void CigVision::onOfflineButtonClicked()
         offlineWorker = nullptr;
         QThread* finishedThread = offlineThread;
         offlineThread = nullptr;
+        finishedThread->deleteLater();
         ui.btn_switch->setText(QStringLiteral("离线检测"));
         ui.btn_switch->setEnabled(true);
-        finishedThread->deleteLater();
+        if (closeWhenOfflineStops) {
+            closeWhenOfflineStops = false;
+            std::string stateError;
+            const cigvision::ProductRuntimeSnapshot snapshot = productRuntimeState.snapshot();
+            if (snapshot.status == cigvision::ProductRuntimeStatus::Running ||
+                snapshot.status == cigvision::ProductRuntimeStatus::Stopping) {
+                (void)productRuntimeState.completeStop(
+                    currentTimestampMicros(), stateError);
+            }
+            QString persistenceError;
+            (void)persistProductState(persistenceError);
+            ui.btn_quit->setEnabled(true);
+            close();
+            return;
+        }
+        ui.btn_quit->setEnabled(true);
     });
     ui.btn_switch->setText(QStringLiteral("停止离线"));
     offlineStatusLabel->setText(QStringLiteral("离线链路测试运行中（非生产算法）"));
@@ -722,45 +1540,154 @@ void CigVision::onOfflineFrameProcessed(const QImage& image, const QString& resu
     } else {
         offlineDefectLabel->clear();
     }
-    const qulonglong processed = statistics.value(QStringLiteral("processed")).toULongLong();
-    const qulonglong ok = statistics.value(QStringLiteral("ok")).toULongLong();
-    const qulonglong ng = statistics.value(QStringLiteral("ng")).toULongLong();
-    const qulonglong errors = statistics.value(QStringLiteral("error")).toULongLong();
-    ui.label_19->setText(QStringLiteral("合格：%1").arg(ok));
-    ui.label_20->setText(QStringLiteral("缺陷：%1 错误：%2").arg(ng).arg(errors));
-    ui.label_14->setText(processed == 0 ? QStringLiteral("0.0%") :
-        QStringLiteral("%1%").arg(100.0 * static_cast<double>(ng) / processed, 0, 'f', 1));
-    if (offlineStatsModel != nullptr && offlineStatsModel->rowCount() > 0) {
-        offlineStatsModel->setData(offlineStatsModel->index(0, 1), ng);
+    cigvision::ProductFrameResult frameResult;
+    frameResult.frameId = statistics.value(QStringLiteral("frameId")).toULongLong();
+    frameResult.stationId = utf8String(statistics.value(QStringLiteral("stationId")).toString());
+    frameResult.cameraId = utf8String(statistics.value(QStringLiteral("cameraId")).toString());
+    frameResult.cigaretteNumber = statistics.value(
+        QStringLiteral("cigaretteNumber")).toUInt();
+    frameResult.capturedAtMicros = statistics.value(
+        QStringLiteral("capturedAtMicros")).toLongLong();
+    frameResult.completedAtMicros = statistics.value(
+        QStringLiteral("completedAtMicros")).toLongLong();
+    frameResult.elapsedMicros = statistics.value(
+        QStringLiteral("elapsedMicros")).toULongLong();
+    frameResult.parameterVersion = utf8String(statistics.value(
+        QStringLiteral("parameterVersion")).toString());
+    frameResult.parameterSha256 = utf8String(statistics.value(
+        QStringLiteral("parameterSha256")).toString());
+    frameResult.errorCode = utf8String(statistics.value(
+        QStringLiteral("errorCode")).toString());
+    frameResult.errorMessage = utf8String(statistics.value(
+        QStringLiteral("errorMessage")).toString());
+    if (resultText == QStringLiteral("OK")) {
+        frameResult.decision = cigvision::InspectionDecision::Ok;
+    } else if (resultText == QStringLiteral("NG")) {
+        frameResult.decision = cigvision::InspectionDecision::Ng;
+    } else {
+        frameResult.decision = cigvision::InspectionDecision::Error;
     }
-    offlineStatusLabel->setText(QStringLiteral("帧 %1：%2（链路测试检测器）")
-        .arg(processed).arg(resultText));
+    const QVariantList defectValues = statistics.value(QStringLiteral("defects")).toList();
+    for (const QVariant& defectValue : defectValues) {
+        const QVariantMap item = defectValue.toMap();
+        cigvision::ProductDefectSummary defect;
+        defect.classId = item.value(QStringLiteral("classId")).toInt();
+        defect.className = utf8String(item.value(QStringLiteral("className")).toString());
+        defect.confidence = item.value(QStringLiteral("confidence")).toFloat();
+        frameResult.defects.push_back(defect);
+    }
+
+    std::string stateError;
+    if (!productRuntimeState.recordResult(frameResult, 0, stateError)) {
+        offlineStatusLabel->setText(QStringLiteral("运行看板拒绝帧：%1")
+            .arg(QString::fromUtf8(stateError.c_str())));
+        return;
+    }
+    if (frameResult.decision == cigvision::InspectionDecision::Error) {
+        cigvision::ProductDiagnosticEvent event;
+        event.occurredAtMicros = frameResult.completedAtMicros;
+        event.severity = cigvision::ProductDiagnosticSeverity::Error;
+        event.component = "detector";
+        event.code = frameResult.errorCode;
+        event.message = frameResult.errorMessage.empty()
+            ? "inspection result error" : frameResult.errorMessage;
+        event.frameId = frameResult.frameId;
+        (void)productRuntimeState.appendDiagnostic(event, stateError);
+    }
+    const cigvision::ProductRuntimeSnapshot snapshot = productRuntimeState.snapshot();
+    const cigvision::ProductRuntimeStatistics& totals = snapshot.statistics;
+    ui.label_19->setText(QStringLiteral("合格：%1")
+        .arg(static_cast<qulonglong>(totals.ok)));
+    ui.label_20->setText(QStringLiteral("缺陷：%1 错误：%2")
+        .arg(static_cast<qulonglong>(totals.ng))
+        .arg(static_cast<qulonglong>(totals.error)));
+    ui.label_14->setText(totals.processed == 0 ? QStringLiteral("0.0%") :
+        QStringLiteral("%1%").arg(100.0 * static_cast<double>(totals.ng) /
+            static_cast<double>(totals.processed), 0, 'f', 1));
+    if (offlineStatsModel != nullptr) {
+        for (int row = 0; row < offlineStatsModel->rowCount(); ++row) {
+            const auto found = totals.defectsByClass.find(row);
+            offlineStatsModel->setData(offlineStatsModel->index(row, 1),
+                found == totals.defectsByClass.end() ? qulonglong(0) :
+                    static_cast<qulonglong>(found->second));
+        }
+    }
+    offlineStatusLabel->setText(
+        QStringLiteral("%1 | %2/%3 | 烟支 %4 | 帧 %5：%6（链路测试检测器）")
+            .arg(QString::fromLatin1(cigvision::productRunModeName(
+                snapshot.configuration.mode)))
+            .arg(QString::fromUtf8(frameResult.stationId.c_str()))
+            .arg(QString::fromUtf8(frameResult.cameraId.c_str()))
+            .arg(frameResult.cigaretteNumber)
+            .arg(static_cast<qulonglong>(totals.processed))
+            .arg(resultText));
 }
 
 void CigVision::onOfflineFinished(const QString& message, bool success)
 {
-    offlineStatusLabel->setText(message);
-    offlineStatusLabel->setStyleSheet(success
+    std::string stateError;
+    const cigvision::ProductRuntimeSnapshot snapshot = productRuntimeState.snapshot();
+    cigvision::ProductDiagnosticEvent event;
+    event.occurredAtMicros = currentTimestampMicros();
+    event.severity = success ? cigvision::ProductDiagnosticSeverity::Information :
+        (snapshot.status == cigvision::ProductRuntimeStatus::Stopping
+            ? cigvision::ProductDiagnosticSeverity::Information
+            : cigvision::ProductDiagnosticSeverity::Error);
+    event.component = "runtime";
+    event.code = success ? "RUN_COMPLETED" :
+        (snapshot.status == cigvision::ProductRuntimeStatus::Stopping
+            ? "RUN_STOPPED" : "RUN_FAILED");
+    event.message = utf8String(message);
+    (void)productRuntimeState.appendDiagnostic(event, stateError);
+    if (success || snapshot.status == cigvision::ProductRuntimeStatus::Stopping) {
+        (void)productRuntimeState.completeStop(currentTimestampMicros(), stateError);
+    } else if (snapshot.status == cigvision::ProductRuntimeStatus::Running) {
+        (void)productRuntimeState.fail("OFFLINE_WORKER_FAILED", utf8String(message),
+            currentTimestampMicros(), stateError);
+    }
+    QString persistenceError;
+    const bool persisted = persistProductState(persistenceError);
+    offlineStatusLabel->setText(persisted ? message :
+        QStringLiteral("%1；最终会话证据落盘失败：%2")
+            .arg(message).arg(persistenceError));
+    const bool stoppedByRequest =
+        snapshot.status == cigvision::ProductRuntimeStatus::Stopping;
+    offlineStatusLabel->setStyleSheet((success || stoppedByRequest)
         ? "color: #7CFC90; font-size: 16px;" : "color: #FF6B6B; font-size: 16px;");
 }
 
 void CigVision::stopOfflineInspection()
 {
     if (offlineWorker != nullptr) {
+        std::string stateError;
+        const cigvision::ProductRuntimeSnapshot snapshot = productRuntimeState.snapshot();
+        if (snapshot.status == cigvision::ProductRuntimeStatus::Running) {
+            (void)productRuntimeState.requestStop(currentTimestampMicros(), stateError);
+        }
         offlineWorker->requestStop();
     }
     if (offlineThread != nullptr) {
         offlineThread->quit();
         offlineThread->wait();
     }
+    std::string stateError;
+    const cigvision::ProductRuntimeSnapshot snapshot = productRuntimeState.snapshot();
+    if (snapshot.status == cigvision::ProductRuntimeStatus::Running ||
+        snapshot.status == cigvision::ProductRuntimeStatus::Stopping) {
+        (void)productRuntimeState.completeStop(currentTimestampMicros(), stateError);
+        QString persistenceError;
+        if (!persistProductState(persistenceError)) {
+            qCritical() << "final product session persistence failed:" << persistenceError;
+        }
+    }
 }
 
 void CigVision::btnColorUpdate()//按钮颜色更新
 {
-    ui.btn_edit->setIcon(QPixmap(QStringLiteral("icons/use/edit.png")));
-    ui.btn_search->setIcon(QPixmap(QStringLiteral("icons/use/picture-filling (1).png")));
-    ui.btn_change->setIcon(QPixmap(QStringLiteral("icons/use/copy.png")));
-    ui.btn_system->setIcon(QPixmap(QStringLiteral("icons/use/settings.png")));
+    ui.btn_edit->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/edit.png")));
+    ui.btn_search->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/picture-filling.png")));
+    ui.btn_change->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/copy.png")));
+    ui.btn_system->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/settings.png")));
     //ui.b
     switch (ui.stackedWidget->currentIndex())
     {
@@ -768,27 +1695,27 @@ void CigVision::btnColorUpdate()//按钮颜色更新
 
         break;
     case current_stackedwidget::edit:
-        ui.btn_edit->setIcon(QPixmap(QStringLiteral("icons/use/edit (blue).png")));
+        ui.btn_edit->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/edit.png")));
         break;
 	case current_stackedwidget::search:
-		ui.btn_search->setIcon(QPixmap(QStringLiteral("icons/use/picture-filling (blue).png")));
+		ui.btn_search->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/picture-filling.png")));
 		break;
 	case current_stackedwidget::change_brand:
-		ui.btn_change->setIcon(QPixmap(QStringLiteral("icons/use/copy (blue).png")));
+		ui.btn_change->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/copy.png")));
 		break;
     case current_stackedwidget::system_set:
-        ui.btn_system->setIcon(QPixmap(QStringLiteral("icons/use/settings (blue).png")));
+        ui.btn_system->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/settings.png")));
 
     default:
         break;
     }
     if (machineState.systemRun.load())
     {
-        ui.btn_run->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-filling (green).png")));
+        ui.btn_run->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-filling.png")));
     }
     else
     {
-        ui.btn_run->setIcon(QPixmap(QStringLiteral("icons/use/arrow-right-filling.png")));
+        ui.btn_run->setIcon(QPixmap(QStringLiteral(":/CigVision/icons/use/arrow-right-filling.png")));
     }
 }
 
@@ -801,6 +1728,15 @@ void CigVision::onSystemParaWidgetQuit()
 }
 void CigVision::onBrandComboBoxChanged() {
     qDebug() << "select new brand";
+    const cigvision::ProductRuntimeSnapshot snapshot = productRuntimeState.snapshot();
+    if (snapshot.status == cigvision::ProductRuntimeStatus::Running ||
+        snapshot.status == cigvision::ProductRuntimeStatus::Stopping) {
+        ui.label_brandName->setText(QString::fromUtf8(
+            snapshot.configuration.brandName.c_str()));
+        offlineStatusLabel->setText(QStringLiteral(
+            "运行中品牌已冻结；停止后再切换品牌"));
+        return;
+    }
     ui.label_brandName->setText(params.currentBrandLabel->text());
 }
 

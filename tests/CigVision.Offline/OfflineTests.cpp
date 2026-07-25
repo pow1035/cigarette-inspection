@@ -1,5 +1,6 @@
 #include "core/OfflineInspection.h"
 
+#include <atomic>
 #include <chrono>
 #include <iostream>
 #include <stdexcept>
@@ -41,7 +42,8 @@ public:
         return true;
     }
 private:
-    int count_; bool firstError_; int index_ = 0; bool errorEmitted_ = false; bool running_ = false;
+    int count_; bool firstError_; int index_ = 0; bool errorEmitted_ = false;
+    std::atomic<bool> running_{ false };
 };
 
 class Sink final : public IInspectionResultSink {
@@ -62,18 +64,22 @@ public:
 
 class SlowDetector final : public IDetector {
 public:
-    explicit SlowDetector(int delayMs = 0, bool invalid = false)
-        : delayMs_(delayMs), invalid_(invalid) {}
+    explicit SlowDetector(int delayMs = 0, bool invalid = false, bool drift = false)
+        : delayMs_(delayMs), invalid_(invalid), drift_(drift) {}
     DetectionBatch detect(const FramePacket& input) override
     {
         if (delayMs_) std::this_thread::sleep_for(std::chrono::milliseconds(delayMs_));
         DetectionBatch batch;
         batch.frameId = invalid_ ? input.frameId + 1 : input.frameId;
         batch.detectorVersion = "test";
+        batch.parameterVersion = "offline-fixture-v1";
+        batch.parameterSha256 =
+            drift_ ? std::string(64, 'b') :
+            "09fa9ae45d4caa232ce06e32831fad5d17653c9a085bb4b305e0840608690107";
         return batch;
     }
 private:
-    int delayMs_; bool invalid_;
+    int delayMs_; bool invalid_; bool drift_;
 };
 
 class Clock final : public IClock { public: TimestampMicros now() const noexcept override { return 1; } };
@@ -141,6 +147,16 @@ void inputAndDetectorErrors()
     OfflineInspectionSession session; const auto summary = run(source, detector, sink, archive, session);
     CHECK(summary.state == OfflineRunState::CompletedWithErrors);
     CHECK(summary.statistics.sourceErrors == 1); CHECK(summary.statistics.error == 1);
+
+    Source driftSource(1); SlowDetector driftDetector(0, false, true);
+    Sink driftSink; Archive driftArchive; OfflineInspectionSession driftSession;
+    const auto driftSummary = run(
+        driftSource, driftDetector, driftSink, driftArchive, driftSession);
+    CHECK(driftSummary.state == OfflineRunState::CompletedWithErrors);
+    CHECK(driftSink.results.size() == 1);
+    CHECK(driftSink.results[0].errorCode ==
+        "DETECTOR_PARAMETER_IDENTITY_MISMATCH");
+    CHECK(driftSink.results[0].parameterSha256 == std::string(64, 'b'));
 }
 
 void saveFailure()
@@ -162,6 +178,15 @@ void queueFull()
 
 void stopAndRepeat()
 {
+    OfflineInspectionSession pendingStopSession;
+    pendingStopSession.requestStop();
+    Source pendingSource(2); DeterministicFixtureDetector pendingDetector;
+    Sink pendingSink; Archive pendingArchive; Clock pendingClock;
+    const auto pending = run(pendingSource, pendingDetector, pendingSink,
+        pendingArchive, pendingStopSession);
+    CHECK(pending.state == OfflineRunState::Stopped);
+    CHECK(pending.statistics.processed == 0);
+
     OfflineInspectionSession session; Source source(500); SlowDetector detector(1); Sink sink; Archive archive;
     OfflineRunOptions options; options.queueCapacity = 4; options.drainOnStop = false;
     OfflineRunSummary first;

@@ -11,9 +11,15 @@
 3. 按 `codex-long-task-architecture` 循环工作：实现、自查、验证、独立评审/QA（工具可用时）、更新证据、再过提交门。
 4. 每阶段结束时更新 `docs/progress-log.md`、`docs/evidence-matrix.md`、`docs/review-packet.md`、`docs/review-results.md` 和相关状态。
 5. 未通过提交门时，不声称阶段完成，不提交、合并或发布。
-6. 当前 `CURRENT_PHASE` 是 P5；P5-P8 只做本地数据效果、实时仿真、Qt 产品化和交付预验收。不得擅自恢复现场硬件路线。
+6. 当前 `CURRENT_PHASE` 是 P8；测试集保持 P8 76 项，PowerShell 静态门保持 13 个脚本和 7 个 CLI 契约。主机证据已返修为现场 challenge 采集、v2 host report、v4 wrapper/receipt 与外置 HMAC 密钥，但返修后的最终 `--full` 门、独立 reviewer/QA 尚待执行；不得继承返修前的 PASS。P8 整体因 P5/P6/P7 外部输入，以及真实 Windows + Qt/HALCON/MVS/DAQNavi/CUDA/TensorRT/OpenCV 环境、数据、许可和硬件阻断保持进行中。P5-P8 只做本地数据效果、实时仿真、Qt 产品化和交付预验收，不得擅自恢复现场硬件路线。
 
-文档导航：需求与边界见 `requirements.md`、`architecture.md`、`decisions.md`；执行与风险见 `task-plan.md`、`known-issues.md`、`code-audit.md`；P5 资料与真值规则见 `p5-source-inventory.md`、`p5-labeling-guide.md`；当前 Windows 基线见 `windows-build-baseline.md`；验收与证据见 `acceptance-criteria.md`、`qa-checklist.md`、`evidence-matrix.md`、`review-packet.md`、`review-results.md`；一致性与运行证据见 `golden-principles.md`、`observability.md`、`progress-log.md`。以上文件均位于 `docs/`。
+## 文档维护节奏
+
+- 编排代理必须在每个实现切片后、独立 review/QA 结果返回后、最终门禁前各启动一次 documentation maintenance agent。
+- documentation maintenance agent 只按当时工作树和本轮授权范围更新 `README.md`、交接说明、`AGENTS.md` 与 `docs/`：核对阶段、测试计数、验收状态、证据边界、评审状态和交叉链接；运行相关只读文档检查，不提前写 PASS。
+- documentation maintenance agent 同时判断 cleanup 是否到期；到期时在 `docs/task-plan.md` 和 `docs/progress-log.md` 记录原因，并请求独立 cleanup agent 执行，不能把文档整理冒充代码 cleanup。
+
+文档导航：需求与边界见 `requirements.md`、`architecture.md`、`decisions.md`；执行与风险见 `task-plan.md`、`known-issues.md`、`code-audit.md`；P5 资料与真值规则见 `p5-source-inventory.md`、`p5-labeling-guide.md`；Windows 构建与 P8 目标机操作见 `windows-build-baseline.md`、`windows-target-execution.md`；验收与证据见 `acceptance-criteria.md`、`qa-checklist.md`、`evidence-matrix.md`、`review-packet.md`、`review-results.md`；一致性与运行证据见 `golden-principles.md`、`observability.md`、`progress-log.md`。以上文件均位于 `docs/`。
 
 ## 不可破坏的边界
 

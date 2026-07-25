@@ -1,0 +1,41 @@
+{
+  "root": "../..",
+  "samples": [
+    {
+      "path": "04_测试数据与样例图片/推理测试图片/1_20231206142421605.jpg",
+      "sha256": "28729CC65A2D57DDD58FB6D620FEEA8C695100393B75ACE37154562CD8F63AF1",
+      "expected": "OK",
+      "stationId": "station-a",
+      "cameraId": "camera-a",
+      "cigaretteNumber": 7001,
+      "delayBeforeMicros": 0
+    },
+    {
+      "path": "04_测试数据与样例图片/推理测试图片/1_20231206142421616.jpg",
+      "sha256": "98B43E4311A7907752C511BE884D20D257216C1C2606524F5D8C64EE3EF91B1A",
+      "expected": "NG",
+      "stationId": "station-a",
+      "cameraId": "camera-a",
+      "cigaretteNumber": 7002,
+      "delayBeforeMicros": 250
+    },
+    {
+      "path": "04_测试数据与样例图片/推理测试图片/20221205090014279.jpg",
+      "sha256": "2363C410F87CD6F4A7183EDEA422567B9AA5B50BBB468DE400444340D6D4FCDD",
+      "expected": "OK",
+      "stationId": "station-b",
+      "cameraId": "camera-b",
+      "cigaretteNumber": 7003,
+      "delayBeforeMicros": 0
+    },
+    {
+      "path": "04_测试数据与样例图片/推理测试图片/20221205091801810.jpg",
+      "sha256": "9550FAD25C6677AEFB17347B893FBB25A3838F145139B80EEFCE3DBFA0A49412",
+      "expected": "NG",
+      "stationId": "station-b",
+      "cameraId": "camera-b",
+      "cigaretteNumber": 7004,
+      "delayBeforeMicros": 100
+    }
+  ]
+}

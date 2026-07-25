@@ -17,10 +17,14 @@
 #include "MvCameraControl.h"
 #include<MyCamera.h>
 #include"MultipleCameraDefine.h"
+#include "core/ProductRuntimeState.h"
 #include<qdebug.h>
 
 class QLabel;
+class QCloseEvent;
+class QLineEdit;
 class QStandardItemModel;
+class QTableView;
 class QThread;
 class QImage;
 namespace cigvision { class OfflineInspectionWorker; }
@@ -86,8 +90,10 @@ class CigVision : public QWidget
     Q_OBJECT
 
 public:
-    explicit CigVision(QWidget *parent = nullptr, bool offlineOnly = false);
+    explicit CigVision(QWidget *parent = nullptr, bool offlineOnly = true);
     ~CigVision();
+protected:
+    void closeEvent(QCloseEvent* event) override;
 private slots:
     void on_btn_run_clicked();
     void on_btn_alarm_clicked();
@@ -125,6 +131,13 @@ public:
 
     void initRunView();//初始化运行界面
     void initParaView();//初始化参数调整界面
+    void initReviewView();
+    void initInsightsViews();
+    void refreshReviewView();
+    void refreshStatisticsView();
+    void refreshDiagnosticsView();
+    bool persistProductState(QString& errorMessage) const;
+    void applySelectedReview(cigvision::ProductReviewOutcome outcome);
     void btnColorUpdate();//按钮颜色更新
 
     bool initCamera();//初始化相机
@@ -157,5 +170,19 @@ private:
     QLabel* offlineDefectLabel = nullptr;
     QLabel* offlineStatusLabel = nullptr;
     QStandardItemModel* offlineStatsModel = nullptr;
+    cigvision::ProductRuntimeState productRuntimeState;
+    QTableView* reviewTable = nullptr;
+    QStandardItemModel* reviewModel = nullptr;
+    QLabel* reviewStatusLabel = nullptr;
+    QLineEdit* reviewOperatorEdit = nullptr;
+    QLineEdit* reviewNoteEdit = nullptr;
+    QLabel* statisticsSummaryLabel = nullptr;
+    QLabel* statisticsIdentityLabel = nullptr;
+    QStandardItemModel* statisticsCameraModel = nullptr;
+    QStandardItemModel* statisticsClassModel = nullptr;
+    QLabel* diagnosticsSummaryLabel = nullptr;
+    QStandardItemModel* diagnosticsModel = nullptr;
+    bool closeWhenOfflineStops = false;
+    QString activeProductOutputDirectory;
 
 };

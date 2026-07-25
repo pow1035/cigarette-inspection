@@ -48,9 +48,11 @@ P2 已在 `源码/core` 形成只依赖 C++14 标准库的类型：
 
 P2 同时定义 `IFrameSource`、`IDetector`、`IInspectionResultSink`、`IRejectOutput`、`IClock`，以及带容量、显式溢出结果、丢弃计数和关闭语义的 `BoundedQueue<T>`。当前旧 `picStruct` 和 Qt 队列仅作为尚未迁移的相机内部通路保留；P6 先通过文件/录制流实现本地实时消费者，真实相机回调迁移冻结，P2 不建立双路入队。
 
-P3 在上述边界上增加 `OfflineInspectionSession`，每次运行创建独立有界队列和生产/消费线程，消费端只依赖 `IDetector`、结果 sink、帧 archive 和 observer。Qt 适配器负责图片解码/深拷贝、SHA-256 校验、原子 JSON/PNG 保存和 queued UI 信号；核心层不依赖 Qt。`--offline` 跳过 `initCamera()`/`initIOCard()`，批处理入口在构造主窗口前执行，因此不触达相机、DAQNavi 或剔除输出。当前 detector 仅为可重复编排测试 fixture；P4 通过同一 `IDetector` 边界替换，不能将 fixture 视为产品算法。
+P3 在上述边界上增加 `OfflineInspectionSession`，每次运行创建独立有界队列和生产/消费线程，消费端只依赖 `IDetector`、结果 sink、帧 archive 和 observer。Qt 适配器负责图片解码/深拷贝、SHA-256 校验、原子 JSON/PNG 保存和 queued UI 信号；核心层不依赖 Qt。`--offline` 跳过 `initCamera()`/`initIOCard()`，批处理入口在构造主窗口前执行，因此不触达相机、DAQNavi 或剔除输出。当前 detector 仅为可重复编排测试 fixture；P4 通过同一 `IDetector` 边界替换，不能将 fixture 视为产品算法。P6 simulation 入口在同一 Qt adapter 上注入 `SteadyReplayPacer`，并将 CLI、队列容量和 Simulation-only 输出配置写入原子 trace；`RealtimeLoadSimulation.h` 另以虚拟时钟提供 SDK-free 容量/异常模型，不替代产品线程实现。
 
 P4 新增 `adapters/tensorrt/TensorRtDetector`，用 PImpl 隔离 TensorRT/CUDA/OpenCV，并通过名称 API 验证固定 I/O 契约。`--tensorrt-batch-manifest` 只在构造主窗口前运行离线源，配置必须显式给出 engine、张量名、输入尺寸、阈值、类别表、禁用类别和预处理版本；初始化或运行错误不得回退为空检测。第一版单实例以 mutex 串行保护 execution context/stream/buffer。标准预处理为 OpenCV `INTER_LINEAR` 直接拉伸、RGB、FP32 `[0,1]`、CHW；这是当前 ONNX 导出契约，不代表未来模型可以隐式沿用。
+
+P7 新增 SDK-free `ProductParameterProfile`。运行配置分别保存“页面已配置”和“检测器实际应用”profile，并以固定字段顺序、长度前缀和 IEEE-754 binary32 位模式计算 canonical SHA-256。fixture 不得伪装成使用品牌七阈值；TensorRT profile 必须绑定 engine 完整 SHA-256、tensor、shape、preprocess 和 9 个逐类规则。逐帧参数 SHA 漂移在更新统计前拒绝，Qt session 保存两份 profile 及应用标记。
 
 ## 线程与队列边界
 
@@ -60,7 +62,7 @@ P4 新增 `adapters/tensorrt/TensorRtDetector`，用 PImpl 隔离 TensorRT/CUDA/
 - 模拟剔除线程：按烟支编号和可控时钟调度，只写结构化命令与回执；真实 IO 适配器当前不进入运行图。
 - UI 线程：通过 Qt signal/slot 接收轻量结果和状态快照。
 
-P3 离线运行使用固定容量 4 并在默认 RejectNewest 策略下施加生产者背压；UI 停止使用 `drainOnStop=false`，不会继续排空整批。DropOldest 仍由容量 1 的核心测试验证。P6 将以可配置本地节拍测量容量、线程数和积压曲线；这些本地参数不能从 8 图 fixture 外推，也不能冒充现场生产参数。
+P3 离线运行使用固定容量 4 并在默认 RejectNewest 策略下施加生产者背压；UI 停止使用 `drainOnStop=false`，不会继续排空整批。P6-02 的单 worker 虚拟模型已覆盖 RejectNewest/DropOldest、最大 queue/pipeline depth、P95 queue wait/end-to-end 和 stop drain/cancel；这些确定性参数只验证模型守恒，不能从 fixture 外推为 Qt/TensorRT 或现场生产参数。
 
 ## 现有目录职责
 
@@ -90,6 +92,7 @@ TensorRT 原型先包装成 `IDetector` 实现，再接入运行编排；不把 
 
 - P5 只建立数据、标注、评估和算法优化闭环，不接相机、IO 或真实剔除。
 - P5 人工复核工作台是独立的 localhost 工具，不链接 Qt、TensorRT、MVS 或 DAQNavi。浏览器只编辑后端返回的 draft；后端负责路径、图片哈希、框边界、类别目录、操作者身份、首标/复核顺序和导出状态校验。首标导出保持 `is_ground_truth=false`；只有不同复核人、approved 外部授权和完整 reviewed 状态同时成立时，后端才允许生成真值候选。
-- P6 将图片/录制流、可控时钟、模拟编号和 `IRejectOutput` 的模拟实现接入运行编排；所有输出必须标记 `simulation=true`。
-- P7 在现有新版 Qt 视觉风格内重构产品工作流，不更换整体 UI 风格；删除旧控件前需证明其无有效消费者或提供替代路径。
-- P8 只验收本机稳定性、性能、部署和恢复能力。未来真实硬件适配器保留接口边界，但不进入当前运行图和验收声明。
+- P6 将图片/录制流、可控时钟、模拟编号和 `IRejectOutput` 的模拟实现接入运行编排；SDK-free 容量模型也只能生成 `RejectMode::Simulation` 命令，所有输出必须标记 `simulation=true`。
+- P7 在现有新版 Qt 视觉风格内重构产品工作流，不更换整体 UI 风格；`ProductRuntimeState` 作为 SDK-free 展示状态边界统一 run identity、生命周期、统计、最近结果、复核和诊断，Qt 页面只消费快照。删除旧控件前需证明其无有效消费者或提供替代路径。
+- P7 参数身份以 `ProductParameterProfile` canonical SHA-256 为准；自由文本版本不能替代实际字段。configured 与 applied profile 必须分开记录，未消费的 legacy 页面参数不得宣称已应用。
+- P8 只验收本机稳定性、性能、部署和恢复能力。交付证据流固定为：package → package 外严格 manifest/外部 SHA → DeploymentRoot 外 32-byte HMAC key → v4 wrapper 生成 challenge → 从 provenance collector 立即现场采集 Windows/GPU v2 报告 → 严格 schema/challenge/package/capture/host/time/collector 绑定 preflight → SDK-free soak → fixture release/activate/rollback → v4 wrapper manifest + 带外 SHA/HMAC/key → 跨机 verify → 无覆盖原子 import。`p8_package_manifest.py`、`collect_windows_p8_host_reports.ps1`、Windows wrapper 和 evidence verifier/import 分别承担 package 身份、只读主机事实采集、目标机编排和离线信任边界；wrapper 不接受历史 host input，receipt v4 绑定 verifier SHA 与 manifest HMAC。manifest 在内存形成固定 UTF-8 bytes，以 `CreateNew + Flush(true)` 写入，SHA/HMAC 针对同一 bytes 计算并复读确认未漂移。ownership marker 和重复 reparse 检查只保护本次目录，失败不得递归删除不受控内容。HMAC 只认证证据；所有 `productAcceptance`、`windowsRuntimeAccepted`、真实 IO/剔除声明保持 false。完整操作见 `docs/windows-target-execution.md`。

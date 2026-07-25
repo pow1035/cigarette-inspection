@@ -104,12 +104,12 @@ try {
         New-Item -ItemType Directory -Force -Path $outputDirectory, $intermediateDirectory | Out-Null
         $buildLog = Join-Path $EvidenceRoot "msbuild-offline-$($configuration.ToLowerInvariant()).log"
         $testLog = Join-Path $EvidenceRoot "test-offline-$($configuration.ToLowerInvariant()).log"
-        $args = @(
+        $buildArguments = @(
             $testProject, "/m", "/t:Rebuild", "/p:Configuration=$configuration",
             "/p:Platform=x64", "/p:OutDir=$outputDirectory\",
             "/p:IntDir=$intermediateDirectory\", "/v:minimal"
         )
-        & $msbuild.Source @args 2>&1 | Tee-Object -FilePath $buildLog
+        & $msbuild.Source @buildArguments 2>&1 | Tee-Object -FilePath $buildLog
         $buildExitCode = $LASTEXITCODE
         if ($buildExitCode -ne 0) {
             Add-Failure "offline-test-build-$configuration" $buildExitCode "" $buildLog

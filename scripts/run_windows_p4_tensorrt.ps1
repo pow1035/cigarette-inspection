@@ -108,16 +108,19 @@ try {
 
     $engineHash = (Get-FileHash -LiteralPath $engine.FullName -Algorithm SHA256).Hash
     [ordered]@{
+        schemaVersion = "cigvision-tensorrt-detector-v2"
         enginePath = $engine.FullName
+        modelSha256 = $engineHash.ToLowerInvariant()
         inputTensorName = "images"
         outputTensorName = "output0"
         inputWidth = 992
         inputHeight = 992
-        confidenceThreshold = $ConfidenceThreshold
+        classConfidenceThresholds = @(0..8 | ForEach-Object { $ConfidenceThreshold })
         classNames = @("dakoucuoya", "feiyan", "jiamo", "lvzuizhezhou", "quezui",
             "yanbangposun", "yanbangzangwu", "wuzi", "jietou")
         disabledClassIds = @()
         detectorVersion = "yanzhi20260120-trt10-$($engineHash.Substring(0, 8).ToLowerInvariant())"
+        parameterVersion = "tensorrt-parameters-v2"
         preprocessMode = "stretch-rgb-f32"
     } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $detectorConfigPath -Encoding UTF8
 
@@ -204,9 +207,12 @@ try {
                     Where-Object { $_.Count -gt 1 })
                 $determinismIssues = New-Object System.Collections.Generic.List[string]
                 foreach ($group in $hashGroups) {
-                    $indices = @($fixedSamples | ForEach-Object -Begin { $i = 0 } -Process {
-                        $current = $i; $i++; if ($_.sha256 -eq $group.Name) { $current }
-                    })
+                    $indices = New-Object System.Collections.Generic.List[int]
+                    for ($sampleIndex = 0; $sampleIndex -lt $fixedSamples.Count; $sampleIndex++) {
+                        if ($fixedSamples[$sampleIndex].sha256 -eq $group.Name) {
+                            $indices.Add($sampleIndex)
+                        }
+                    }
                     $signatures = @($indices | ForEach-Object {
                         @($results[$_].defects) | ConvertTo-Json -Compress -Depth 5
                     } | Select-Object -Unique)

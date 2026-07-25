@@ -15,9 +15,9 @@
 | KI-009 | 高 | Debug/Release Halcon 版本分裂；仅 Release 精确版本已安装 | Release 22.11.4.0 已安装于 `D:\MVTec\HALCON-22.11-Steady` 并通过构建/启动；Debug 目标 `D:\MVTec\HALCON-25.05-Progress` 仍缺失，官方当前目录未提供 25.05 | 开放 | P1/P4 |
 | KI-010 | 高 | 老版保存路径和 IO 设备配置硬编码，禁用剔除时还会先丢弃 NG 事件 | 老版仅作参考；P7/P8 重新设计本地保存与模拟输出，不复制旧实现 | 开放 | P7/P8 |
 | KI-011 | 阻断 | 模型 ASCII 类别已确认，但正式中文业务映射、逐类阈值和准确率基准未确认 | P4 技术集成关闭时明确不声明准确率；P5 以人工标注和冻结测试集建立产品效果门 | 开放 | P5 |
-| KI-012 | 中 | 测试图片存在，但 ground truth、划分、来源和授权边界未形成清单 | P4 固定 116 文件/113 唯一哈希，仅做视觉与运行评估；P5 补齐数据治理 | 开放 | P5 |
-| KI-013 | 高 | 生产节拍、最大队列、允许推理时延和剔除延迟公式未确认 | P6 先用一组可配置本地节拍做容量曲线；现场参数继续冻结，不作现场声明 | 开放 | P6/现场冻结 |
-| KI-014 | 中 | UI、帧源、GPU、保存和模拟输出的统一运行日志/指标尚未实现 | P3/P4 已有逐帧 JSON、汇总统计和错误计数；P6-P8 补本地流、UI 与资源指标，硬件指标冻结 | 开放 | P6/P7/P8 |
+| KI-012 | 中 | 完整测试数据的 ground truth、互斥划分、来源和授权边界尚未形成清单 | 30 图 reviewed pilot 已授权并冻结，但只覆盖 20 张可比较图片；P4 的 116 文件/113 唯一哈希仍主要用于视觉与运行评估 | 开放 | P5 |
+| KI-013 | 高 | 生产节拍、最大队列、允许推理时延和剔除延迟公式未确认 | P6-02 已形成 SDK-free 容量/丢弃/P95 曲线并证明模型内取舍；真实图片解码、TensorRT、Qt 保存和现场参数仍未冻结，不作生产声明 | 开放 | P6/现场冻结 |
+| KI-014 | 中 | UI、帧源、GPU、保存和模拟输出的统一运行日志/指标尚未完整实现 | P6-01B 新增 simulation trace 源码，P6-02 新增虚拟 queue/pipeline/P95/逐相机统计；`p6_windows_simulation_evidence.py` 现可保存目标机 batch/trace/负路径日志与哈希，但产品 runtime、资源和 UI 统一指标仍待 P6-P8，硬件指标冻结 | 开放 | P6/P7/P8 |
 | KI-015 | 阻断 | 新版在线灰度队列仍没有检测消费者 | P3 已完成独立离线图片消费链；P6 只实现录制流/文件流消费者，真实相机回调迁移冻结 | 开放 | P6/现场冻结 |
 | KI-016 | 高 | 新版析构曾不停止取流、相机和 IO 线程 | P1 增加回调计数屏障、stop/shutdown、IO 有界等待告警和 RAII Close；待 Windows 运行 QA | 验证中 | P1 |
 | KI-017 | 高 | 老版 `2-2` 相机队列未见消费者，图像用异步全局 IO 编号，复检 key 仅为 `uchar` | P2 契约改用 64 位 frameId/32 位烟支编号且不复制老版队列；P6 本地仿真验证关联，现场关联冻结 | 开放 | P6/现场冻结 |
@@ -35,20 +35,35 @@
 | KI-029 | 高 | P3 固定样本的 OK/NG 是链路 fixture 期望，不是人工 ground truth，也不能用于准确率评估 | `tests/fixtures/p3-samples.json`；偶数 frame_id 固定 NG、奇数固定 OK；P4 必须建立真实标签/授权/模型评估清单 | 接受限制 | P4 |
 | KI-030 | 高 | P4 样本没有人工 ground truth，视觉抽查可见重叠框、超大框、空检候选和标签遮挡，不能判定误检/漏检 | 正式及独立 QA frame 1/3/6/12 抽查；P5 必须建立真值、指标和优化前后对照 | 开放 | P5 |
 | KI-031 | 中 | TensorRT engine 与 GPU/TRT 版本绑定，当前候选 engine 仅存 artifacts，不可作为跨机器部署包 | TRT 8.6 旧 engine 在 TRT 10.15 反序列化失败；当前 engine 由 RTX 4060/TRT 10.15 本机构建 | 接受限制 | P4/P7 |
-| KI-032 | 阻断 | 烟支模型缺少人工标签、训练 YAML、训练日志、数据划分和测试独立性证明 | P5-01 先冻结数据 manifest、真值规则和评估入口；没有 reviewed 真值时拒绝准确率 | 开放 | P5 |
+| KI-032 | 阻断 | 烟支模型缺少完整独立标签集、训练 YAML、训练日志、互斥数据划分和测试独立性证明 | 30 图 reviewed pilot 只用于冻结诊断测试，不得用于训练或阈值调优；完整训练/验证/测试证据仍需补齐 | 开放 | P5 |
 | KI-033 | 阻断 | `wuzi`、`jietou` 无源码支持的正式中文业务定义，现有 Qt 也没有对应逐类阈值 | 类别目录标为 `unconfirmed-do-not-label`，等待业务确认，不靠拼音猜测 | 开放 | P5 |
 | KI-034 | 阻断 | ONNX 元数据/原型资料包含 AGPL 或研究用途提示，商业许可与第三方代码合规未确认 | 当前只做内部本地评估；商用交付前需形成模型、Ultralytics 和第三方代码许可清单 | 开放 | P5/P8 |
-| KI-035 | 高 | P5-02 视觉抽查仍见大范围框、低置信框、重叠框和疑似类别误报，当前模型效果不能按截图判定为商业可用 | `artifacts/p5-pilot-20260711-192148/review-package/previews`；必须先完成人工双人真值，再量化阈值/NMS/过滤或训练前后效果 | 开放 | P5 |
+| KI-035 | 高 | P5-02 视觉抽查仍见大范围框、低置信框、重叠框和疑似类别误报，当前模型效果不能按截图判定为商业可用 | 双人 reviewed pilot 与 CPU 诊断基线已量化出明显 FP/FN；仍需恢复正式 TensorRT、补足代表性数据，并在独立验证集上比较阈值/NMS/过滤或训练前后效果 | 开放 | P5 |
 | KI-036 | 阻断 | 旧工作台只保存一个名字，曾导致复核身份与授权证据缺失 | 2026-07-19 用户澄清肖朗逐页标注、小狼逐页检查并批准为真实数据；原 pass1 不变，正式证据 `artifacts/p5-reviewed-truth-20260719-124537` 为 30 reviewed、20 comparable、10 REVIEW excluded、35 GT 框；独立 reviewer/QA 最终 PASS | 已修复 | P5-02C3 |
 | KI-037 | 高 | P5 首标工作台是无账号体系的 localhost 单机工具，且旧导出只保存单一人员名 | 工作台继续仅绑定 loopback、`/api/export-reviewed` 固定 409；复核晋级改由哈希绑定的 `p5_promote_reviewed_truth.py` 和项目负责人 attestation 完成，不把原 pass1 原地改真值 | 接受限制 | P5-02C3 |
 | KI-038 | 低 | 当前 Windows 会话无创建符号链接权限，P5 可视化包的符号链接逃逸子分支未取得运行态证据 | 独立 QA `019f7866-8956-7af3-b466-c578bce34bc6`；`..`、绝对路径、分析输出及构建入口逃逸均已实际拒绝；待开发者模式、相应权限或 CI 补证 | 接受限制（非阻断） | P5/CI |
+| KI-039 | 阻断 | 正式 P4 TensorRT 基线在当前主机仍不可用，现有 engine 无法反序列化且 ONNX 重建缺少插件 | 现有 `.engine` 在 TensorRT 8.6.1 报 `Magic tag does not match`；ONNX 重建在 `Mod` 节点失败；需兼容的编译执行文件、engine 或完整 TensorRT/CUDA/plugin 工具链 | 开放 | P5 |
+| KI-040 | 阻断 | fresh clone 不包含被 `.gitignore` 排除的 reviewed-truth 与 fallback baseline artifact，指定范围 pilot 无法在本机复算 | readiness strict exit 2；需受控恢复、核对外部 evidence-manifest 摘要，再通过内部 manifest/大小/SHA-256/attestation 门 | 开放 | P5 |
+| KI-041 | 高 | P7 产品状态、参数页和复核页尚未在 Qt/Windows 目标机编译运行，当前无法证明布局、信号槽、会话/profile 落盘和交互正确 | `ProductRuntimeState` 8/8；typed profile 和 Qt 源码已接线并固定 local-only；当前 Mac 无 Qt/MSVC，缺 Computer Use/人工 UI 运行证据 | 验证中 | P7 |
+| KI-042 | 中 | Qt `QJsonDocument` 默认会折叠重复键，可能让 TensorRT 配置歧义通过 | loader 增加原始 token 扫描并按解码后顶层 key 拒绝重复字段；P8 preflight 再独立门禁；当前无 Qt/MSVC，仅完成源码修复 | 已修复，runtime 待验证 | P7/P8 |
+| KI-043 | 阻断 | 尚无真实 Windows 产品发布包、完整 DLL/plugin/prerequisite 清单和 D 盘 A→B→A 转录 | v4 手册已固化现场 challenge 采集、v2 host report、package manifest、collector provenance、外置 32-byte HMAC key、带外 SHA/HMAC 和跨机 verify/import；当前 PowerShell 计数仍为 13 个脚本、CLI 7/7，但 `windowsRuntimeClaimed=false`、`productAcceptanceClaimed=false`。仍需真实 Windows + Qt/HALCON/MVS/DAQNavi/CUDA/TensorRT/OpenCV、数据、许可和硬件证据 | 开放 | P8 |
+| KI-044 | 高 | 历史 P8 70 项范围曾缺少独立 reviewer/QA 返修结论 | cleanup 4 P1/3 P2、reviewer 追加 2 P1/2 P2、QA 追加 1 P1 均已修；最终 reviewer `019f99cb-7c02-7b23-b498-9b28e7ba761c` 与 QA `019f99d7-8a02-7da1-8641-2d533409d06d` 均 PASS，P0/P1/P2=0/0/0 | 已修复 | P8 |
+| KI-045 | 高 | P8 主机报告 v2 / wrapper 与 receipt v4 返修尚未通过最终 full gate 和独立 reviewer/QA | 测试集仍为 P8 76 项、PowerShell 13 脚本/CLI 7 项；须复核 challenge 新鲜性、package/time 绑定、ownership/reparse 非递归失败边界、preflight 精确 9 项、外置 key 与 HMAC、provenance/receipt v4 和 false-green | 验证中 | P8 |
 
 详细审计摘要见 `docs/code-audit.md`。代码检查不能替代 Windows、GPU 或真实硬件运行证据。
 
-## KI-037: formal P4 TensorRT baseline unavailable on current host
+## KI-039: formal P4 TensorRT baseline unavailable on current host
 
 - Status: OPEN; fallback baseline available but explicitly non-formal.
 - Available `.engine` files fail TensorRT 8.6.1 deserialization with `Magic tag does not match`.
 - ONNX-to-engine recovery fails at a `Mod` node because the required plugin is unavailable.
 - Required recovery input: compatible compiled inference executable plus DLLs, a host-compatible engine, or the exact original TensorRT/CUDA/plugin toolchain.
 - No additional human annotation is required for this blocker.
+
+## KI-040: controlled P5 evaluation artifacts absent from fresh clone
+
+- Status: OPEN; this is an input-availability blocker, separate from the TensorRT compatibility blocker in KI-039.
+- Missing paths in the current fresh clone: `artifacts/p5-reviewed-truth-20260719-124537` and `artifacts/p5-fallback-baseline-20260719-161114`.
+- The read-only readiness command reports only absent controlled artifact roots with exit 2. Missing base files, incomplete artifact directories, malformed manifests, manifest-bound file mismatches, invalid attestation, parent references and symbolic-link paths return exit 3.
+- Readiness proves internal consistency relative to the supplied manifest; it does not authenticate a coordinated replacement of the manifest and all outputs. The fallback evidence-manifest SHA-256 is recorded in `HANDOFF_P5.md`; the reviewed evidence-manifest digest is not present in this clone and must be supplied through the controlled recovery channel.
+- Required recovery: copy the two evidence directories through a controlled channel, verify their external evidence-manifest digests, then rerun readiness and the exact pilot command. Do not commit the artifacts or substitute CPU smoke for the formal TensorRT gate.

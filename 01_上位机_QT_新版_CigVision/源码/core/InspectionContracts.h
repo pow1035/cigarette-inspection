@@ -122,6 +122,8 @@ struct DetectionBatch {
     std::vector<Detection> detections;
     std::uint64_t elapsedMicros = 0;
     std::string detectorVersion;
+    std::string parameterVersion;
+    std::string parameterSha256;
     std::string errorCode;
     std::string errorMessage;
 
@@ -151,12 +153,29 @@ inline bool isValidInspectionDecision(InspectionDecision decision)
     }
 }
 
+inline bool isSha256Identity(const std::string& value)
+{
+    if (value.size() != 64U) {
+        return false;
+    }
+    for (char character : value) {
+        const bool digit = character >= '0' && character <= '9';
+        const bool lower = character >= 'a' && character <= 'f';
+        const bool upper = character >= 'A' && character <= 'F';
+        if (!digit && !lower && !upper) {
+            return false;
+        }
+    }
+    return true;
+}
+
 struct InspectionResult {
     std::uint64_t frameId = 0;
     InspectionDecision decision = InspectionDecision::Unknown;
     std::vector<Detection> defects;
     std::uint64_t elapsedMicros = 0;
     std::string parameterVersion;
+    std::string parameterSha256;
     std::string errorCode;
     std::string errorMessage;
 
@@ -167,6 +186,9 @@ struct InspectionResult {
         }
         if (parameterVersion.empty()) {
             return fail(reason, "parameterVersion is required");
+        }
+        if (!isSha256Identity(parameterSha256)) {
+            return fail(reason, "parameterSha256 must be a SHA-256 identity");
         }
         if (!isValidInspectionDecision(decision)) {
             return fail(reason, "decision is outside the supported enum domain");

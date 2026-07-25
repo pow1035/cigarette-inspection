@@ -13,6 +13,8 @@
 #include <QTableWidget>
 #include <QHeaderView>
 #include <QToolButton>
+#include <QDoubleSpinBox>
+#include <QVector>
 
 #include <windows.h>
 #include <shellapi.h>
@@ -286,6 +288,7 @@ public:
     void initFilterWhiteNGWidgets();
     void initOutNGWidgets();
     void initJointNGWidgets();
+    void initDeepLearningParamsWidgets();
     //void initDownJointNGWidgets();
     
     //界面显示
@@ -340,6 +343,7 @@ private:
 
     // 添加品牌选择函数
     void initBrandSelectWidget();
+    void refreshDeepLearningParamsWidgets();
     
     //显示Halcon图像
     HalconGraphicsView* view = new HalconGraphicsView();
@@ -377,5 +381,7 @@ private:
     UpOutDefectParams upOutDefectParams;
     DownOutDefectParams downOutDefectParams;
     DeepLearningParams deepLearningParams;
+    QVector<QDoubleSpinBox*> deepLearningThresholdSpins;
+    QLabel* deepLearningSaveStatusLabel = nullptr;
 
 };

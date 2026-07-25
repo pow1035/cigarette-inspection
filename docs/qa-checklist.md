@@ -74,7 +74,7 @@
 | 未复核/未授权/预测 provenance/缺 attestation 拒绝 | 通过 | 正式 20/20；reviewer 攻击复算；QA 对抗 12/12 |
 | split、area、类别目录与证据哈希 | 通过（工具能力） | manifest/image 一致性；8 项证据 binding；源码运行前后 7/7 稳定 |
 | 混淆矩阵、macro、烟支级指标 | 通过（合成测试） | 同类匹配守恒、背景 FP/FN、active-union macro、missed-NG/false-NG |
-| 实际准确率 | 未验证/不声明 | 没有 approved、双人 reviewed、冻结 test split 真值 |
+| 实际准确率 | 仅 pilot CPU 诊断；商业效果未验证 | 30 图 approved/reviewed pilot 中 20 张进入临时 CPU 指标；正式 TensorRT、完整冻结 test split、类别覆盖和代表性不足，不能外推商业准确率 |
 | 独立 reviewer | 通过 | `019f505a-151e-79a3-8384-fadca72c4e4d`；首轮 8 项 resolved |
 | 独立 QA | 通过 | `artifacts/p5-qa-independent-20260711-170802`；20/20、对抗 12/12、证据门 12/12 |
 
@@ -90,7 +90,92 @@
 | 未确认类别和真值安全门 | 通过（实现自查） | 11 图强制 REVIEW；全部 `is_ground_truth=false`；无准确率声明 |
 | 独立 reviewer | 通过 | `019f50b8-2d80-7e10-af4a-cdbd9b12cddc`；全部 finding resolved，`192148` 最终 gate PASS |
 | 独立 QA | 通过 | `019f50ef-db01-7cb0-b37a-f1af708b8cde`；`artifacts/p5-pilot-20260711-192926`；29/29，fresh manifest passed，gate PASS；额外对抗计数未单独落盘故不声明数量 |
-| 人工双人标注 | 未开始 | 需要授权、标注人、不同复核人和业务类别确认 |
+| 人工双人标注 | pilot 已通过；完整数据集未开始 | `artifacts/p5-reviewed-truth-20260719-124537`：30 图由责任人员标注、不同复核人逐页检查并获项目负责人批准；完整数据集仍需授权、业务类别确认和代表性覆盖 |
+
+## P5-02C7 受控输入就绪
+
+| 检查 | 状态 | 证据 |
+| --- | --- | --- |
+| 模型与类别目录存在且哈希可核对 | 通过 | `scripts/p5_input_readiness.py` strict run；当前模型 SHA-256 与目录文件均可读 |
+| reviewed-truth/fallback manifest、必需输出、大小和 SHA-256 | 通过（工具能力） | `tests/p5/test_p5_input_readiness.py`；缺失、篡改、attestation catalog 错配和非法输出名均有负路径 |
+| 受控证据路径不通过符号链接/路径逃逸或文件系统等价别名 | 通过（工具能力） | readiness 定向测试覆盖共同根、非目录祖先、case/NFC-NFD、symlink loop 和 artifact 根双向 overlap；只读检查，不写入 artifact |
+| fresh clone 指定范围 pilot 输入 | 阻断（外部输入缺失） | `python3 scripts/p5_input_readiness.py --require-reviewed --require-fallback`：exit 2，报告 reviewed-truth/fallback 目录缺失 |
+| 独立 reviewer | 通过 | `/root/p5_independent_review`：复核 exit 分类、固定类别目录哈希、attestation、路径/共同根/symlink、case/Unicode 等价别名、双向 output overlap 和文档门 wiring；最终 24/24、100/100 及全门禁 PASS |
+| 独立 QA | 通过 | `/root/p5_independent_qa`：最终 24/24 targeted、100/100 full、strict fresh exit 2；output 只读契约、actionlint/workflow、artifact 前后快照和无测试副作用均 PASS |
+
+## P6-01A 核心回放与模拟剔除
+
+| 检查 | 状态 | 证据 |
+| --- | --- | --- |
+| 逐帧节拍与元数据 | 通过（实现自查） | simulation tests：delay、station/camera/cigarette metadata、空序列、非法输入 |
+| 停止取消与重复编号 | 通过（实现自查） | 阻塞 pacer 被 stop 唤醒；duplicate frame-id 进入 sourceErrors 且统计守恒 |
+| Simulation-only 剔除与回执 | 通过（实现自查） | 4 帧端到端仅 frame 2/4 生成 Simulation 命令；scheduledAt、烟支编号和回执可追踪 |
+| 非法/危险输出负路径 | 通过（实现自查） | frame-id mismatch、invalid result、zero number、clock overflow、Executed status、output exception 均失败且无真实 IO |
+| Qt/Windows/容量曲线 | 部分通过 | P6-02 SDK-free 容量模型已运行；P6-01B 目标机 runtime 仍未验证，当前不声明产品入口、MSVC、GPU 或现场行为 |
+
+## P6-01B Qt manifest 与 Simulation CLI
+
+| 检查 | 状态 | 证据 |
+| --- | --- | --- |
+| manifest 可选 station/camera/cigarette/delay 字段与旧默认值 | 已实现，Qt runtime 未验证 | `QtOfflineInspection.cpp`；缺失字段默认 `offline`/文件名/顺序编号/0 delay，显式值类型与范围校验（本地 delay ≤60 s）；`scripts/p6_simulation_preflight.py` 只读复核路径、哈希和元数据 |
+| simulation CLI 互斥与非法数值拒绝 | 通过（SDK-free） | `core/BatchCommandLine.h`；`SimulationTests.cpp` CLI 2/2，覆盖冲突、缺值、负/溢出 delay、队列边界、空 target、重复 option |
+| SteadyReplayPacer 与 stop 取消 | 通过（核心/源码） | `RealtimeSimulation.h`、`QtOfflineInspection.cpp`；P6-01A source/session stop 测试包含在 simulation 15/15 中；核心回放入口统一拒绝超过 60 秒的单帧延迟 |
+| 只构造 SimulationRejectOutput、无真实 IO | 通过（代码审查） | `runSimulationBatchManifest` 运行图；`realIoEnabled=false` trace 字段；未接相机/DAQNavi |
+| 原子 simulation-trace.json 字段完整性 | 已实现，runtime 未验证 | `writeSimulationTrace` + `validateSimulationTrace` + `QSaveFile`；配置、frame/cigarette、observed/scheduled/completed clock、command/receipt/error |
+| 目标机运行前 manifest/trace 预检 | SDK-free 通过，目标机 runtime 未验证 | `tests/p6/test_p6_simulation_preflight.py` 9/9；覆盖缺失、哈希/路径/符号链接/元数据、Real command、早回执、错误绑定和输出覆盖拒绝 |
+| 目标机证据驱动与负路径编排 | 通过（非 Windows 测试替身；不算目标机 QA） | `scripts/p6_windows_simulation_evidence.py`、`tests/p6/test_p6_windows_simulation_evidence.py` 8/8；成功产物绑定、输出篡改、Real IO 标记、错误退出码、rejectEnabled、已有输出根和非 Windows test-only 标签均有检查 |
+| Windows/Qt 实际 manifest 与 trace 运行 | 未验证 | `scripts/run_windows_p6_simulation.ps1` 已固化 Release 构建、依赖路径、原始日志和证据目录流程；仍需要目标 Windows/Qt 构建、运行输出和原始日志，不能由本机测试替代 |
+| 独立 reviewer / QA | 降级（历史切片未单独完成） | 时间线核对：P6-01B 当时只完成同代理复核；后续 P7/P8 独立门没有明确把该源码切片列入范围，不能反向升级为独立 PASS。该项是历史证据边界，不是“已有结论尚未同步”；目标 Windows/Qt runtime 也仍未验证 |
+
+## P6-02 多相机、异常与容量模型
+
+| 检查 | 状态 | 证据 |
+| --- | --- | --- |
+| 多相机与编号异常 | 通过（SDK-free） | 两相机交错输入；arrival/frame/cigarette 的乱序、重复和前向跳号均有独立计数与逐帧 disposition |
+| 队列容量与丢帧策略 | 通过（SDK-free） | RejectNewest 容量 1/4/32 的 dropped 为 15/12/0；DropOldest 容量 2 为 dropped 14，逐帧可区分 newest/oldest drop |
+| 时延与积压 | 通过（虚拟时钟） | 固定 20 帧矩阵记录 max queue、P95 queue wait、P95 end-to-end；严格说明不等于真实 TensorRT/Qt/现场时延 |
+| stop、drain、cancel、restart | 通过（SDK-free） | stop boundary 分别验证 drain/cancel；同一 simulator 实例随后重跑 2 帧且状态/计数从零开始 |
+| Simulation-only 安全门 | 通过（SDK-free） | NG 只生成 Simulation command；零烟支号、schedule/processing overflow、早于计划时间的回执和命令烟支号篡改均拒绝；validator 重算计数、逐相机守恒、时延和序列账目 |
+| 编译与动态检查 | 通过（本机） | C++14/C++17 严格警告；simulation 15/15；连续 20/20；ASan/UBSan 15/15 |
+| Qt/Windows 录制流与原始运行产物 | 未验证 | 容量模型尚未接入目标 Windows/Qt 录制流；不关闭 AC-06，不声明产品吞吐或生产容量 |
+| 独立 reviewer / QA | 降级、未验证 | 当前会话按上层约束未启动新代理；只完成同代理实现审查和 QA 式运行，后续独立复核仍是提交门缺口 |
+
+## P7-01A 产品状态与最近结果复核
+
+| 检查 | 状态 | 证据 |
+| --- | --- | --- |
+| 运行身份与真实 IO 安全门 | 通过（SDK-free） | 产品状态 8/8；configured/applied typed profile、canonical/golden SHA-256 和帧级 hash 绑定；TensorRT 模式要求模型 SHA-256，`realIoEnabled=true` 固定拒绝 |
+| 生命周期与异常输入 | 通过（SDK-free） | start/stop/fault/restart；启动前停止可被下一次 run 消费；非法 NG、参数漂移、窗口内重复 frame 和停止后写入均拒绝且统计不变 |
+| 统计与容量边界 | 通过（SDK-free） | OK/NG/error、逐相机、逐类别、elapsed/max queue 守恒；复合 station/camera 身份无分隔符碰撞；最近结果、诊断和 duplicate window 有界 |
+| 结果复核 | 通过（SDK-free） | 具名 Confirmed/Corrected/Dismissed、修订计数、缺失复核人和非法 outcome/severity 枚举负路径 |
+| 并发 | 通过（SDK-free） | 4 worker、400 帧，统计 400=200 OK+200 NG，最近结果固定 64 |
+| Qt worker 与页面接线 | 已实现，runtime 未验证 | worker 发送 frame/station/camera/cigarette/defect/error；运行页刷新快照；`btn_search` 进入深色复核页 |
+| 统计/诊断/会话证据 | 已实现，runtime 未验证 | `btn_count`、`btn_log`、原子 `product-session.json`；仅在启动、结束、复核时落盘；统一使用同一快照 |
+| 配置冻结与退出 | 源码已实现，runtime 未验证 | 完整 configured/applied profile 与 SHA；legacy UI 阈值可审计但 fixture 明确未应用；TensorRT v2 engine/profile 绑定；品牌冻结和安全退出 |
+| 修复后独立门 | 通过（SDK-free/静态） | reviewer 与 QA 均 PASS；C++14/C++17 strict、TSan、ASan/UBSan、重复压力、BarrierSource stop 探针、文档门和 diff 通过；未发现新增 P0-P2 |
+| Windows UI/Computer Use | 未验证 | 需目标机验证布局、选中行、三种复核按钮、重复启停和页面切换 |
+
+## P8 本地稳定性与部署工具
+
+| 检查 | 状态 | 证据 |
+| --- | --- | --- |
+| package/主机报告 preflight | 返修后最终门待跑 | 测试集 17 项；要求 Windows/GPU v2 报告绑定本次 challenge、package manifest、同 capture/host/time/collector SHA、精确检查集全 passed，且 acceptance/runtime/IO/reject 声明均为 false |
+| package manifest generator | 通过（本地工具） | 7/7；完整文件集、确定性排序、双重稳定性复扫、遍历 fail-closed、祖先 link/reparse、case/NFC 和不可覆盖输出 |
+| SDK-free soak | 通过（本地工具） | 9/9；多轮新目录、超时/崩溃、RSS/磁盘/输出、Windows Toolhelp 子进程与 API 失败门 |
+| fixture release | 通过（本地工具） | 17/17；source manifest 绑定复制、单快照 manifest、原子 activate/rollback、失败保持 current/shared |
+| Windows wrapper/collector | 返修后最终门待跑 | 测试集 2 项；v4 wrapper 生成 challenge 后立即执行 provenance collector，不接受历史输入；collector 精确 12+6 检查、只读版本/哈希/CIM，不执行 PATH 工具；两层 ownership/reparse 防护不递归删除目录 |
+| PowerShell parser/PSScriptAnalyzer/5.1 兼容门 | 通过（本机静态） | Colima/Linux arm64，PowerShell 7.6.3、PSScriptAnalyzer 1.25.0；当前 13 个 `.ps1` parser/analyzer finding 0；`PSUseCompatibleSyntax` target 5.1；7/7 CLI 契约 PASS；`windowsRuntimeClaimed=false`，不并入 P8 76/76 |
+| 跨机 evidence verify/import | 返修后最终门待跑 | 测试集 24 项；v4 verifier 精确重验 preflight 9 项、v2 host input、采集窗口和 7 个受信 provenance；同时要求带外 manifest SHA/HMAC 与外置 32-byte key，receipt v4 不声明产品验收 |
+| 早期 39 项独立 reviewer / QA | 通过（历史本地范围） | reviewer `019f99b4-2e4c-7742-9d20-60a0396d7900`、QA `019f99b4-4746-7d72-b5b6-568af6d8dfdd`；最终 P0/P1/P2=0/0/0，不覆盖 evidence v2 |
+| 历史 70 项独立 reviewer | 通过（历史本地范围） | `019f99cb-7c02-7b23-b498-9b28e7ba761c`：初审及追加 findings 全部关闭，P0/P1/P2=0/0/0；不覆盖当前 v2/v4/HMAC 返修 |
+| 历史 70 项独立 QA | 通过（历史本地范围） | `019f99d7-8a02-7da1-8641-2d533409d06d`：可信仓库 verifier 修复后 PASS，P0/P1/P2=0/0/0；不覆盖当前 v2/v4/HMAC 返修 |
+| 当前 P8 测试集 | 最终门待执行 | 共 76 项：preflight 17、soak 9、release 17、wrapper/collector 2、package manifest 7、evidence verify/import 24；返修后的 `--full` 尚未执行 |
+| v2/v4/HMAC 返修独立 reviewer / QA | 待执行 | 历史 70 项与 PowerShell 静态门的独立结论均不能覆盖 challenge 现场采集、ownership/reparse、preflight 精确 9 项、外置 key/HMAC 和 receipt v4 |
+| PowerShell 增量独立 reviewer | 通过（本机静态范围） | `019f9a17-7e58-7350-9ec3-7373f3151f4f` 在两项 P3 和一项文档计数 P2 修复后最终 PASS，P0/P1/P2/P3=0/0/0/0；确认 12 脚本零 finding、7/7 CLI、exit 2/3 JSON、5.1 语法拒绝及文档防回退 |
+| PowerShell 增量独立 QA | 通过（本机静态范围） | `019f9a17-98ad-7f23-9c36-6d62a7fa49ec` 最终 PASS，P0/P1/P2=0/0/0；12 脚本零 finding、7/7 CLI、exit 2/3 JSON、5.1 兼容拒绝、文件哈希不变 |
+| 返修前 full local gate | 通过（历史快照） | 最近一次 `./scripts/run_all_local_gates.sh --full` 发生在 challenge/HMAC/v2/v4 返修前；返修后必须重跑，当前不得引用历史结果作为提交门 |
+| Windows 目标机执行与跨机交接 | 手册已返修，runtime 未验证 | `docs/windows-target-execution.md` 固化 package manifest、外置 32-byte key、v4 wrapper 现场采集、带外 SHA/HMAC、拷回、verify/import 和声明边界 |
+| Windows/PowerShell/D 盘/GPU 长稳 | 未验证 | 本机无目标环境；不得把 `passed-local-tooling` 外推为 AC-08 产品通过 |
 
 以下项目在相应阶段开始前均为“未开始”，不代表已验证：
 
@@ -124,4 +209,4 @@
 | 首轮/真值 provenance 门 | 通过（实现自查） | pass1 为 `annotated`/false；reviewed endpoint 固定 409 |
 | 独立 reviewer | 通过 | `019f4fd0-7aa5-7af3-b82b-7b7ebb14ed55` 最终复现 48/48、65/65、20/20，无新 blocker；gate PASS |
 | 独立 QA | 通过 | `019f4fd0-8ec7-7801-a493-e2d6797aea23` 最终独立复跑运行期替换/Host/证据；gate PASS |
-| 责任人员人工首标/复核 | 未开始/不声明 | P5-02C2/C3；Codex QA 草稿不计人工结果 |
+| 责任人员人工首标/复核 | pilot 已完成；不外推到完整数据集 | P5-02C2/C3 正式证据与独立门禁；Codex QA 草稿不计人工结果，完整数据集仍待补齐 |

@@ -152,7 +152,12 @@
     <QtMoc Include="HalconGraphicsView.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="core\BatchCommandLine.h" />
     <ClInclude Include="core\OfflineInspection.h" />
+    <ClInclude Include="core\ProductParameterProfile.h" />
+    <ClInclude Include="core\ProductRuntimeState.h" />
+    <ClInclude Include="core\RealtimeSimulation.h" />
+    <ClInclude Include="core\Sha256.h" />
     <ClInclude Include="adapters\tensorrt\TensorRtDetector.h" />
     <QtMoc Include="adapters\qt\QtOfflineInspection.h" />
     <ClInclude Include="core\BoundedQueue.h" />
@@ -177,6 +182,14 @@
       Condition="Exists('$(CIGVISION_TENSORRT_ROOT)\bin\nvinfer_10.dll') and Exists('$(CIGVISION_CUDA_ROOT)\bin\x64\cudart64_13.dll') and Exists('$(CIGVISION_OPENCV_ROOT)\x64\vc16\bin\opencv_world490$(CIGVISION_OPENCV_SUFFIX).dll')">
     <Copy SourceFiles="$(CIGVISION_TENSORRT_ROOT)\bin\nvinfer_10.dll;$(CIGVISION_CUDA_ROOT)\bin\x64\cudart64_13.dll;$(CIGVISION_OPENCV_ROOT)\x64\vc16\bin\opencv_world490$(CIGVISION_OPENCV_SUFFIX).dll"
       DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+  </Target>
+  <Target Name="SeedRuntimeConfiguration" AfterTargets="Build">
+    <MakeDir Directories="$(OutDir)品牌设置\硬特醇\模版图片" />
+    <Copy SourceFiles="$(ProjectDir)config.ini" DestinationFolder="$(OutDir)"
+      Condition="!Exists('$(OutDir)config.ini')" />
+    <Copy SourceFiles="$(ProjectDir)品牌设置\硬特醇\para.ini"
+      DestinationFolder="$(OutDir)品牌设置\硬特醇"
+      Condition="!Exists('$(OutDir)品牌设置\硬特醇\para.ini')" />
   </Target>
   <ImportGroup Condition="Exists('$(QtMsBuild)\qt.targets')">
     <Import Project="$(QtMsBuild)\qt.targets" />

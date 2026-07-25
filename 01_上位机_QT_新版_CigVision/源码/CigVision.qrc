@@ -1,4 +1,18 @@
 <RCC>
     <qresource prefix="CigVision">
+        <file>icons/use/arrow-left-bold.png</file>
+        <file>icons/use/arrow-right-bold.png</file>
+        <file>icons/use/arrow-right-filling.png</file>
+        <file>icons/use/chart-bar.png</file>
+        <file>icons/use/copy.png</file>
+        <file>icons/use/document-conversion.png</file>
+        <file>icons/use/edit.png</file>
+        <file>icons/use/file-open.png</file>
+        <file>icons/use/file.png</file>
+        <file>icons/use/hehua.png</file>
+        <file>icons/use/page_first.png</file>
+        <file>icons/use/page_last.png</file>
+        <file>icons/use/picture-filling.png</file>
+        <file>icons/use/settings.png</file>
     </qresource>
 </RCC>
