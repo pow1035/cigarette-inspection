@@ -27,8 +27,8 @@
 - 本机证据：Colima/Linux arm64，PowerShell 7.6.3，PSScriptAnalyzer 1.25.0；当前 13 个 `.ps1` parser finding 0、analyzer finding 0；有效仓库、损坏语法、PowerShell 7 三元语法被 5.1 门拒绝、缺失根目录、缺失 scripts 目录、空 scripts 目录和缺 analyzer 共 7/7 CLI 契约 PASS，exit 2/3 均输出机器可读 JSON。
 - 声明边界：5.1 兼容静态检查不等于 Windows PowerShell 5.1 实跑；该证据不证明 Windows、Qt、GPU、D 盘、真实数据、许可或硬件。
 - 计数边界：P8 当前 Python/静态契约回归是 76/76；PowerShell 13 脚本零 finding 和 7/7 CLI 契约单独记录。
-- CI 边界：workflow 已增加 `pwsh` 静态门与契约测试步骤；`a649621` 的在线运行 `30168494128` 全部通过，但它仍使用 checkout v4/setup-python v5。当前 checkout/setup-python 已升级到 Node 24 runtime 的 v6，尚待升级提交后的在线复验。Linux CI 不覆盖 Windows/Qt/GPU/硬件 runtime。
-- 评审状态：此前 reviewer `019f99cb-7c02-7b23-b498-9b28e7ba761c` 与 QA `019f99d7-8a02-7da1-8641-2d533409d06d` 只覆盖 2026-07-25 的 70 项范围；PowerShell 增量 reviewer `019f9a17-7e58-7350-9ec3-7373f3151f4f` 与 QA `019f9a17-98ad-7f23-9c36-6d62a7fa49ec` 只覆盖其静态门快照。当前 v2/v4/HMAC/文件锁增量已由 reviewer `019f9a55-8131-7423-96a7-44d934c28255` 与 QA `019f9a55-99a2-7011-887f-119893e3ec4f` 最终复核并 PASS，P0/P1/P2/P3=0/0/0/0；P8 仍因目标机和外部输入保持进行中。
+- CI 边界：提交 `7e7c2de2b157cf5c2ace8b5263e8db5f57c89902` 已 push；2026-07-26（Asia/Shanghai）的在线 Actions `Local gates` 运行 `30169095184`（job `89706968923`）SUCCESS，全部步骤通过、check-run annotations 为空，原 Node 20 warning 已消失，checkout/setup-python v6 均固定完整提交 SHA。Linux CI 不覆盖 Windows/Qt/GPU/硬件 runtime。
+- 评审状态：此前 reviewer `019f99cb-7c02-7b23-b498-9b28e7ba761c` 与 QA `019f99d7-8a02-7da1-8641-2d533409d06d` 只覆盖 2026-07-25 的 70 项范围；PowerShell 增量 reviewer `019f9a17-7e58-7350-9ec3-7373f3151f4f` 与 QA `019f9a17-98ad-7f23-9c36-6d62a7fa49ec` 只覆盖其静态门快照。当前 v2/v4/HMAC/文件锁增量已由 reviewer `019f9a55-8131-7423-96a7-44d934c28255` 与 QA `019f9a55-99a2-7011-887f-119893e3ec4f` 最终复核并 PASS，P0/P1/P2/P3=0/0/0/0；CI 硬化最终 reviewer `019f9a6b-f76e-7620-a9e4-1e681e7f8d0b` PASS（P0/P1/P2/P3=0/0/0/0，对抗 18/18），QA `019f9a6c-0733-7da1-986f-6176824be92d` PASS（P0/P1/P2/P3=0/0/0/0，对抗 17/17）。P8 仍因目标机和外部输入保持进行中。
 - 文档维护验证：`./scripts/validate_project_docs.sh` PASS；`light_gate.py` 无 warning；`git diff --check` PASS。
 
 ## P8 历史 70 项本地工具闭环（2026-07-25）
@@ -624,7 +624,7 @@ P0 是文档引导阶段，代码测试不在范围内，未运行代码测试�
 - Scope: FreeType-independent Pillow fallback, exact P5 dependency declaration, document/issue-ID/stale-status gates, and a Linux-only local-gates workflow.
 - Independent reviewer: PASS after rebuilding a clean snapshot from `git archive HEAD` plus the final diff; no P0/P1/P2 findings.
 - Independent QA: PASS after a fresh Python 3.11 dependency install, 76/76 P5 regression, full font-failure injection, C++ 7/7+7/7, and workflow YAML/equivalent-structure commands. actionlint was not independently verified in this snapshot.
-- Limits: CI does not prove a hosted Ubuntu run, Windows/MSVC, TensorRT/GPU, or hardware behavior; action/dependency SHA pinning is a later hardening option.
+- Limits: this historical snapshot did not prove a hosted Ubuntu run and had not pinned action dependencies; subsequent commit `7e7c2de2b157cf5c2ace8b5263e8db5f57c89902` pinned both actions and passed hosted run `30169095184`. Windows/MSVC, TensorRT/GPU, and hardware behavior remain outside that evidence.
 
 ## P5-02C7 controlled input readiness (2026-07-25)
 

@@ -10,7 +10,7 @@
 - P5-02C7 最终独立 QA 与 clean-snapshot reviewer 均 PASS；P5 因 KI-039/KI-040、完整数据和业务确认转为外部阻断、未关闭，唯一阶段指针切换到 P6。
 - P6-01A 已新增 SDK-free 录制序列回放和 Simulation-only 剔除安全核心；P6-01B 已完成 Qt manifest/trace、simulation CLI 和只读 preflight。P6-02 已新增确定性多相机容量模型，simulation executable 总计 15/15，P6 Python 回归现为 17/17。时间线复核确认 P6-01B 历史切片只完成同代理降级检查；后续 P7/P8 独立门未明确覆盖该切片，不能反向升级。Windows/Qt runtime 和产品运行产物仍未验证。
 - `Local gates` GitHub Actions 定义当前覆盖文档/P1 静态、P5/P6/P8 Python 精确计数、无 SDK C++ 回归和 PowerShell 静态门；`6886856` 的首次在线运行暴露了“全局已安装 PSScriptAnalyzer 时缺失模块用例不能隔离”的 CI 差异，现改为显式 `ScriptAnalyzerModulePath` 隔离并在本机复验 CLI 7/7。Windows/MSVC、TensorRT/GPU 和现场硬件继续保留为目标机/人工门禁。
-- `a649621` 的在线 Actions 运行 `30168494128` 全部通过；该运行仍使用 checkout v4/setup-python v5，唯一 annotation 是相应的 Node 20 弃用提示。当前 workflow 已升级为 `actions/checkout@v6` 与 `actions/setup-python@v6`，尚待升级提交后的在线复验，不能把旧运行写成 v6 在线证据。
+- 提交 `7e7c2de2b157cf5c2ace8b5263e8db5f57c89902` 已 push；2026-07-26（Asia/Shanghai）的在线 Actions `Local gates` 运行 `30169095184`（job `89706968923`）SUCCESS，全部步骤通过、check-run annotations 为空，原 Node 20 warning 已消失。workflow 的 checkout/setup-python v6 均固定完整提交 SHA；最终 reviewer `019f9a6b-f76e-7620-a9e4-1e681e7f8d0b` PASS（P0/P1/P2/P3=0/0/0/0，对抗 18/18），QA `019f9a6c-0733-7da1-986f-6176824be92d` PASS（P0/P1/P2/P3=0/0/0/0，对抗 17/17）。
 - 提交 `6886856` 后的最终 `./scripts/run_all_local_gates.sh --full` PASS：P5 100/100、P6 17/17、P8 76/76、C++14/C++17、20 次重复、ASan/UBSan；PowerShell 13 个脚本 parser/analyzer 0 finding、CLI 7/7。
 - P8 安全返修使用 Windows/GPU host report v2、wrapper/receipt v4：每次生成 challenge，复制 provenance collector 后以 mandatory `-RepositoryRoot $repoRoot` 立即现场采集。collector 新增 `Get-LockedFileSnapshot`，检查完整 reparse 祖先链，以 `FileShare.Read` 锁定文件并在锁内计算 SHA；wrapper 对 provenance collector 持 `FileShare.Read` 句柄贯穿子进程执行，执行前后复算 SHA 并复查 reparse 链。
 - v4 证据认证要求 Package、EvidenceRoot、DeploymentRoot 和 bundle 外的 exactly 32-byte key；manifest 在内存形成固定 UTF-8 bytes，以 `CreateNew + Flush(true)` 写入，SHA/HMAC 针对同一 bytes 计算并复读确认未漂移。verifier 精确复验 preflight 顶层/claims/inputs/9 项检查、v2 reports、采集窗口和 7 个受信 provenance；receipt v4 绑定 HMAC。以上本地门已在 `6886856` 之后执行最终 full gate。
@@ -24,7 +24,7 @@
 - 修复两个实际 analyzer finding：`run_windows_p3_offline.ps1` 不再向 PowerShell 自动变量 `$args` 赋值，改用 `$buildArguments`；`run_windows_p4_tensorrt.ps1` 的重复输入索引改为显式 `$sampleIndex` 循环，避免闭包索引的未使用赋值告警。
 - 新增 `tests/powershell/test_validate_powershell_scripts.ps1`，以子进程覆盖有效仓库 exit 0、畸形脚本 exit 1、PowerShell 7 三元语法被 5.1 门拒绝、缺失根目录 exit 3、缺失 scripts 目录 exit 3、空 scripts 目录 exit 3、缺 analyzer exit 2，共 7 个 CLI 契约；exit 2/3 均校验机器可读 JSON。
 - 本机 Colima/Linux arm64 当前实测 PowerShell 7.6.3 + PSScriptAnalyzer 1.25.0：13 个 `.ps1`，parser finding 0、analyzer finding 0；CLI 契约 7/7 PASS。5.1 兼容静态门不等于 Windows PowerShell 5.1 实跑，也不证明 Qt、GPU、D 盘或硬件运行。
-- `.github/workflows/p5-local-gates.yml` 已增加 `pwsh` 静态门和契约测试步骤；本轮没有在线触发或读取 GitHub Actions 结果，因此不声明 hosted workflow PASS。
+- `.github/workflows/p5-local-gates.yml` 已增加 `pwsh` 静态门和契约测试步骤；该条是 PowerShell 增量完成当时尚无在线结果的历史快照，当前 hosted workflow PASS 证据见本页“当前状态”的运行 `30169095184`。
 - P8 测试集仍为 76 项；PowerShell 7/7 单独记录。2026-07-25 的最终 reviewer/QA 只覆盖历史 70 项，PowerShell reviewer/QA 只覆盖当时静态门快照，均不自动覆盖当前 challenge/HMAC/v2/v4 返修。
 - PowerShell 增量独立 reviewer `019f9a17-7e58-7350-9ec3-7373f3151f4f` 在两项 P3 和一项文档计数 P2 修复后最终 PASS，P0/P1/P2/P3=0/0/0/0；确认 12 个脚本零 finding、CLI 7/7、exit 2/3 JSON、PowerShell 7 三元语法被 5.1 兼容门拒绝、文档防回退及文档门/`light_gate.py`/diff 全通过。
 - 独立 QA `019f9a17-98ad-7f23-9c36-6d62a7fa49ec` 最终 PASS，P0/P1/P2=0/0/0；验证 12 个脚本零 finding、7/7 CLI、exit 2/3 JSON、5.1 三元语法拒绝、`windowsRuntimeClaimed=false` 和验证前后文件哈希一致。
@@ -113,7 +113,7 @@
 - 新增 `requirements-p5.txt`（`Pillow==11.3.0`），并在 README、文档门和 Linux GitHub Actions 中固定安装/回归路径。
 - `validate_project_docs.sh` 新增 requirements、重复 `KI` ID、详细 issue 对应、P5-02C4/C5 唯一编号、README/验收标准/证据矩阵当前状态和 stale pending 检查。
 - 本机门禁：P5 76/76；文档/P1 静态、Python 编译、C++ contracts/offline 7/7+7/7、workflow YAML/等价结构检查、`git diff --check` 和 `light_gate.py` 全通过。
-- 独立 reviewer 用 `git archive HEAD` 加最终 diff 建立 clean snapshot 后复跑上述门禁并 PASS；独立 QA 在新 Python 3.11 venv、完整字体失败注入和 workflow 等价命令下 PASS。仅保留 actionlint 未在本快照独立验证、旧 Pillow、hosted Ubuntu 未直接执行及 action/dependency 未 SHA pin 等非阻断备注。
+- 独立 reviewer 用 `git archive HEAD` 加最终 diff 建立 clean snapshot 后复跑上述门禁并 PASS；独立 QA 在新 Python 3.11 venv、完整字体失败注入和 workflow 等价命令下 PASS。该历史快照未直接执行 hosted Ubuntu，action/dependency 当时也未固定 SHA；后续提交 `7e7c2de2b157cf5c2ace8b5263e8db5f57c89902` 已完成 SHA 固定，并由运行 `30169095184` 在线验证。
 
 ## 2026-07-10 - P0 启动
 

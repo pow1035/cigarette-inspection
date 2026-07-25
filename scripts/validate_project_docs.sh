@@ -198,9 +198,20 @@ PY
 for ci_status_doc in README.md HANDOFF_P5.md AGENTS.md \
     docs/evidence-matrix.md docs/observability.md docs/progress-log.md \
     docs/review-packet.md docs/task-plan.md; do
-  rg -q '30168494128' "$ci_status_doc"
-  rg -q 'v6.*(尚待|等待).*在线复验' "$ci_status_doc"
+  rg -q '7e7c2de2b157cf5c2ace8b5263e8db5f57c89902' "$ci_status_doc"
+  rg -q '30169095184' "$ci_status_doc"
+  rg -q '89706968923' "$ci_status_doc"
+  rg -q '30169095184.*(SUCCESS|PASS)' "$ci_status_doc"
+  rg -q '(check-run annotations 为空|无 annotation)' "$ci_status_doc"
+  rg -q '019f9a6b-f76e-7620-a9e4-1e681e7f8d0b' "$ci_status_doc"
+  rg -q '019f9a6c-0733-7da1-986f-6176824be92d' "$ci_status_doc"
 done
+if rg -n 'v6.*(尚待|等待).*在线复验' README.md HANDOFF_P5.md AGENTS.md \
+    docs/evidence-matrix.md docs/observability.md docs/progress-log.md \
+    docs/review-packet.md docs/task-plan.md; then
+  echo "FAIL stale checkout/setup-python v6 online-validation status" >&2
+  exit 1
+fi
 rg -q 'run_python_suite tests/p8 76' scripts/run_all_local_gates.sh
 rg -q 'validate_powershell_scripts\.ps1' \
   .github/workflows/p5-local-gates.yml README.md docs/task-plan.md \
