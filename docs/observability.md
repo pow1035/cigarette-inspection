@@ -39,7 +39,7 @@ P5 先冻结效果数据集和指标口径，P6/P8 再冻结本地时延、队�
 - P7：Qt 用户操作、页面状态、模型状态、统计/复核/配置流程、废弃功能清单和 Computer Use 截图/观察。
 - P8：长时运行资源曲线、故障注入、恢复、部署、升级/回滚、本地预验收报告，以及 package manifest SHA、本次 wrapper challenge、现场 Windows/GPU v2 主机报告、显式 RepositoryRoot、collector SHA、wrapper 采集窗口、外部 wrapper manifest SHA/HMAC、结束复扫、严格 argv/profile/阈值/gate/run 守恒、真实 soak 语义和带 `verifierSha256`/manifest HMAC 的 import receipt v4。32-byte evidence key 必须在 Package、EvidenceRoot、DeploymentRoot 外单独保管，不进入 bundle。采集/交接步骤见 `docs/windows-target-execution.md`。
 
-P8 测试集仍为 76 项；PowerShell 静态门计数仍为 13 个 `.ps1` 和 7 个 CLI 契约。v4 wrapper 不接受历史 host input，而是生成 64-hex challenge 并立即调用 provenance collector；v2 报告只读记录应用版本、依赖文件大小/哈希与 CIM GPU 事实，并绑定 package/capture/host/time。verifier 精确重验 preflight 顶层/claims/inputs/9 项检查、host capture 窗口和 7 个 provenance 受信源。preflight 固定 `productAcceptanceChecked=false`、`semanticAcceptanceChecked=false`，v4 wrapper/receipt 固定 `productAcceptanceClaimed=false`。外部 manifest SHA、HMAC 和 key 均是证据认证材料，HMAC 不证明产品运行。返修前 full gate 曾通过；返修后的最终 full gate、独立 reviewer/QA 尚待执行。GitHub Actions 未在线运行；真实 Windows + Qt/HALCON/MVS/DAQNavi/CUDA/TensorRT/OpenCV、D 盘资源曲线、数据、许可、硬件和真实 bundle 尚未采集。
+HEAD `6886856` 最终 full gate 已通过 P5 100、P6 17、P8 76、C++14/C++17、20 次重复、ASan/UBSan；PowerShell 13 个脚本零 finding、CLI 7/7。collector 的锁定文件快照记录完整 reparse 祖先链安全与 `FileShare.Read` 锁内 SHA；wrapper 对 provenance collector 的读锁贯穿执行并前后复算 SHA/复查 reparse。preflight 与 v4 wrapper/receipt 仍固定不声明产品验收。GitHub Actions 已在线执行；真实 Windows/Qt/GPU/SDK、D 盘资源曲线、P5 受控数据、许可、硬件和真实 bundle 尚未采集。
 
 真实相机、MVS 采集、DAQNavi 输入输出和真实剔除日志属于冻结的未来阶段，不作为 P5-P8 待补事件。
 

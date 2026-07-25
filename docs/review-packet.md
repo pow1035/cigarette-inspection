@@ -9,12 +9,13 @@
 - 评审范围：`scripts/collect_windows_p8_host_reports.ps1`、`scripts/p8_preflight.py`、`scripts/run_windows_p8_preacceptance.ps1`、`scripts/p8_windows_evidence_verify.py`、相应 P8 测试、文档和计数门。
 - 主机报告契约：v4 wrapper 每次生成 64 位小写十六进制 challenge，将 collector 复制到 provenance 后以 mandatory `-RepositoryRoot $repoRoot` 立即子进程采集 Windows/GPU v2 报告；RepositoryRoot 与 OutputDirectory 不得重叠，不能从 provenance 脚本的 `$PSScriptRoot` 推导。报告绑定 challenge、package manifest、32 位小写 capture ID、UTC 时间、host SHA 和 collector 路径/schema/SHA；Windows 精确 12 项、GPU 精确 6 项检查必须全部 passed。
 - 禁止声明：`productAcceptance`、`windowsRuntimeAccepted`、`gpuRuntimeAccepted`、`realIoTested`、`realRejectTested` 均为 false；preflight 另记录 `productAcceptanceChecked=false`、`semanticAcceptanceChecked=false`。
-- 采集安全：collector 不执行 PATH 工具，只读应用版本、依赖文件大小/SHA 与 CIM GPU；collector/wrapper ownership marker 和重复 reparse 检查失败时不得递归删除目录。
+- 采集安全：collector 不执行 PATH 工具；`Get-LockedFileSnapshot` 检查完整 reparse 祖先链，以 `FileShare.Read` 锁定文件并在锁内计算 SHA。wrapper 对 provenance collector 持 `FileShare.Read` 句柄贯穿执行，执行前后复算 SHA 并复查 reparse 链。
 - preflight/verifier：离线 verifier 精确重验 preflight 顶层、claims、inputs、9 项成功检查、v2 reports、采集窗口和 7 个 provenance 受信源；未知 claim、缺项、窗口外采集和协调改写均拒绝。
 - v4 认证：EvidenceKeyPath 必须是 exactly 32 bytes，位于 Package、EvidenceRoot、DeploymentRoot 和 bundle 外。wrapper manifest 先在内存形成固定 UTF-8 bytes，以 `CreateNew + Flush(true)` 写入；SHA/HMAC 对同一 bytes 计算并复读确认未漂移。verify/import 必须同时提供带外 SHA/HMAC/key，receipt 为 v4。
-- 计数：P8 测试集仍为 76 项（preflight 17、soak 9、release 17、wrapper/collector 2、package manifest 7、evidence verify/import 24）；PowerShell 仍为 13 个 `.ps1`、CLI 7/7。
-- 评审状态：返修前 full gate 曾通过；当前 v2/v4/HMAC 返修后的最终 full gate、独立 reviewer/QA 尚待执行，不得写成已独立 PASS。
-- 外部缺口：未在真实 Windows + Qt/HALCON/MVS/DAQNavi/CUDA/TensorRT/OpenCV 环境执行，没有真实数据、许可或硬件证据；未在线运行 GitHub Actions。
+- 最终门：HEAD `6886856` 的 `./scripts/run_all_local_gates.sh --full` PASS，覆盖 P5 100、P6 17、P8 76、C++14/C++17、20 次重复、ASan/UBSan；PowerShell 13 个 `.ps1` parser/analyzer 0 finding、CLI 7/7。
+- 最终独立门：reviewer `019f9a55-8131-7423-96a7-44d934c28255` 与 QA `019f9a55-99a2-7011-887f-119893e3ec4f` 均 PASS，P0/P1/P2/P3=0/0/0/0。
+- 声明边界：该结果是最终本地工具门，不是目标 Windows runtime、Qt/GPU/SDK、真实数据、许可或硬件验收；P5 受控 artifact 仍缺失。
+- 外部缺口：未在真实 Windows + Qt/HALCON/MVS/DAQNavi/CUDA/TensorRT/OpenCV 环境执行，没有真实数据、许可或硬件证据。
 
 ## P8 PowerShell 静态门增量（2026-07-26）
 

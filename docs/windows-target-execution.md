@@ -6,7 +6,7 @@
 
 当前工具结论只能是 `passed-local-tooling`。challenge、SHA-256、HMAC、host report 或 receipt 都不证明 Windows/Qt 产品功能、TensorRT/GPU 性能、商业准确率、生产长稳、真实相机、DAQNavi 或真实剔除通过。
 
-P8 测试集仍为 76 项，PowerShell 静态门仍为 13 个脚本与 7 个 CLI 契约。最近一次 full gate 发生在本轮 challenge/HMAC/v2/v4 返修前；返修后的最终 `./scripts/run_all_local_gates.sh --full` 与独立 reviewer/QA 尚待执行。
+HEAD `6886856` 最终 `./scripts/run_all_local_gates.sh --full` 已通过：P5 100、P6 17、P8 76、C++14/C++17、20 次重复、ASan/UBSan；PowerShell 13 个脚本零 finding、CLI 7/7。这仍不代表下述目标 Windows 步骤已实际执行。
 
 ## 前置条件
 
@@ -181,6 +181,8 @@ collector 不执行 PATH 中的 python、git、qmake 或 nvidia-smi。它只读�
 collector 与 wrapper 都使用 challenge ownership marker，并在关键写入前反复检查 reparse chain。失败路径不递归删除输出目录或其中未知内容；失败目录只能作为诊断残留，不能当作通过证据。
 
 wrapper manifest 不通过可被覆盖的文本写入路径生成：它先在内存序列化为无 BOM 的固定 UTF-8 bytes，再用 `FileMode.CreateNew` 与 `Flush(true)` 持久化；SHA-256 和 HMAC-SHA-256 直接针对同一组内存 bytes 计算，输出带外信任锚前复读文件并逐字节确认未漂移。该约束用于缩小签名前替换窗口，但仍不替代带外安全保存。
+
+文件身份读取也使用锁定快照：collector 的 `Get-LockedFileSnapshot` 先后复查完整 reparse 祖先链，以 `FileShare.Read` 打开文件，并在句柄持有期间计算 SHA-256；wrapper 对 evidence/provenance 中的 collector 持同类读句柄贯穿子进程执行，执行前后从同一句柄复算 SHA，并再次检查 reparse 链。
 
 需要 A→B→A 时，先保证 `D:\CigVision\state\current-release.json` 指向已验证的 A，再增加：
 

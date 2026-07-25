@@ -48,7 +48,7 @@
 | KI-042 | 中 | Qt `QJsonDocument` 默认会折叠重复键，可能让 TensorRT 配置歧义通过 | loader 增加原始 token 扫描并按解码后顶层 key 拒绝重复字段；P8 preflight 再独立门禁；当前无 Qt/MSVC，仅完成源码修复 | 已修复，runtime 待验证 | P7/P8 |
 | KI-043 | 阻断 | 尚无真实 Windows 产品发布包、完整 DLL/plugin/prerequisite 清单和 D 盘 A→B→A 转录 | v4 手册已固化现场 challenge 采集、v2 host report、package manifest、collector provenance、外置 32-byte HMAC key、带外 SHA/HMAC 和跨机 verify/import；当前 PowerShell 计数仍为 13 个脚本、CLI 7/7，但 `windowsRuntimeClaimed=false`、`productAcceptanceClaimed=false`。仍需真实 Windows + Qt/HALCON/MVS/DAQNavi/CUDA/TensorRT/OpenCV、数据、许可和硬件证据 | 开放 | P8 |
 | KI-044 | 高 | 历史 P8 70 项范围曾缺少独立 reviewer/QA 返修结论 | cleanup 4 P1/3 P2、reviewer 追加 2 P1/2 P2、QA 追加 1 P1 均已修；最终 reviewer `019f99cb-7c02-7b23-b498-9b28e7ba761c` 与 QA `019f99d7-8a02-7da1-8641-2d533409d06d` 均 PASS，P0/P1/P2=0/0/0 | 已修复 | P8 |
-| KI-045 | 高 | P8 主机报告 v2 / wrapper 与 receipt v4 返修尚未通过最终 full gate 和独立 reviewer/QA | 测试集仍为 P8 76 项、PowerShell 13 脚本/CLI 7 项；须复核 challenge 新鲜性、package/time 绑定、ownership/reparse 非递归失败边界、preflight 精确 9 项、外置 key 与 HMAC、provenance/receipt v4 和 false-green | 验证中 | P8 |
+| KI-045 | 高 | P8 主机报告 v2 / wrapper 与 receipt v4 返修曾缺最终 full gate | HEAD `6886856` 最终 full gate 已覆盖 P8 76/76、collector 锁内 SHA、wrapper collector 全程读锁/前后身份复核、PowerShell 13 脚本零 finding与 CLI 7/7 | 已修复（本地门） | P8 |
 
 详细审计摘要见 `docs/code-audit.md`。代码检查不能替代 Windows、GPU 或真实硬件运行证据。
 

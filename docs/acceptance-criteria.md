@@ -61,8 +61,8 @@ P4 正式证据：`artifacts/p4-tensorrt-20260711-150510` 顶层 exit 0，Releas
 | AC-07-01 | Qt 主流程围绕深度学习检测、复核、统计、配置和诊断可用 | 进行中（产品状态 8/8；configured/applied typed profile、canonical SHA-256、帧级绑定、七阈值页面/品牌持久化、统计/复核/诊断和原子 session JSON 源码已接入；当前 UI 固定 local-only；Windows UI/JSON runtime 未完成） |
 | AC-07-02 | 沿用现有 UI 风格；删除/隐藏旧功能前有清单、依赖分析、回归和 UI 运行证据 | 进行中（`docs/p7-ui-inventory.md` 已建立；本切片沿用深色样式且未删除控件，Computer Use/人工 UI 证据仍未取得） |
 | AC-08-01 | 连续运行时长、CPU/GPU/内存/磁盘、队列和时延满足已确认阈值 | 进行中（SDK-free soak 9/9，只验证短 CI 编排；产品阈值和 Windows/GPU 长稳未验证） |
-| AC-08-02 | D 盘部署、配置/模型哈希、升级回滚、review、QA、清理和本地提交门通过 | 进行中（P8 测试集仍为 76 项；v4 wrapper 每次生成 challenge 并立即调用 provenance collector 现场生成 Windows/GPU v2 报告，绑定 package manifest 与采集窗口；collector/wrapper ownership/reparse 防护和非递归失败处理已返修。PowerShell 静态门仍为 13 个 `.ps1`、CLI 7/7，但 `windowsRuntimeClaimed=false`。返修后的最终 full gate 与独立 reviewer/QA 尚待执行；真实 Windows + Qt/HALCON/MVS/DAQNavi/CUDA/TensorRT/OpenCV、D 盘运行/回滚、数据、许可和硬件未验证） |
-| AC-08-03 | 目标机证据可通过独立保存的摘要与认证码跨机验真，并以无覆盖事务导入本地证据库 | 进行中（v4 verifier/import 测试集仍为 24 项；精确复验 preflight 顶层/claims/inputs/9 项检查、host report v2、采集窗口和 7 个受信 provenance。wrapper 用 Package/EvidenceRoot/DeploymentRoot 外 exactly 32-byte key 对固定 manifest bytes 计算 HMAC-SHA-256；verify/import 必须同时提供外部 manifest SHA、HMAC 和 bundle 外 key，receipt v4 固定 `productAcceptanceClaimed=false`。返修后最终 full gate 尚待执行，且尚无真实 Windows bundle） |
+| AC-08-02 | D 盘部署、配置/模型哈希、升级回滚、review、QA、清理和本地提交门通过 | 进行中（本地子门 PASS：HEAD `6886856` 最终 full gate 覆盖 P8 76/76、C++14/C++17、20 次重复、ASan/UBSan；PowerShell 13 个脚本零 finding、CLI 7/7。collector 锁内 SHA 与 wrapper collector 全程读锁/前后身份复核已纳入门禁。真实 Windows + Qt/HALCON/MVS/DAQNavi/CUDA/TensorRT/OpenCV、D 盘运行/回滚、数据、许可和硬件未验证） |
+| AC-08-03 | 目标机证据可通过独立保存的摘要与认证码跨机验真，并以无覆盖事务导入本地证据库 | 进行中（本地工具子门 PASS：v4 verifier/import 24/24，HEAD `6886856` 最终 full gate 已覆盖；外部 manifest SHA/HMAC/key、精确 preflight/host/provenance 复验保持不变。尚无真实 Windows bundle，`productAcceptanceClaimed=false`） |
 
 真实相机、DAQNavi 和真实剔除验收因无现场条件而冻结，不属于当前 P5-P8 通过声明。未来恢复时必须新增阶段和独立验收标准，不能复用本地仿真通过状态。
 

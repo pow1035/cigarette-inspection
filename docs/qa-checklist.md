@@ -159,21 +159,21 @@
 
 | 检查 | 状态 | 证据 |
 | --- | --- | --- |
-| package/主机报告 preflight | 返修后最终门待跑 | 测试集 17 项；要求 Windows/GPU v2 报告绑定本次 challenge、package manifest、同 capture/host/time/collector SHA、精确检查集全 passed，且 acceptance/runtime/IO/reject 声明均为 false |
+| package/主机报告 preflight | 通过（本地工具） | 17/17；HEAD `6886856` 最终 full gate 覆盖，验收声明仍全部为 false |
 | package manifest generator | 通过（本地工具） | 7/7；完整文件集、确定性排序、双重稳定性复扫、遍历 fail-closed、祖先 link/reparse、case/NFC 和不可覆盖输出 |
 | SDK-free soak | 通过（本地工具） | 9/9；多轮新目录、超时/崩溃、RSS/磁盘/输出、Windows Toolhelp 子进程与 API 失败门 |
 | fixture release | 通过（本地工具） | 17/17；source manifest 绑定复制、单快照 manifest、原子 activate/rollback、失败保持 current/shared |
-| Windows wrapper/collector | 返修后最终门待跑 | 测试集 2 项；v4 wrapper 生成 challenge 后立即执行 provenance collector，不接受历史输入；collector 精确 12+6 检查、只读版本/哈希/CIM，不执行 PATH 工具；两层 ownership/reparse 防护不递归删除目录 |
+| Windows wrapper/collector | 通过（本地静态契约） | 2/2；collector `Get-LockedFileSnapshot` 检查完整 reparse 祖先链、以 `FileShare.Read` 锁内计算 SHA；wrapper 持 provenance collector 读锁贯穿执行并前后复算 SHA/复查 reparse |
 | PowerShell parser/PSScriptAnalyzer/5.1 兼容门 | 通过（本机静态） | Colima/Linux arm64，PowerShell 7.6.3、PSScriptAnalyzer 1.25.0；当前 13 个 `.ps1` parser/analyzer finding 0；`PSUseCompatibleSyntax` target 5.1；7/7 CLI 契约 PASS；`windowsRuntimeClaimed=false`，不并入 P8 76/76 |
-| 跨机 evidence verify/import | 返修后最终门待跑 | 测试集 24 项；v4 verifier 精确重验 preflight 9 项、v2 host input、采集窗口和 7 个受信 provenance；同时要求带外 manifest SHA/HMAC 与外置 32-byte key，receipt v4 不声明产品验收 |
+| 跨机 evidence verify/import | 通过（本地工具） | 24/24；HEAD `6886856` 最终 full gate 覆盖；带外 SHA/HMAC/key 与 `productAcceptanceClaimed=false` 边界不变 |
 | 早期 39 项独立 reviewer / QA | 通过（历史本地范围） | reviewer `019f99b4-2e4c-7742-9d20-60a0396d7900`、QA `019f99b4-4746-7d72-b5b6-568af6d8dfdd`；最终 P0/P1/P2=0/0/0，不覆盖 evidence v2 |
 | 历史 70 项独立 reviewer | 通过（历史本地范围） | `019f99cb-7c02-7b23-b498-9b28e7ba761c`：初审及追加 findings 全部关闭，P0/P1/P2=0/0/0；不覆盖当前 v2/v4/HMAC 返修 |
 | 历史 70 项独立 QA | 通过（历史本地范围） | `019f99d7-8a02-7da1-8641-2d533409d06d`：可信仓库 verifier 修复后 PASS，P0/P1/P2=0/0/0；不覆盖当前 v2/v4/HMAC 返修 |
-| 当前 P8 测试集 | 最终门待执行 | 共 76 项：preflight 17、soak 9、release 17、wrapper/collector 2、package manifest 7、evidence verify/import 24；返修后的 `--full` 尚未执行 |
-| v2/v4/HMAC 返修独立 reviewer / QA | 待执行 | 历史 70 项与 PowerShell 静态门的独立结论均不能覆盖 challenge 现场采集、ownership/reparse、preflight 精确 9 项、外置 key/HMAC 和 receipt v4 |
+| 当前 P8 测试集 | 通过（本地工具） | 76/76：preflight 17、soak 9、release 17、wrapper/collector 2、package manifest 7、evidence verify/import 24 |
+| v2/v4/HMAC/文件锁返修 | 通过（最终本地门） | HEAD `6886856` full gate PASS；最终 reviewer `019f9a55-8131-7423-96a7-44d934c28255` 与 QA `019f9a55-99a2-7011-887f-119893e3ec4f` 均 PASS，P0/P1/P2/P3=0/0/0/0；不据此声明 Windows runtime 或产品验收 |
 | PowerShell 增量独立 reviewer | 通过（本机静态范围） | `019f9a17-7e58-7350-9ec3-7373f3151f4f` 在两项 P3 和一项文档计数 P2 修复后最终 PASS，P0/P1/P2/P3=0/0/0/0；确认 12 脚本零 finding、7/7 CLI、exit 2/3 JSON、5.1 语法拒绝及文档防回退 |
 | PowerShell 增量独立 QA | 通过（本机静态范围） | `019f9a17-98ad-7f23-9c36-6d62a7fa49ec` 最终 PASS，P0/P1/P2=0/0/0；12 脚本零 finding、7/7 CLI、exit 2/3 JSON、5.1 兼容拒绝、文件哈希不变 |
-| 返修前 full local gate | 通过（历史快照） | 最近一次 `./scripts/run_all_local_gates.sh --full` 发生在 challenge/HMAC/v2/v4 返修前；返修后必须重跑，当前不得引用历史结果作为提交门 |
+| 最终 full local gate | 通过 | HEAD `6886856`：P5 100、P6 17、P8 76、C++14/C++17、20 次重复、ASan/UBSan；PowerShell 13 脚本零 finding、CLI 7/7 |
 | Windows 目标机执行与跨机交接 | 手册已返修，runtime 未验证 | `docs/windows-target-execution.md` 固化 package manifest、外置 32-byte key、v4 wrapper 现场采集、带外 SHA/HMAC、拷回、verify/import 和声明边界 |
 | Windows/PowerShell/D 盘/GPU 长稳 | 未验证 | 本机无目标环境；不得把 `passed-local-tooling` 外推为 AC-08 产品通过 |
 

@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [string]$Root = "",
-    [switch]$RequireScriptAnalyzer
+    [switch]$RequireScriptAnalyzer,
+    [string]$ScriptAnalyzerModulePath = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -99,9 +100,31 @@ foreach ($file in $files) {
     }
 }
 
+$analyzerCandidates = if (
+    [string]::IsNullOrWhiteSpace($ScriptAnalyzerModulePath)
+) {
+    @(Get-Module -ListAvailable -Name PSScriptAnalyzer)
+} else {
+    $explicitAnalyzerPath = [System.IO.Path]::GetFullPath(
+        $ScriptAnalyzerModulePath)
+    $analyzerManifests = if (
+        Test-Path -LiteralPath $explicitAnalyzerPath -PathType Leaf
+    ) {
+        @(Get-Item -Force -LiteralPath $explicitAnalyzerPath)
+    } elseif (
+        Test-Path -LiteralPath $explicitAnalyzerPath -PathType Container
+    ) {
+        @(Get-ChildItem -LiteralPath $explicitAnalyzerPath `
+            -Filter "PSScriptAnalyzer.psd1" -File -Recurse)
+    } else {
+        @()
+    }
+    @($analyzerManifests | ForEach-Object {
+            Get-Module -ListAvailable -Name $_.FullName
+        })
+}
 $analyzerModule = @(
-    Get-Module -ListAvailable -Name PSScriptAnalyzer |
-        Sort-Object Version -Descending
+    $analyzerCandidates | Sort-Object Version -Descending
 ) | Select-Object -First 1
 if (
     $null -ne $analyzerModule -and

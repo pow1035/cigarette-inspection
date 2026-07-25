@@ -6,18 +6,18 @@
 - P5-02C7 受控输入就绪工具经多轮独立对抗返修后 reviewer/QA PASS；当前代码快照为 readiness 24/24、P5 100/100。工具通过不等于外部 artifact ready，KI-040 继续开放。
 - P5 当前为外部阻断、未关闭；P6/P7 本地可完成切片已实现，剩余 Qt/Windows runtime 作为外部目标机阻断保留；当前阶段已切换到 P8。
 - P7 产品状态已扩展到 8/8：新增 typed configured/applied profile、canonical/golden SHA-256、detector→batch→worker→state 帧级身份回传、严格 TensorRT v2 配置、品牌七阈值页面与持久化。本轮独立 reviewer 已确认参数 SHA 同源问题 resolved；Qt/Windows runtime 和 Computer Use 尚未完成。
-- P8 测试集仍为 76 项：preflight 17、soak 9、fixture release 17、Windows wrapper/collector 静态契约 2、package manifest generator 7、Windows evidence verify/import 24。历史 reviewer/QA/full gate 结论均不能覆盖当前 challenge/HMAC/v2/v4 安全返修；返修后的最终独立 reviewer/QA 与 full gate 尚待执行。
-- 2026-07-26 PowerShell 静态门当前在 Colima/Linux arm64 以 PowerShell 7.6.3、PSScriptAnalyzer 1.25.0 扫描 13 个 `.ps1`，parser/analyzer finding 0，7/7 CLI 契约 PASS，报告固定 `windowsRuntimeClaimed=false`。既有独立 reviewer/QA 覆盖静态门及当时 12 脚本快照；新增 collector 已通过当前静态门，但没有由此获得 Windows runtime 或产品验收结论。GitHub Actions 未在线运行。
+- HEAD `6886856` 最终 full gate PASS：P5 100、P6 17、P8 76（preflight 17、soak 9、release 17、wrapper/collector 2、package manifest 7、evidence verify/import 24）、C++14/C++17、20 次重复、ASan/UBSan；PowerShell 13 个脚本零 finding、CLI 7/7。
+- 2026-07-26 PowerShell 静态门当前在 Colima/Linux arm64 以 PowerShell 7.6.3、PSScriptAnalyzer 1.25.0 扫描 13 个 `.ps1`，parser/analyzer finding 0，7/7 CLI 契约 PASS，报告固定 `windowsRuntimeClaimed=false`。GitHub Actions 已在线执行；首次运行暴露的 analyzer 缺失用例隔离差异已改为显式 `ScriptAnalyzerModulePath` 并在本机复验。
 - P8 仍不关闭：没有真实 Windows + Qt/HALCON/MVS/DAQNavi/CUDA/TensorRT/OpenCV、D 盘产品运行、真实数据、许可或硬件证据；`windowsRuntimeAccepted`、`productAcceptance`/`productAcceptanceClaimed`、真实 IO/剔除声明均为 false。
 
 ## 2026-07-26 P8 主机报告与 v4 证据返修
 
-- 原 reviewer/QA 指出历史报告可重放、preflight 可协调伪造、递归清理与 PATH 执行等风险；当前树已针对这些 finding 返修，但尚未取得返修后最终独立结论。
+- 原 reviewer/QA 指出历史报告可重放、preflight 可协调伪造、递归清理、PATH 执行、依赖 reparse 祖先链与 collector 执行窗口等风险；当前树已全部返修。最终增量 reviewer `019f9a55-8131-7423-96a7-44d934c28255` PASS，P0/P1/P2/P3=0/0/0/0；最终 QA `019f9a55-99a2-7011-887f-119893e3ec4f` PASS，P0/P1/P2/P3=0/0/0/0。
 - v4 wrapper 不接受历史 `WindowsInput`/`GpuInput`，每次生成 64-lowercase-hex challenge，复制 collector 到 provenance 后以 mandatory `-RepositoryRoot $repoRoot` 立即现场采集 Windows/GPU v2 报告；RepositoryRoot 与 OutputDirectory 不得重叠，报告绑定 package manifest、同 capture/host/time/collector SHA。
-- collector 不执行 PATH 中 python/git/qmake/nvidia-smi，只读应用版本、依赖文件大小/SHA 与 CIM GPU；拒绝空文件/reparse。collector/wrapper 使用 ownership marker 和重复 reparse 检查，失败不递归删除目录。
+- collector 不执行 PATH 工具；`Get-LockedFileSnapshot` 检查完整 reparse 祖先链，以 `FileShare.Read` 锁定文件并在锁内计算 SHA。wrapper 对 provenance collector 持读句柄贯穿执行，执行前后复算 SHA 并复查 reparse 链。
 - verifier 精确重验 preflight 顶层、claims、inputs 和 9 项成功检查，拒绝未知 claim/检查或缺项；host capture 必须位于 wrapper started/finished 窗口。
 - v4 evidence 需要 Package、EvidenceRoot、DeploymentRoot、bundle 外的 exactly 32-byte key。manifest 以 `CreateNew + Flush(true)` 写入固定 UTF-8 bytes，SHA/HMAC 对同一 bytes 计算并复读确认未漂移；verify/import 同时要求外部 SHA、HMAC 与 key，receipt 为 v4。
-- P8 测试集仍为 76 项；PowerShell 仍为 13 个脚本、CLI 7/7。返修前 full gate 曾通过，返修后最终 full gate/reviewer/QA 待执行；所有结论仍不是 Windows/Qt/GPU 产品验收。
+- 最终本地门已通过；真实 Windows/Qt/GPU/SDK/硬件仍未验收，P5 受控数据仍缺失，不能关闭产品验收。
 
 ## 2026-07-25 P8 cleanup 审计返修
 

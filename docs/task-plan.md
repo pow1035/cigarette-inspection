@@ -194,7 +194,7 @@ P5-01、P5-02A/B、P5-02C1 技术切片已通过门禁。2026-07-19 用户澄清
 - [x] 增加 Windows P8 wrapper 和 D 盘/完整依赖清单输入契约；wrapper/collector 静态契约当前 2/2。
 - [x] 增加严格 package manifest generator：完整文件集、双重稳定性复扫、遍历 fail-closed、祖先 link/reparse 与 case/NFC 防护（7/7）。
 - [x] 跨机证据返修为 v4：wrapper 生成 64-lowercase-hex challenge，复制 provenance collector 后以 mandatory `-RepositoryRoot $repoRoot` 立即现场采集，不再接受历史 `WindowsInput`/`GpuInput`；RepositoryRoot 与 OutputDirectory 不得重叠，v2 reports 绑定 challenge、package manifest、capture/host/time/collector。
-- [x] collector 不执行 PATH 中的 python/git/qmake/nvidia-smi，只读应用版本、依赖文件大小/SHA 和 CIM GPU；拒绝空文件/reparse。collector 与 wrapper 均使用 ownership marker 和重复 reparse 检查，失败不递归删除目录。
+- [x] collector 不执行 PATH 工具；`Get-LockedFileSnapshot` 检查完整 reparse 祖先链，以 `FileShare.Read` 锁定文件并在锁内计算 SHA。wrapper 对 provenance collector 持 `FileShare.Read` 句柄贯穿执行，执行前后复算 SHA 并复查 reparse 链。
 - [x] v4 verifier/import 同时要求外部 manifest SHA、HMAC 和 exactly 32-byte key；key 必须位于 Package、EvidenceRoot、DeploymentRoot 与待验 bundle 外。verifier 精确复验 preflight 顶层/claims/inputs/9 项成功检查、v2 host input、采集窗口和 7 个 provenance 受信源；receipt v4 绑定 `verifierSha256` 与 manifest HMAC。
 - [x] 更新 `docs/windows-target-execution.md`，固化 manifest→外置 key→v4 wrapper 现场采集→带外 SHA/HMAC/key→拷回→verify/import 交接顺序，并提供 Windows PowerShell 5.1 `CreateNew` 生成 32-byte key 的命令。
 - [x] 新增独立 PowerShell parser/PSScriptAnalyzer 静态门和 7 个 CLI 契约用例；本机 Colima/Linux arm64 使用 PowerShell 7.6.3、PSScriptAnalyzer 1.25.0 扫描 13 个 `.ps1`，显式启用 `PSUseCompatibleSyntax` 目标 Windows PowerShell 5.1，parser/analyzer finding 均为 0；CLI 契约 7/7 PASS，覆盖成功、损坏语法、PowerShell 7 三元语法被 5.1 门拒绝、缺根、缺/空 `scripts/` 目录和缺 analyzer，exit 2/3 均输出机器可读 JSON。
@@ -203,7 +203,7 @@ P5-01、P5-02A/B、P5-02C1 技术切片已通过门禁。2026-07-19 用户澄清
 - [x] cleanup 初审 4 P1/3 P2、reviewer 追加 2 P1/2 P2（gate/external 绑定、release 精确 schema、import 根白名单、文档）及 QA 追加 1 P1（不得提示执行待验 provenance verifier）均已修复。
 - [x] 历史 70 项范围最终独立 reviewer `019f99cb-7c02-7b23-b498-9b28e7ba761c` 与 QA `019f99d7-8a02-7da1-8641-2d533409d06d` 均 PASS，P0/P1/P2=0/0/0；该结论不覆盖后续主机报告 6 项增量。
 - [x] 当前 P8 测试集总数保持 76：preflight 17、soak 9、release 17、wrapper/collector 2、package manifest 7、evidence verify/import 24；PowerShell 仍为 13 个脚本和 7 个 CLI 契约。
-- [ ] 对 challenge/HMAC/v2/v4 返修完成独立 reviewer/QA；重点检查新鲜性、package/time 绑定、ownership/reparse 竞态、非递归失败、preflight 精确 9 项、key 隔离和 HMAC false-green。
+- [x] HEAD `6886856` 最终本地 full gate 已覆盖 challenge/HMAC/v2/v4/文件锁返修；不把本地门扩写为 Windows runtime 或产品验收。
 - [x] 第二轮 documentation maintenance agent 已在 cleanup 修复切片后同步计数、状态和 Windows 交接手册。
 - [x] 第三轮/最终 documentation maintenance agent 已同步最终评审状态；`.ruff_cache` 已清除。
 - [x] 历史主代理 `./scripts/run_all_local_gates.sh --full` PASS：P5 100、P6 17、P8 70、C++17/C++14、repeat 20、ASan/UBSan、文档/P1/diff。
@@ -214,10 +214,12 @@ P5-01、P5-02A/B、P5-02C1 技术切片已通过门禁。2026-07-19 用户澄清
 - [x] 最终 documentation maintenance 已统一 PowerShell 7/7 计数、reviewer/QA 状态和外部阻断边界；文档门 PASS、`light_gate.py` 无 warning、`git diff --check` PASS。
 - [x] 第五轮 documentation maintenance 已同步当时的 P8 v1/v3 增量；该记录已被后续安全返修取代，仅保留时间线。
 - [x] 第六轮/最终 documentation maintenance 已同步 v2 host report、v4 wrapper/receipt、现场 challenge 采集、ownership/reparse 非递归失败边界、外置 32-byte key 与 SHA+HMAC 三项认证，并更新防回退文档门。
-- [ ] 运行返修后的 `./scripts/run_all_local_gates.sh --full`。最近一次 full gate 发生在本轮返修前，不得作为当前提交门。
+- [x] HEAD `6886856` 最终 `./scripts/run_all_local_gates.sh --full` PASS：P5 100、P6 17、P8 76、C++14/C++17、20 次重复、ASan/UBSan；PowerShell 13 个脚本零 finding、CLI 7/7。
+- [x] 当前 v2/v4/HMAC/文件锁增量最终 reviewer `019f9a55-8131-7423-96a7-44d934c28255` 与 QA `019f9a55-99a2-7011-887f-119893e3ec4f` 均 PASS，P0/P1/P2/P3=0/0/0/0。
+- [x] 第七轮/最终 documentation maintenance 同步 full gate 与文件锁快照防护，并冻结本地证据边界。
 - [ ] 目标机与外部阻断关闭前保持 P8 进行中：Windows/PowerShell/Qt/GPU/D 盘、真实数据/正式 TensorRT、许可和硬件均不得由本地门替代。
 
-PowerShell 静态门输出固定 `syntaxCompatibilityTargets=["5.1"]`、`scriptAnalyzerMinimumVersion="1.25.0"` 和 `windowsRuntimeClaimed=false`。P8 测试集仍为 76 项；PowerShell 门仍为 13 个脚本与 7 个 CLI 契约。此前 reviewer/QA/full gate 结论均不能自动覆盖当前 challenge/HMAC/v2/v4 返修，也不扩大 Windows/Qt/GPU/D 盘或硬件 runtime 声明。
+PowerShell 静态门输出固定 `syntaxCompatibilityTargets=["5.1"]`、`scriptAnalyzerMinimumVersion="1.25.0"` 和 `windowsRuntimeClaimed=false`。HEAD `6886856` 最终 full gate 已覆盖 P8 76/76 与 PowerShell 13 个脚本/CLI 7/7；该结论不扩大 Windows/Qt/GPU/SDK/D 盘或硬件 runtime 声明。
 
 ## 审查与 QA 节奏
 

@@ -9,9 +9,10 @@
 - P5-02C6 历史快照为 76/76；加入 P5-02C7 readiness 24 项回归后，当前 P5 全量 100/100。文档门、P1 静态门、Python 编译、SDK-free C++ contracts/offline/simulation 7/7、7/7、15/15、workflow、`git diff --check` 与 `light_gate.py` 均通过。
 - P5-02C7 最终独立 QA 与 clean-snapshot reviewer 均 PASS；P5 因 KI-039/KI-040、完整数据和业务确认转为外部阻断、未关闭，唯一阶段指针切换到 P6。
 - P6-01A 已新增 SDK-free 录制序列回放和 Simulation-only 剔除安全核心；P6-01B 已完成 Qt manifest/trace、simulation CLI 和只读 preflight。P6-02 已新增确定性多相机容量模型，simulation executable 总计 15/15，P6 Python 回归现为 17/17。时间线复核确认 P6-01B 历史切片只完成同代理降级检查；后续 P7/P8 独立门未明确覆盖该切片，不能反向升级。Windows/Qt runtime 和产品运行产物仍未验证。
-- `Local gates` GitHub Actions 定义当前覆盖文档/P1 静态、P5/P6/P8 Python 精确计数、无 SDK C++ 回归和 PowerShell 静态门；本轮没有在线运行 Actions。Windows/MSVC、TensorRT/GPU 和现场硬件继续保留为目标机/人工门禁。
-- P8 测试集总数仍为 76：preflight 17、soak 9、release 17、wrapper/collector 2、package manifest 7、evidence verify/import 24。安全返修已升级为 Windows/GPU host report v2、wrapper/receipt v4：每次生成 64-hex challenge，复制 provenance collector 后以 mandatory `-RepositoryRoot $repoRoot` 立即现场采集并绑定 package/capture/host/time；RepositoryRoot 与 OutputDirectory 不得重叠，不再接受历史 host input。collector 不执行 PATH 工具，只读版本、文件大小/SHA 与 CIM GPU；collector/wrapper 使用 ownership/reparse 防护且失败不递归清理。
-- v4 证据认证要求 Package、EvidenceRoot、DeploymentRoot 和 bundle 外的 exactly 32-byte key；manifest 在内存形成固定 UTF-8 bytes，以 `CreateNew + Flush(true)` 写入，SHA/HMAC 针对同一 bytes 计算并复读确认未漂移。verifier 精确复验 preflight 顶层/claims/inputs/9 项检查、v2 reports、采集窗口和 7 个受信 provenance；receipt v4 绑定 HMAC。返修前 full gate 曾通过，返修后最终 full gate 与独立 reviewer/QA 尚待执行。
+- `Local gates` GitHub Actions 定义当前覆盖文档/P1 静态、P5/P6/P8 Python 精确计数、无 SDK C++ 回归和 PowerShell 静态门；`6886856` 的首次在线运行暴露了“全局已安装 PSScriptAnalyzer 时缺失模块用例不能隔离”的 CI 差异，现改为显式 `ScriptAnalyzerModulePath` 隔离并在本机复验 CLI 7/7。Windows/MSVC、TensorRT/GPU 和现场硬件继续保留为目标机/人工门禁。
+- 提交 `6886856` 后的最终 `./scripts/run_all_local_gates.sh --full` PASS：P5 100/100、P6 17/17、P8 76/76、C++14/C++17、20 次重复、ASan/UBSan；PowerShell 13 个脚本 parser/analyzer 0 finding、CLI 7/7。
+- P8 安全返修使用 Windows/GPU host report v2、wrapper/receipt v4：每次生成 challenge，复制 provenance collector 后以 mandatory `-RepositoryRoot $repoRoot` 立即现场采集。collector 新增 `Get-LockedFileSnapshot`，检查完整 reparse 祖先链，以 `FileShare.Read` 锁定文件并在锁内计算 SHA；wrapper 对 provenance collector 持 `FileShare.Read` 句柄贯穿子进程执行，执行前后复算 SHA 并复查 reparse 链。
+- v4 证据认证要求 Package、EvidenceRoot、DeploymentRoot 和 bundle 外的 exactly 32-byte key；manifest 在内存形成固定 UTF-8 bytes，以 `CreateNew + Flush(true)` 写入，SHA/HMAC 针对同一 bytes 计算并复读确认未漂移。verifier 精确复验 preflight 顶层/claims/inputs/9 项检查、v2 reports、采集窗口和 7 个受信 provenance；receipt v4 绑定 HMAC。以上本地门已在 `6886856` 之后执行最终 full gate。
 - 独立 PowerShell 静态门当前在本机 Colima/Linux arm64 使用 PowerShell 7.6.3、PSScriptAnalyzer 1.25.0 扫描 13 个 `.ps1`，parser/analyzer finding 均为 0；CLI 契约 7/7 PASS。结果固定 `windowsRuntimeClaimed=false`，不并入 P8 76/76。
 - 使用隔离的 Python 3.12 环境安装 ONNX Runtime 1.20.1，精确加载 SHA-256 为 `956554A92E8E7F9338B86E2B25FAE3E40F87DDF7F702E04B213AE46C5E26D0C4` 的模型；`images`/`output0` 运行时形状为 `[1,3,992,992]`/`[1,300,6]`，CPU 零输入推理输出为有限 FP32。该检查只证明当前 Mac 可运行 ONNX CPU 诊断链，不是图像效果、正式 TensorRT 或性能证据；受控 reviewed-truth artifact 未随 Git 克隆，完整 pilot 复算仍需恢复该外部输入。
 
@@ -48,7 +49,7 @@
 - 主代理定向复核为 32/32。
 - 最终 reviewer `019f99cb-7c02-7b23-b498-9b28e7ba761c` PASS，P0/P1/P2=0/0/0，P8 70/70、文档/diff PASS；最终 QA `019f99d7-8a02-7da1-8641-2d533409d06d` PASS，P0/P1/P2=0/0/0，wrapper 1/1 PASS；该结论仅对应历史 70 项快照。
 - 主代理 `./scripts/run_all_local_gates.sh --full` 最终 PASS：P5 100、P6 17、P8 70、C++17/C++14、repeat 20、ASan/UBSan、文档/P1/diff；`.ruff_cache` 已清除。
-- 第二轮 documentation maintenance agent 在 cleanup 修复切片后同步了 70 项计数和 Windows 手册；第三轮 documentation maintenance agent 在 reviewer/QA 关闭后更新历史独立门。当前 76 项增量另有定向 cleanup/reviewer/QA 待执行，P8 整体仍等待 Windows/PowerShell/Qt/GPU/D 盘、真实数据/许可/硬件外部证据。
+- 第二轮 documentation maintenance agent 在 cleanup 修复切片后同步了 70 项计数和 Windows 手册；后续维护轮次已同步当前 76 项、v2/v4/HMAC、文件锁、最终 full gate 与独立复核。最终 reviewer `019f9a55-8131-7423-96a7-44d934c28255` 和 QA `019f9a55-99a2-7011-887f-119893e3ec4f` 均 PASS，P0/P1/P2/P3=0/0/0/0。P8 整体仍等待 Windows/PowerShell/Qt/GPU/D 盘、真实数据/许可/硬件外部证据。
 
 ## 2026-07-25 - P5-02C7 受控输入就绪与 fresh-clone 复核
 

@@ -164,6 +164,20 @@ rg -q 'PREFLIGHT_CHECK_KEYS' scripts/p8_windows_evidence_verify.py
 rg -Fq 'if set(by_name) != set(PREFLIGHT_CHECK_KEYS):' \
   scripts/p8_windows_evidence_verify.py
 rg -q 'Get-CimInstance' scripts/collect_windows_p8_host_reports.ps1
+rg -q 'Get-LockedFileSnapshot' scripts/collect_windows_p8_host_reports.ps1
+rg -Fq '[System.IO.FileShare]::Read' \
+  scripts/collect_windows_p8_host_reports.ps1 \
+  scripts/run_windows_p8_preacceptance.ps1
+rg -q 'script identity changed before execution' \
+  scripts/run_windows_p8_preacceptance.ps1
+rg -q 'script identity changed during execution' \
+  scripts/run_windows_p8_preacceptance.ps1
+rg -q 'Get-LockedFileSnapshot' README.md HANDOFF_P5.md \
+  docs/evidence-matrix.md docs/progress-log.md \
+  docs/windows-target-execution.md
+rg -Fq 'FileShare.Read' README.md HANDOFF_P5.md \
+  docs/evidence-matrix.md docs/progress-log.md \
+  docs/windows-target-execution.md
 rg -Fq '.collector-owner' scripts/collect_windows_p8_host_reports.ps1 \
   scripts/p8_windows_evidence_verify.py
 rg -Fq '.wrapper-owner' scripts/run_windows_p8_preacceptance.ps1 \
@@ -242,9 +256,31 @@ if rg -q 'p8-(windows|gpu)-host-report-v1|wrapper v3|receipt v3|WindowsInput =|G
   echo "FAIL current P8 operating docs contain superseded v1/v3/history-input instructions" >&2
   exit 1
 fi
-rg -q '返修后.*full gate.*待' README.md AGENTS.md HANDOFF_P5.md \
-  docs/task-plan.md docs/evidence-matrix.md docs/review-packet.md \
-  docs/review-results.md
+for final_gate_doc in README.md HANDOFF_P5.md docs/task-plan.md \
+    docs/evidence-matrix.md docs/progress-log.md docs/review-packet.md \
+    docs/review-results.md docs/qa-checklist.md docs/p8-local-closure.md; do
+  rg -q '6886856' "$final_gate_doc"
+done
+rg -q 'P5 100.*P6 17.*P8 76' README.md HANDOFF_P5.md \
+  docs/task-plan.md docs/evidence-matrix.md docs/progress-log.md \
+  docs/review-packet.md docs/review-results.md docs/qa-checklist.md \
+  docs/p8-local-closure.md
+rg -q 'C\+\+14/C\+\+17|C\+\+14.*C\+\+17' \
+  README.md docs/task-plan.md docs/evidence-matrix.md \
+  docs/progress-log.md docs/review-packet.md docs/review-results.md \
+  docs/qa-checklist.md docs/p8-local-closure.md
+rg -q '20 次重复' README.md docs/task-plan.md docs/evidence-matrix.md \
+  docs/progress-log.md docs/review-packet.md docs/review-results.md \
+  docs/qa-checklist.md docs/p8-local-closure.md
+if rg -q '返修后.*full gate.*待|最终门待执行|最终门待跑|full gate/reviewer/QA 待执行' \
+    README.md HANDOFF_P5.md docs/acceptance-criteria.md \
+    docs/evidence-matrix.md docs/known-issues.md docs/observability.md \
+    docs/p8-local-closure.md docs/progress-log.md docs/qa-checklist.md \
+    docs/review-packet.md docs/review-results.md docs/task-plan.md \
+    docs/windows-target-execution.md; then
+  echo "FAIL P8 documentation still reports the completed final full gate as pending" >&2
+  exit 1
+fi
 
 duplicate_issue_ids="$({
   rg -o '^\| KI-[0-9]{3} \|' docs/known-issues.md || true

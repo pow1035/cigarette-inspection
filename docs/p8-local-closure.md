@@ -7,7 +7,7 @@ P8 当前只建立可在无 Qt、Windows、GPU 和现场硬件环境运行的本
 ```text
 严格输入/包预检 → SDK-free soak → fixture 发布包验证
 → 原子激活/回滚 → SHA/HMAC 证据 → 当前测试集 76 项
-→ challenge/HMAC/v2/v4 返修后的最终 full gate 与独立 review/QA 待执行
+→ HEAD 6886856 最终 full gate PASS
 → 独立 PowerShell parser/PSScriptAnalyzer/5.1 兼容静态门
 ```
 
@@ -75,9 +75,9 @@ release 文件不可在验证后静默变化。activate/rollback 只在目标 re
 - P8 合计：76/76。
 - 独立 PowerShell 静态门：13 个 `.ps1` parser/analyzer 0 finding；PowerShell CLI 契约 7/7 PASS（不计入上述 76/76）。
 
-P8 测试总数仍为 76，PowerShell 静态门计数仍为 13 个 `.ps1`、CLI 7/7。当前返修新增 challenge/package/time 绑定、现场采集、ownership/reparse 非递归失败边界、preflight 精确 9 项校验和 SHA+HMAC+key 三项外部认证；7 个 provenance 副本必须逐字节匹配 verifier 所在的当前受信仓库。外部 key 必须是 32 raw bytes，位于 Package、EvidenceRoot 和 DeploymentRoot 外；verifier 也拒绝 key 位于 bundle 内。返修前 full gate 曾通过，返修后的最终 full gate 与独立 reviewer/QA 尚待执行。GitHub Actions 未在线运行；真实 Windows + Qt/HALCON/MVS/DAQNavi/CUDA/TensorRT/OpenCV、数据、许可、硬件和 D 盘证据仍为外部阻断。
+HEAD `6886856` 最终 full gate PASS：P5 100/100、P6 17/17、P8 76/76、C++14/C++17、20 次重复、ASan/UBSan；PowerShell 13 个 `.ps1` parser/analyzer 0 finding、CLI 7/7。collector 的 `Get-LockedFileSnapshot` 以完整 reparse 祖先链检查和 `FileShare.Read` 锁内 SHA 固化文件身份；wrapper 持 provenance collector 读锁贯穿执行并前后复算 SHA/复查 reparse。最终 reviewer/QA 均 PASS，P0/P1/P2/P3=0/0/0/0；真实 Windows/Qt/GPU/SDK、数据、许可、硬件和 D 盘证据仍为外部阻断。
 
-历史 70 项范围已通过最终独立门；该结论只保留为历史证据，不能覆盖本轮 v2/v4/HMAC 返修。返修后的最终 review/QA/full gate 完成前，P8 提交门保持未通过。
+历史 70 项范围保留为审计轨迹；当前本地提交门以 HEAD `6886856` 最终 full gate 为准。该门仍不构成产品验收。
 
 2026-07-26 的 PowerShell 静态门是后续独立增量，不由上述 reviewer/QA 结论自动覆盖。其本机实现、Windows PowerShell 5.1 兼容静态检查和 7/7 CLI 契约已通过。独立 reviewer `019f9a17-7e58-7350-9ec3-7373f3151f4f` 在两项 P3 和一项文档计数 P2 修复后最终 PASS，P0/P1/P2/P3=0/0/0/0；独立 QA `019f9a17-98ad-7f23-9c36-6d62a7fa49ec` 最终 PASS，P0/P1/P2=0/0/0。P8 仍不会在 Windows/Qt/GPU/D 盘和外部输入阻断关闭前完成。
 

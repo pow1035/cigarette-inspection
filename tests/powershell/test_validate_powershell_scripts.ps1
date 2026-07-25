@@ -161,11 +161,11 @@ try {
 
     $emptyModules = Join-Path $temporaryRoot "empty-modules"
     [void](New-Item -ItemType Directory -Force -Path $emptyModules)
-    $missingAnalyzer = Invoke-ChildPowerShell `
-        -ChildArguments @(
-            "-Root", $repositoryRoot, "-RequireScriptAnalyzer"
-        ) `
-        -EnvironmentOverrides @{PSModulePath = $emptyModules}
+    $missingAnalyzer = Invoke-ChildPowerShell -ChildArguments @(
+        "-Root", $repositoryRoot,
+        "-RequireScriptAnalyzer",
+        "-ScriptAnalyzerModulePath", $emptyModules
+    )
     Assert-Equal $missingAnalyzer.ExitCode 2 "missing analyzer exit"
     $missingAnalyzerReport = $missingAnalyzer.Stdout | ConvertFrom-Json
     Assert-Equal $missingAnalyzerReport.status "blocked" (
