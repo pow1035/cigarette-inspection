@@ -4,7 +4,7 @@
 
 - P8 v2 正式 `artifacts/p8-continuous-local-20260727-final-v2` 已完成 2×300 秒和多次独立 verify；其绑定源文件未被当前 CI 返修改动。提交 `5f6a06a` 的 hosted `Local gates` run `30219159920`（job `89838475434`）FAIL，P8 81 项中准确发现 Linux CPU tick 将 0.12 秒 project contract 量化为 0.00 秒，以及 POSIX core dump 使旧 abort fixture 被误分类。
 - KI-048 已修复并完成独立复核：新/旧 Python tool source 和实际 POSIX `ps` identity/snapshot 均进入 toolDependencies，helper 漂移、PATH shadow 与 dependency/helper/`ps` snapshot/identity 篡改均拒绝。独立 reviewer 最终 PASS，P0/P1/P2/P3=0/0/0/0；正式 evidence 的 QA/observability/cleanup 也已 PASS，QA 仅记录旧失败目录隔离保留这一项非阻断 P3。
-- 当前未提交修复把 public wrapper/direct project contract 实际时长提高到 1.0 秒（locked profile 最低 0.12 秒、timeout 2.0 秒、其余阈值不变），并在 POSIX abort 前设置 `RLIMIT_CORE=0`。Mac 与 Colima/Linux 原始 full、P8 81/81、当前 CI 修复 reviewer 与 QA/observability 均 PASS，P0/P1/P2/P3=0/0/0/0；hosted rerun pending，因此最终提交门未通过。P8/AC-08 整体继续进行中。
+- 修复提交 `cc7a3ab` 把 public wrapper/direct project contract 实际时长提高到 1.0 秒（locked profile 最低 0.12 秒、timeout 2.0 秒、其余阈值不变），并在 POSIX abort 前设置 `RLIMIT_CORE=0`。Mac 与 Colima/Linux 原始 full、P8 81/81、修复提交 CI reviewer 与 QA/observability 均 PASS，P0/P1/P2/P3=0/0/0/0；hosted run `30221330296`（job `89844182732`）SUCCESS，GitHub API 返回的 10 个已执行步骤（编号 1–7、13–15）全部成功，check-run annotations 为空；实现提交门已通过。P8/AC-08 整体继续进行中。
 
 - P5-02C3 双人复核真值晋级和 P5-02C5 临时 ONNX Runtime CPU 基线的独立 reviewer/QA 均已 PASS；相关历史章节中的“未开始”表述仅保留为当日记录。
 - P5-02C7 受控输入就绪工具经多轮独立对抗返修后 reviewer/QA PASS；当前代码快照为 readiness 24/24、P5 100/100。工具通过不等于外部 artifact ready，KI-040 继续开放。
@@ -18,10 +18,10 @@
 ## 2026-07-27 P8 v2 连续运行防假绿增量
 
 - 文档维护自查确认新增范围为锁定 profile、连续运行采集/验真工具、shell 入口、真实 SDK-free C++ runtime 和 5 项对抗测试；旧 Windows soak/verifier 未被修改或替换。
-- `contract-test-v1` locked 最低仍为 0.12 秒、CPU ≥0.01 秒、progress ≥2/gap ≤0.5 秒、timeout 2.0 秒；当前返修候选的 public wrapper/direct project contract 实际执行 1.0 秒，以避开 Linux CPU tick 量化。正式 `local-sdkfree-v1` 仍固定 2×300 秒，阈值未变。
+- `contract-test-v1` locked 最低仍为 0.12 秒、CPU ≥0.01 秒、progress ≥2/gap ≤0.5 秒、timeout 2.0 秒；修复提交 `cc7a3ab` 的 public wrapper/direct project contract 实际执行 1.0 秒，以避开 Linux CPU tick 量化。正式 `local-sdkfree-v1` 仍固定 2×300 秒，阈值未变。
 - C++ runtime 真实执行 `OfflineInspectionSession`/`ProductRuntimeState`，要求 frame/decision、sink、archive、product-state 守恒，并固定 real IO、real reject、product acceptance 为 false。
 - 最终冻结候选：正式 project `run` 内部受控编译并快照 runtime/compiler/compile/8 source/executable，外部 provenance 只允许 contract helper，伪造 project provenance exit 2 且不建 evidence；`durationSeconds` 与真实退出点冻结的 `processLifetimeSeconds` 分离；Linux `/proc` 进程组 CPU 与 pure-sleep 负路径、持续 progress、ProductRuntimeState OK/NG/Error、严格 inventory 和 Windows 两次 fresh tree enumeration 均有回归。KI-048 另把新/旧 tool source 与 POSIX `ps` identity/binary 纳入 toolDependencies。
-- 正式 evidence 2/2 runs succeeded：samples 291/292、warm-up 后 232/233、CPU 30.64/23.51 秒、RSS 增长 16 KiB/0、progress 3786/3623、最大 gap 0.085584/0.098617 秒；OK/NG 各 1,896,704，Error/drop/subsystem/save failure 全部为 0，29 个 inventory 文件共 3,654,771 bytes。当前 CI 返修已取得 Mac/Colima/Linux full、独立 reviewer 与 QA/observability PASS；hosted rerun 待定。
+- 正式 evidence 2/2 runs succeeded：samples 291/292、warm-up 后 232/233、CPU 30.64/23.51 秒、RSS 增长 16 KiB/0、progress 3786/3623、最大 gap 0.085584/0.098617 秒；OK/NG 各 1,896,704，Error/drop/subsystem/save failure 全部为 0，29 个 inventory 文件共 3,654,771 bytes。修复提交 CI 已取得 Mac/Colima/Linux full、独立 reviewer 与 QA/observability PASS；hosted run `30221330296`（job `89844182732`）SUCCESS。
 - 文档 QA P2 已记录：本地 `soak-manifest.json` 与离线 `verify` 证明 evidence 内部一致性、snapshot/源码绑定和当前候选复验，不具备 Windows v4 的带外 HMAC，不能认证恶意方协调重写整个 evidence 包。这是本地可信存储/传输边界，不判定为工具失败。
 - 生成进程 self-verify、主代理独立 verify、独立 reviewer 两次 verify/标准库重算和正式 evidence QA/observability/cleanup 均 PASS；reviewer 最终 P0/P1/P2/P3=0/0/0/0。旧 `artifacts/p8-continuous-local-20260727-invalid-dependency-gap` 无 manifest、被 Git 忽略，只隔离保留作失败审计，不得引用、混入正式 evidence 或交付。
 - 历史 Windows v1/v4、HEAD `6886856` full gate、PowerShell 和 hosted CI 结论继续有效于各自旧范围，但不反向证明 P8 v2 连续运行稳定性。

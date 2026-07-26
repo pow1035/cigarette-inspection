@@ -60,13 +60,13 @@ P4 正式证据：`artifacts/p4-tensorrt-20260711-150510` 顶层 exit 0，Releas
 | AC-06-03 | 固定负载矩阵可复现队列深度、丢弃数、P95 排队/端到端时延及容量取舍 | 进行中（20 帧、10 µs 到达间隔、50 µs 处理的确定性矩阵已通过；这些数值仅验证模型，不是生产节拍门槛） |
 | AC-07-01 | Qt 主流程围绕深度学习检测、复核、统计、配置和诊断可用 | 进行中（产品状态 8/8；configured/applied typed profile、canonical SHA-256、帧级绑定、七阈值页面/品牌持久化、统计/复核/诊断和原子 session JSON 源码已接入；当前 UI 固定 local-only；Windows UI/JSON runtime 未完成） |
 | AC-07-02 | 沿用现有 UI 风格；删除/隐藏旧功能前有清单、依赖分析、回归和 UI 运行证据 | 进行中（`docs/p7-ui-inventory.md` 已建立；本切片沿用深色样式且未删除控件，Computer Use/人工 UI 证据仍未取得） |
-| AC-08-01 | 连续运行时长、CPU/GPU/内存/磁盘、队列和时延满足已确认阈值 | 进行中（P8 v2 本地连续工具证据通过：连续专项 5/5、P8 精确 81/81、公开 wrapper contract，以及当前返修在 Mac/Colima/Linux 的 `--core`/`--full` 均 PASS；`artifacts/p8-continuous-local-20260727-final-v2` 两轮为 300.046591/300.020852 秒，291/292 samples，30.64/23.51 CPU 秒，RSS 增长 16 KiB/0，progress gap 0.085584/0.098617 秒，共 3,793,408 帧。self-verify、主代理独立 verify、reviewer 两次独立 verify 及正式 evidence QA/observability/cleanup 均 PASS；当前 CI 修复 reviewer 也 PASS。GPU、Windows 产品 runtime、真实数据和现场指标仍未验证，因此 AC-08-01 整体不标通过） |
-| AC-08-02 | D 盘部署、配置/模型哈希、升级回滚、review、QA、清理和本地提交门通过 | 进行中（当前 CI 修复独立 reviewer 与 QA/observability 均 PASS，P0/P1/P2/P3=0/0/0/0；正式 evidence QA/observability/cleanup PASS。hosted rerun pending。唯一非阻断 P3 是旧无 manifest 失败目录按隔离留存策略保留，不引用、不交付。HEAD `6886856` 的 P8 76/76 与历史门仅作旧范围快照；真实 Windows + Qt/HALCON/MVS/DAQNavi/CUDA/TensorRT/OpenCV、D 盘产品运行/回滚、数据、许可和硬件仍未验证） |
+| AC-08-01 | 连续运行时长、CPU/GPU/内存/磁盘、队列和时延满足已确认阈值 | 进行中（P8 v2 本地连续工具证据通过：连续专项 5/5、P8 精确 81/81、公开 wrapper contract，以及修复提交 `cc7a3ab` 在 Mac/Colima/Linux 的 `--core`/`--full` 均 PASS；`artifacts/p8-continuous-local-20260727-final-v2` 两轮为 300.046591/300.020852 秒，291/292 samples，30.64/23.51 CPU 秒，RSS 增长 16 KiB/0，progress gap 0.085584/0.098617 秒，共 3,793,408 帧。self-verify、主代理独立 verify、reviewer 两次独立 verify 及正式 evidence QA/observability/cleanup 均 PASS；修复提交 CI reviewer 也 PASS。GPU、Windows 产品 runtime、真实数据和现场指标仍未验证，因此 AC-08-01 整体不标通过） |
+| AC-08-02 | D 盘部署、配置/模型哈希、升级回滚、review、QA、清理和本地提交门通过 | 进行中（当前 CI 修复独立 reviewer 与 QA/observability 均 PASS，P0/P1/P2/P3=0/0/0/0；正式 evidence QA/observability/cleanup PASS。hosted run `30221330296`（job `89844182732`）SUCCESS，GitHub API 返回的 10 个已执行步骤（编号 1–7、13–15）全部成功，check-run annotations 为空。唯一非阻断 P3 是旧无 manifest 失败目录按隔离留存策略保留，不引用、不交付。HEAD `6886856` 的 P8 76/76 与历史门仅作旧范围快照；真实 Windows + Qt/HALCON/MVS/DAQNavi/CUDA/TensorRT/OpenCV、D 盘产品运行/回滚、数据、许可和硬件仍未验证） |
 | AC-08-03 | 目标机证据可通过独立保存的摘要与认证码跨机验真，并以无覆盖事务导入本地证据库 | 进行中（本地工具子门 PASS：v4 verifier/import 24/24，HEAD `6886856` 最终 full gate 已覆盖；外部 manifest SHA/HMAC/key、精确 preflight/host/provenance 复验保持不变。尚无真实 Windows bundle，`productAcceptanceClaimed=false`） |
 
 真实相机、DAQNavi 和真实剔除验收因无现场条件而冻结，不属于当前 P5-P8 通过声明。未来恢复时必须新增阶段和独立验收标准，不能复用本地仿真通过状态。
 
-上一成功 hosted 基线为 `6d492528` / run `30188084112`（job `89756233568`）SUCCESS；当前最新推送 `5f6a06a` / run `30219159920`（job `89838475434`）FAIL，返修 rerun pending。在线门不改变上述进行中、未验证和外部阻断状态。
+上一成功 hosted 基线为 `6d492528` / run `30188084112`（job `89756233568`）SUCCESS；首轮 `5f6a06a` / run `30219159920`（job `89838475434`）FAIL；修复提交 `cc7a3ab` / run `30221330296`（job `89844182732`）SUCCESS。在线门不改变上述进行中、未验证和外部阻断状态。
 
 ## 宽泛词检查
 

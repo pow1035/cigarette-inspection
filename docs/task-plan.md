@@ -2,7 +2,7 @@
 
 <!-- CURRENT_PHASE:P8 -->
 
-当前阶段：P8 本地稳定性、部署与交付预验收进行中。正式 `final-v2` 2×300 秒 evidence、KI-048 独立 reviewer 和正式 evidence QA/observability/cleanup 均已收口，且 evidence-bound 源文件未被当前返修改动。提交 `5f6a06a` 的 hosted `Local gates` run `30219159920`（job `89838475434`）FAIL，发现 Linux CPU tick 将 0.12 秒短 project contract 量化为 0.00 秒，以及 POSIX core dump 使旧 abort fixture 被误分类。当前未提交修复把 public wrapper/direct project contract 实际时长提高到 1.0 秒（locked profile 最低仍 0.12 秒、timeout 2.0 秒、其他阈值不变），并在 POSIX abort 前设置 `RLIMIT_CORE=0`；Mac 与 Colima/Linux 原始 full、P8 81/81、当前 CI 修复 reviewer 与 QA/observability 均 PASS，P0/P1/P2/P3=0/0/0/0。提交/push 与 hosted rerun 待完成，因此最终提交门仍开放。P8/AC-08 整体仍因外部条件保持进行中。
+当前阶段：P8 本地稳定性、部署与交付预验收进行中。正式 `final-v2` 2×300 秒 evidence、KI-048 独立 reviewer 和正式 evidence QA/observability/cleanup 均已收口，且 evidence-bound 源文件未被当前返修改动。提交 `5f6a06a` 的 hosted `Local gates` run `30219159920`（job `89838475434`）FAIL，发现 Linux CPU tick 将 0.12 秒短 project contract 量化为 0.00 秒，以及 POSIX core dump 使旧 abort fixture 被误分类。修复提交 `cc7a3ab` 把 public wrapper/direct project contract 实际时长提高到 1.0 秒（locked profile 最低仍 0.12 秒、timeout 2.0 秒、其他阈值不变），并在 POSIX abort 前设置 `RLIMIT_CORE=0`；Mac 与 Colima/Linux 原始 full、P8 81/81、当前 CI 修复 reviewer 与 QA/observability 均 PASS，P0/P1/P2/P3=0/0/0/0。修复提交已 push，hosted run `30221330296`（job `89844182732`）SUCCESS，因此实现提交门已通过。P8/AC-08 整体仍因外部条件保持进行中。
 
 | 阶段 | 状态 | 目标 | 退出条件 |
 | --- | --- | --- | --- |
@@ -192,7 +192,7 @@ P5-01、P5-02A/B、P5-02C1 技术切片已通过门禁。2026-07-19 用户澄清
 - [x] 完成 SDK-free soak 证据编排和故障矩阵（9/9）。
 - [x] 保持旧 `p8_soak_evidence.py`、Windows v1/v4 证据链和历史 76 项验证语义不变，不用 P8 v2 改写既有 Windows evidence。
 - [x] 新增版本锁定的连续运行 profile、验证器、shell 入口、C++ runtime 与 5 项对抗测试：`config/p8-continuous-soak-profiles-v1.json`、`scripts/p8_continuous_soak.py`、`scripts/run_p8_local_continuous_soak.sh`、`tests/CigVision.LocalSoak/LocalSoakRuntime.cpp`、`tests/p8/test_p8_continuous_soak.py`。
-- [x] `contract-test-v1` 的 locked 最低时长仍固定为 0.12 秒；当前 Linux 返修候选让 public wrapper 和 direct project contract 实际运行 1.0 秒，以跨过 10 ms CPU tick 量化边界，timeout 仍为 2.0 秒，其他阈值和 CLI 锁定不变。
+- [x] `contract-test-v1` 的 locked 最低时长仍固定为 0.12 秒；修复提交 `cc7a3ab` 让 public wrapper 和 direct project contract 实际运行 1.0 秒，以跨过 10 ms CPU tick 量化边界，timeout 仍为 2.0 秒，其他阈值和 CLI 锁定不变。
 - [x] `local-sdkfree-v1` 固定 1 次 restart × 2 轮、每轮至少 300 秒、60 秒 warm-up、至少 240 samples/240 progress records、最大 progress gap 5 秒、sessions ≥240、frames ≥122880、累计进程组 CPU ≥10 秒、RSS 增长 ≤64 MiB、磁盘 ≥1 GiB；短 profile CPU 门为 0.01 秒。
 - [x] 正式 project `run` 在同一路径内使用 `--compiler/--standard` 受控编译并强绑定 runtime kind、compiler path/size/SHA/version、standard/flags/include、8 个 source hash + snapshot 和 executable hash + snapshot；编译期间源码漂移 fail-closed。外部 `--build-provenance` 仅允许 contract test helper，伪造 project provenance exit 2 且不创建 evidence。
 - [x] C++ runner 实际循环 `OfflineInspectionSession`/`ProductRuntimeState`；runtime/progress 同时记录 `productStateOk/Ng/Error` 与 `progressRecords`，逐轮与 Offline OK/NG/Error 分桶一致，real IO/reject/product acceptance 固定 false。
@@ -200,16 +200,16 @@ P5-01、P5-02A/B、P5-02C1 技术切片已通过门禁。2026-07-19 用户澄清
 - [x] evidence inventory 除 manifest 外不忽略 `.tmp`，tmp/symlink/FIFO 均 fail；Windows 正常退出执行两次 fresh tree enumeration，clean gate 同时要求 `noResidualProcessConfirmed` 与 `treeEnumerationSucceeded`；回归覆盖第二次枚举失败必须 fail。
 - [x] 当前候选连续运行专项 5/5、P8 精确 81/81、公开 wrapper C++17 contract run + self-verify + 独立二次 verify 已通过；wrapper 显式前置检查 `python3`、`g++`、`ps`。
 - [x] `5f6a06a` 推送前的本地 `--core`/`--full` 曾 PASS；hosted Linux 随后暴露 CPU tick 与 core-dump 两项缺口，该历史本地结果不能替代返修后门禁。
-- [x] 当前未提交返修候选在 Mac 与 Colima Docker/Linux arm64、`CLK_TCK=100` 均直接执行原始 `./scripts/run_all_local_gates.sh --full` exit 0；P5 100、P6 17、P8 81、C++17/C++14、repeat20、ASan/UBSan 全 PASS。
+- [x] 修复提交 `cc7a3ab` 在 Mac 与 Colima Docker/Linux arm64、`CLK_TCK=100` 均直接执行原始 `./scripts/run_all_local_gates.sh --full` exit 0；P5 100、P6 17、P8 81、C++17/C++14、repeat20、ASan/UBSan 全 PASS。
 - [x] 用 `local-sdkfree-v1` 取得正式 2×300 秒、可二次 verify 的忽略目录 evidence：`artifacts/p8-continuous-local-20260727-final-v2` 两轮 300.046591/300.020852 秒，samples 291/292、CPU 30.64/23.51 秒、RSS 增长 16 KiB/0、progress 3786/3623、gap 0.085584/0.098617 秒，累计 3,793,408 帧；manifest SHA-256 `2bd420fab44acbed98315ffac5cf6a2b22567dcae42d98e522be35de3a7bcdd4`，29 个 inventory 文件、3,654,771 bytes。self-verify、主代理独立 verify 和 reviewer 两次独立 verify 均 PASS。
 - [x] KI-048 实现与本地回归已修：toolDependencies 绑定当前/旧 Python tool source 的 path/size/SHA/snapshot 与 POSIX `ps` 的 trusted canonical path、size/SHA、version probe、固定 argv、binary snapshot；helper drift、PATH shadow 和 dependency record/helper/ps snapshot/identity 篡改均 fail。专项 5/5、P8 81/81、core/full PASS。
 - [x] 完成 KI-048 独立 reviewer、QA 与 observability 复核：reviewer 最终 PASS，P0/P1/P2/P3=0/0/0/0；正式 evidence QA/observability 对两轮时长、CPU、RSS、磁盘、progress、业务守恒、无残留和 strict inventory 均 PASS。
 - [x] 完成 P8 v2 定向 cleanup：正式 evidence 根无 tmp、symlink、FIFO、socket、漏列文件或残留进程。旧 `artifacts/p8-continuous-local-20260727-invalid-dependency-gap` 无 manifest、被 Git 忽略，只隔离保留作失败审计，不引用、不混入 `final-v2`、不交付；QA 将其记录为唯一非阻断 P3，删除按用户/留存策略另行处理。
 - [x] 代码候选冻结后的第一次 documentation maintenance 已同步主要增量；后续 QA 发现“最新推送”与 current full/reviewer 状态仍有 P2 漂移，已进入最终修复。
 - [x] 完成最终 documentation maintenance 与 QA 复验；QA/observability PASS，P0/P1/P2/P3=0/0/0/0，当前状态无剩余 P2。
-- [x] 重新执行当前返修树本地提交门：文档验证、`light_gate.py`、`git diff --check`、正式 evidence 离线 verify 和 Mac/Colima/Linux `./scripts/run_all_local_gates.sh --full` 均 PASS。
+- [x] 重新执行修复提交树本地提交门：文档验证、`light_gate.py`、`git diff --check`、正式 evidence 离线 verify 和 Mac/Colima/Linux `./scripts/run_all_local_gates.sh --full` 均 PASS。
 - [x] 提交 `5f6a06a` 已 push；GitHub Actions `Local gates` run `30219159920` / job `89838475434` FAIL，并有效发现两项 Linux 跨平台缺口。
-- [ ] 返修后独立 reviewer 与 QA/observability 已 PASS；待提交/push 并跟踪第二次 hosted `Local gates`。在线结果成功前不得关闭最终提交门。
+- [x] 修复后独立 reviewer 与 QA/observability 已 PASS；修复提交 `cc7a3ab` 已 push，第二次 hosted `Local gates` run `30221330296`（job `89844182732`）SUCCESS，GitHub API 返回的 10 个已执行步骤（编号 1–7、13–15）全部成功，check-run annotations 为空。
 - [x] 完成 fixture release package/verify/activate/rollback 及本地 A→B→A 契约（17/17）。
 - [x] 增加 Windows P8 wrapper 和 D 盘/完整依赖清单输入契约；wrapper/collector 静态契约当前 2/2。
 - [x] 增加严格 package manifest generator：完整文件集、双重稳定性复扫、遍历 fail-closed、祖先 link/reparse 与 case/NFC 防护（7/7）。
@@ -246,7 +246,7 @@ P5-01、P5-02A/B、P5-02C1 技术切片已通过门禁。2026-07-19 用户澄清
 - [ ] 在目标 Windows 执行 Release Rebuild，确认 `IMAGEPROCESS_EXPORTS` 重定义和 C4819 warning 实际消失；本地静态门不得替代该结果。
 - [ ] 目标机与外部阻断关闭前保持 P8 进行中：Windows/PowerShell/Qt/GPU/D 盘、真实数据/正式 TensorRT、许可和硬件均不得由本地门替代。
 
-PowerShell 静态门输出固定 `syntaxCompatibilityTargets=["5.1"]`、`scriptAnalyzerMinimumVersion="1.25.0"` 和 `windowsRuntimeClaimed=false`。正式 `final-v2` 2×300 evidence、KI-048 独立 reviewer 与正式 evidence QA/observability/cleanup 仍有效；当前 81 项返修候选已取得 Mac/Colima/Linux full、独立 reviewer 与 QA/observability PASS，仅 hosted rerun 未收口。两类结论均不扩大 Windows/Qt/GPU/TensorRT/SDK/D 盘或硬件 runtime 声明。
+PowerShell 静态门输出固定 `syntaxCompatibilityTargets=["5.1"]`、`scriptAnalyzerMinimumVersion="1.25.0"` 和 `windowsRuntimeClaimed=false`。正式 `final-v2` 2×300 evidence、KI-048 独立 reviewer 与正式 evidence QA/observability/cleanup 仍有效；修复提交 `cc7a3ab` 已取得 Mac/Colima/Linux full、独立 reviewer 与 QA/observability PASS，修复提交 hosted run `30221330296` 已收口。两类结论均不扩大 Windows/Qt/GPU/TensorRT/SDK/D 盘或硬件 runtime 声明。
 
 ## 审查与 QA 节奏
 
