@@ -7,18 +7,6 @@
 #ifndef PCH_H
 #define PCH_H
 
-// 强制定义 IMAGEPROCESS_EXPORTS 宏，因为我们正在编译 DLL
-#define IMAGEPROCESS_EXPORTS
-
-// 在包含其他头文件之前定义导出宏
-#ifdef _MSC_VER
-    #ifdef IMAGEPROCESS_EXPORTS
-        #define IMAGEPROCESS_API __declspec(dllexport)
-    #else
-        #define IMAGEPROCESS_API __declspec(dllimport)
-    #endif
-#endif
-
 // 添加要在此处预编译的标头
 #include <HalconCpp.h>
 #include <windows.h>

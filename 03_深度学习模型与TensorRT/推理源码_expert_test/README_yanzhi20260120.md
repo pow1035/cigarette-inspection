@@ -1,5 +1,8 @@
 # YOLO TensorRT 推理测试工程
 
+<!-- HISTORICAL_TENSORRT_PROTOTYPE -->
+> ⚠️ 历史原型资料：仅保留用于追溯，不是当前构建、性能或交付证据。当前项目状态与验证范围以根目录 [README](../../README.md) 为准。
+
 本项目为 `yanzhi20260120.engine` TensorRT 模型的 C++ 推理测试程序。
 
 ## 功能特性

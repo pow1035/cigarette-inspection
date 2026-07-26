@@ -25,13 +25,13 @@
 | KI-019 | 阻断 | TensorRT 原型不校验 engine shape/binding，CUDA/TensorRT 调用返回值未检查 | 新适配器枚举名称 I/O、验证 FP32 `[1,3,992,992]`/`[1,300,6]` 并检查 CUDA/enqueueV3；旧原型不进入产品构建 | 已修复 | P4 |
 | KI-020 | 阻断 | TensorRT 预/后处理依赖未确认的 resize、张量布局、6/7 列和排序契约 | ONNX 本体确认 `images`/`output0`；OpenCV INTER_LINEAR stretch RGB CHW 与 ONNX 对照；按 `[x1,y1,x2,y2,score,class]` 解析 | 已修复 | P4 |
 | KI-021 | 高 | TensorRT 测试缺初始化状态检查，自动化会被 `waitKey(0)` 阻塞 | 新批处理入口无 GUI 阻塞；初始化失败 exit 4 并写错误 JSON；旧 demo 不进入产品构建 | 已修复 | P4 |
-| KI-022 | 中 | TensorRT 原型目录的多份历史文档含相互冲突的“完成/性能”声明，当前没有配套运行证据 | `运行指南.md:3-20`；`编译完成总结.md:3-23`；`README_USAGE.md:91-94`；`完整部署步骤.md:1-8`；`部署完成总结.md:1-3` | 开放 | P4 |
+| KI-022 | 中 | TensorRT 原型目录的多份历史文档曾含相互冲突的“完成/性能”声明 | 目录内 22 份 Markdown 文档现统一带 `HISTORICAL_TENSORRT_PROTOTYPE` 警告，明确不是当前构建、性能或交付证据；`validate_project_docs.sh` 防回退 | 已修复 | P4/P8 |
 | KI-023 | 高 | 相机 SDK 回调仍执行 RGB 转灰度和 Halcon 图像构造，不符合最终轻量回调边界 | P3 已验证自持 FramePacket 离线消费链；真实相机回调迁移冻结，本地流不复用该回调 | 开放 | 现场冻结 |
 | KI-024 | 高 | `rejectEnabled=false` 只是默认配置，当前没有真实 DO 输出和运行时硬件联锁 | P1 只声明“无输出实现”；P6 仅实现模拟输出，真实安全联锁冻结 | 开放 | P6/现场冻结 |
 | KI-025 | 高 | IO 连续读取失败曾只停读取线程，主界面和相机仍显示运行 | P1 已通过 queued signal 进入统一安全停止；P7 可复用该状态模型做本地错误 UI，真实 IO 恢复仍属现场冻结 | 验证中 | P7/现场冻结 |
 | KI-026 | 高 | `MV_CC_StopGrabbing` 后是否存在晚到帧、是否会污染下一次 Run 尚无目标 SDK 证据 | P1 增加进程期回调守卫、detach 和双层活动计数；P6 只验证本地流重复启停，MVS 结论保持未验证 | 验证中 | P6/现场冻结 |
 | KI-027 | 阻断 | HALCON 22.11.4.0 已加载但本机没有许可证，许可算子和 HDevelop 无法验证 | P3 fixture 不调用许可算子；CigVision 启动只证明 DLL 可加载，不证明许可检测流程 | 开放 | P4 |
-| KI-028 | 中 | Release 构建仍有 `IMAGEPROCESS_EXPORTS` 重定义和源文件代码页 C4819 警告 | `artifacts/p1-windows-20260711-115033/msbuild-release.log`；本轮不做编码批量改写，避免扩大 P1 修复范围 | 开放 | P1/P2 |
+| KI-028 | 中 | Release 构建曾有 `IMAGEPROCESS_EXPORTS` 重定义和源文件代码页 C4819 警告 | process DLL 导出宏已统一由项目定义一次，头文件显式区分 dllexport/dllimport；CigVision/process 全配置增加 `/utf-8`，P1 静态门防回退。仍待目标 Windows Release Rebuild 确认 warning 消失 | 验证中（源配置已修复） | P1/P8 |
 | KI-029 | 高 | P3 固定样本的 OK/NG 是链路 fixture 期望，不是人工 ground truth，也不能用于准确率评估 | `tests/fixtures/p3-samples.json`；偶数 frame_id 固定 NG、奇数固定 OK；P4 必须建立真实标签/授权/模型评估清单 | 接受限制 | P4 |
 | KI-030 | 高 | P4 样本没有人工 ground truth，视觉抽查可见重叠框、超大框、空检候选和标签遮挡，不能判定误检/漏检 | 正式及独立 QA frame 1/3/6/12 抽查；P5 必须建立真值、指标和优化前后对照 | 开放 | P5 |
 | KI-031 | 中 | TensorRT engine 与 GPU/TRT 版本绑定，当前候选 engine 仅存 artifacts，不可作为跨机器部署包 | TRT 8.6 旧 engine 在 TRT 10.15 反序列化失败；当前 engine 由 RTX 4060/TRT 10.15 本机构建 | 接受限制 | P4/P7 |

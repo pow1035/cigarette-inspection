@@ -1,5 +1,8 @@
 # YOLO26 TensorRT C++ 部署指南
 
+<!-- HISTORICAL_TENSORRT_PROTOTYPE -->
+> ⚠️ 历史原型资料：仅保留用于追溯，不是当前构建、性能或交付证据。当前项目状态与验证范围以根目录 [README](../../README.md) 为准。
+
 本项目提供YOLO26模型的TensorRT优化和C++部署方案，针对RTX 3080Ti和RTX 4080S显卡进行了优化。
 
 ## 目录结构

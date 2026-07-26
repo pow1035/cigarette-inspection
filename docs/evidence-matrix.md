@@ -8,7 +8,7 @@
 | AC-00-02 | 需求被拆分并记录 | `docs/requirements.md`；独立 reviewer 结论 | 通过 | P5-P8 本地门槛仍需逐阶段冻结；现场参数已移出当前排期 |
 | AC-00-03 | 架构边界和安全门被记录 | `docs/architecture.md`；独立 reviewer 结论 | 通过 | 尚未通过代码或运行验证 |
 | AC-00-04 | 当前阶段唯一 | `docs/task-plan.md` 唯一 CURRENT_PHASE 标记（现为 P8 进行中）；验证脚本输出 | 通过 | 只覆盖阶段指针；P5/P6/P7 保持外部阻断记录 |
-| AC-00-05 | 已知问题和验证边界可见且事实经复核 | `docs/known-issues.md`；`docs/code-audit.md`；三名 explorer 审计；独立 reviewer 首轮发现与最终复核 | 通过 | 只证明静态代码现状，不证明运行行为 |
+| AC-00-05 | 已知问题和验证边界可见且事实经复核 | `docs/known-issues.md`；`docs/code-audit.md`；三名 explorer 审计；TensorRT 原型目录 22 份 Markdown 的统一免责声明；`validate_project_docs.sh` 防回退；独立 reviewer `/root/review_release_warning_fix` 最终 PASS | 通过 | 历史原型资料不是当前构建、性能或交付证据；本轮未另行声明独立 QA |
 | AC-00-06 | P0 有验证和独立评审 | `docs/review-packet.md`、`docs/review-results.md`；reviewer `019f49b6-62f7-7320-8f43-228c21bfca93` 最终复核；documentation maintenance `019f49b6-62b5-7511-9b1c-93f055de83bc` 复核 | 通过 | 不包含 Windows/硬件 QA |
 | AC-00-07 | P0 未修改业务源码 | 增强后的 `scripts/validate_project_docs.sh` exit 0；限定业务目录的 `git status` 输出为空 | 通过 | P0 新增项仅为 `AGENTS.md`、`docs/`、`scripts/` |
 
@@ -17,7 +17,7 @@
 | AC-01-03 | 映射、内存、帧元数据和编号快照问题已返修 | scripts/validate_p1_static.sh exit 0；源码 diff；独立 QA 返修复核 | 通过（静态） | 不证明相机运行；轻量回调留在 P2/P3 |
 | AC-01-04 | P1 无剔除输出实现且默认关闭 | config.ini 的 rejectEnabled=false；新版工程无 DO 输出实现；P1 静态门 | 通过（静态） | 不是运行时硬件安全门，KI-024 继续追踪 |
 | AC-01-05 | 采集生命周期有进程期回调守卫、双层屏障、故障锁定、IO 故障安全停止和清理路径 | CigVision/MyCamera/readIOTask diff；P1 静态门；独立 QA 返修复核 | 通过（静态） | 晚到帧污染、重复启停、Stop 失败和断连仍需 Windows/MVS QA |
-| AC-01-06 | 工程依赖关系和父目录 include 已声明 | 三个 vcxproj 通过 XML 解析；process 的 `$(ProjectDir)..`；P1 静态门；Release Rebuild exit 0；独立 QA 返修复核 | 通过 | Release 已证明当前路径和构建依赖可用；Debug 仍因 25.05 缺失未进入 MSBuild |
+| AC-01-06 | 工程依赖关系和父目录 include 已声明 | 三个 vcxproj 通过 XML 解析；process 的 `$(ProjectDir)..`；`IMAGEPROCESS_EXPORTS` 工程单点定义；CigVision/process 全配置 `/utf-8`；P1 静态门；历史 Release Rebuild exit 0；独立 reviewer `/root/review_release_warning_fix` 最终 PASS | 通过（新增 warning 修复仅静态） | 历史 Release 证明当时路径和依赖可用；本轮宏/编码配置仍待目标 Windows Release Rebuild 确认 warning 消失，Debug 仍因 25.05 缺失未进入 MSBuild |
 | AC-01-07 | testWrite 不参与新版构建 | vcxproj/filters 无 testWrite；P1 静态门 | 通过（静态） | 历史文件仍保留在目录 |
 
 | AC-02-01 | 四类核心数据契约可脱离 SDK 构造并测试 | `core/InspectionContracts.h`；`tests/CigVision.Contracts/ContractTests.cpp`；`artifacts/p2-contracts-20260711-122211/manifest.json`、两配置 test log、evidence-file-hashes；reviewer `019f4f64-2c4c-7650-b78b-ca60cc35643c`；QA `019f4f64-4069-7011-9a9a-0e5cdb865d6b` | 通过 | Debug/Release 7/7，独立各连续 20 次通过；不证明相机、算法或离线闭环 |

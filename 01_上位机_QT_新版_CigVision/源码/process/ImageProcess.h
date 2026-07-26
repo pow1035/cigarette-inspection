@@ -1,8 +1,13 @@
 ﻿#pragma once
 
-#ifndef IMAGEPROCESS_EXPORTS
-    #define IMAGEPROCESS_API __declspec(dllexport)
-   
+#if defined(_WIN32)
+#  if defined(IMAGEPROCESS_EXPORTS)
+#    define IMAGEPROCESS_API __declspec(dllexport)
+#  else
+#    define IMAGEPROCESS_API __declspec(dllimport)
+#  endif
+#else
+#  define IMAGEPROCESS_API
 #endif
 // 错误代码定义
 enum class ErrorCode {
@@ -44,4 +49,4 @@ extern "C" {
         UpCigBodyPositionParams* upCigBodyPositionParams, DownCigBodyPositionParams* downCigBodyPositionParams,
         UpCigStickDarkDefectParams* upCigStickDarkDefectParams, DownCigStickDarkDefectParams* downCigStickDarkDefectParams,
         std::list<myRect>& rects);
-}; 
+};

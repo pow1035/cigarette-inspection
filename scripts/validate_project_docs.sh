@@ -36,6 +36,26 @@ for file in "${required[@]}"; do
   fi
 done
 
+historical_tensorrt_dir="03_深度学习模型与TensorRT/推理源码_expert_test"
+historical_tensorrt_doc_count=0
+while IFS= read -r historical_doc; do
+  historical_tensorrt_doc_count=$((historical_tensorrt_doc_count + 1))
+  if [[ ! -s "$historical_doc" ]]; then
+    echo "FAIL missing or empty historical TensorRT document: $historical_doc" >&2
+    exit 1
+  fi
+  rg -q '<!-- HISTORICAL_TENSORRT_PROTOTYPE -->' "$historical_doc"
+  rg -q '历史原型资料.*不是当前构建、性能或交付证据' "$historical_doc"
+  rg -q '\[README\]\(\.\./\.\./README\.md\)' "$historical_doc"
+done < <(find "$historical_tensorrt_dir" -maxdepth 1 -type f -name '*.md' -print |
+  LC_ALL=C sort)
+if [[ "$historical_tensorrt_doc_count" -eq 0 ]]; then
+  echo "FAIL no historical TensorRT Markdown documents discovered" >&2
+  exit 1
+fi
+rg -q 'KI-022 .* 已修复 ' docs/known-issues.md
+rg -q 'KI-028 .* 验证中（源配置已修复） ' docs/known-issues.md
+
 for file in scripts/p5_input_readiness.py tests/p5/test_p5_input_readiness.py \
     scripts/p6_simulation_preflight.py tests/p6/test_p6_simulation_preflight.py \
     scripts/p6_windows_simulation_evidence.py tests/p6/test_p6_windows_simulation_evidence.py \

@@ -64,6 +64,11 @@
     <Import Project="$(QtMsBuild)\Qt.props" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+  </ItemDefinitionGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
     <CIGVISION_OPENCV_SUFFIX>d</CIGVISION_OPENCV_SUFFIX>
     <IncludePath>$(MVCAM_COMMON_RUNENV)\Includes;$(CIGVISION_HALCON_DEBUG_ROOT)\include\halconcpp;$(CIGVISION_HALCON_DEBUG_ROOT)\include;$(VC_IncludePath);$(WindowsSDK_IncludePath);$(IncludePath)</IncludePath>

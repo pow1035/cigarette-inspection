@@ -1,5 +1,8 @@
 # 解决cudart64_110.dll缺失问题
 
+<!-- HISTORICAL_TENSORRT_PROTOTYPE -->
+> ⚠️ 历史原型资料：仅保留用于追溯，不是当前构建、性能或交付证据。当前项目状态与验证范围以根目录 [README](../../README.md) 为准。
+
 ## 问题
 TensorRT需要CUDA 11.0的运行时库`cudart64_110.dll`，但系统中没有安装。
 

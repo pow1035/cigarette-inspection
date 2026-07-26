@@ -1,5 +1,8 @@
 # TensorRT转换 - 最终方案
 
+<!-- HISTORICAL_TENSORRT_PROTOTYPE -->
+> ⚠️ 历史原型资料：仅保留用于追溯，不是当前构建、性能或交付证据。当前项目状态与验证范围以根目录 [README](../../README.md) 为准。
+
 ## 当前情况
 
 ✅ **ONNX已导出成功**: `e:\code\yolo26\yanzhi20260115.onnx` (36.6 MB)

@@ -4,6 +4,14 @@
 
 当前实现入口是 **P8 本地稳定性与部署工具闭环**。P7 本地源码已完成，Windows/Qt runtime 保留为外部目标机阻断；P5/P6 外部阻断仍保留。P8 继续禁止真实相机、DAQNavi 和真实剔除，fixture/local tooling 不得冒充产品包。
 
+## Windows warning 源配置与历史原型免责声明增量（2026-07-26）
+
+- 评审范围：CigVision/process 两个 `.vcxproj`、`process/ImageProcess.h`、`process/pch.h`、TensorRT 历史原型目录全部 22 份 Markdown、`validate_p1_static.sh`、`validate_project_docs.sh` 及本轮记录文档。
+- 预期不变量：`IMAGEPROCESS_EXPORTS` 只由 process 工程定义一次，消费方使用 `dllimport`；两个项目全部配置均带 `/utf-8`；历史原型 Markdown 均明确不是当前构建、性能或交付证据。
+- 本地验证：主代理已运行 `./scripts/run_all_local_gates.sh --full`，P5 100/100、P6 17/17、P8 76/76、C++17/C++14、20 次重复、ASan/UBSan 全部通过。
+- 待补证据：目标 Windows Release Rebuild 的原始 MSBuild 日志，需确认 `IMAGEPROCESS_EXPORTS` 重定义和 C4819 warning 实际消失；本地静态门不能支持该 runtime 声明。
+- 评审状态：独立 reviewer `/root/review_release_warning_fix` 首轮提出 XML 门禁语义和 22 份文档计数两项 finding；返修后最终 PASS（P0/P1/P2/P3=0/0/0/0）。本轮未另行声明独立 QA，且不得用静态 PASS 代替目标 Windows Rebuild。
+
 ## P8 主机报告与 v4 证据返修（2026-07-26）
 
 - 评审范围：`scripts/collect_windows_p8_host_reports.ps1`、`scripts/p8_preflight.py`、`scripts/run_windows_p8_preacceptance.ps1`、`scripts/p8_windows_evidence_verify.py`、相应 P8 测试、文档和计数门。

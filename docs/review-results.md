@@ -8,7 +8,15 @@
 - P7 产品状态已扩展到 8/8：新增 typed configured/applied profile、canonical/golden SHA-256、detector→batch→worker→state 帧级身份回传、严格 TensorRT v2 配置、品牌七阈值页面与持久化。本轮独立 reviewer 已确认参数 SHA 同源问题 resolved；Qt/Windows runtime 和 Computer Use 尚未完成。
 - HEAD `6886856` 最终 full gate PASS：P5 100、P6 17、P8 76（preflight 17、soak 9、release 17、wrapper/collector 2、package manifest 7、evidence verify/import 24）、C++14/C++17、20 次重复、ASan/UBSan；PowerShell 13 个脚本零 finding、CLI 7/7。
 - 2026-07-26 PowerShell 静态门当前在 Colima/Linux arm64 以 PowerShell 7.6.3、PSScriptAnalyzer 1.25.0 扫描 13 个 `.ps1`，parser/analyzer finding 0，7/7 CLI 契约 PASS，报告固定 `windowsRuntimeClaimed=false`。GitHub Actions 已在线执行；首次运行暴露的 analyzer 缺失用例隔离差异已改为显式 `ScriptAnalyzerModulePath` 并在本机复验。
+- 当前工作树的 `IMAGEPROCESS_EXPORTS` 单点定义、两项目 `/utf-8` 和 22 份 TensorRT 历史原型免责声明已通过最新本地 `--full` 门；独立 reviewer `/root/review_release_warning_fix` 最终 PASS，本轮未另行声明独立 QA，且目标 Windows Release Rebuild 未执行。
 - P8 仍不关闭：没有真实 Windows + Qt/HALCON/MVS/DAQNavi/CUDA/TensorRT/OpenCV、D 盘产品运行、真实数据、许可或硬件证据；`windowsRuntimeAccepted`、`productAcceptance`/`productAcceptanceClaimed`、真实 IO/剔除声明均为 false。
+
+## 2026-07-26 Windows warning 源配置与历史原型免责声明
+
+- 同代理文档核对确认变更范围与 `docs/known-issues.md` 一致：KI-022 的 22 份历史原型文档已统一降级为非证据资料；KI-028 仅完成源配置修复和静态防回退。
+- 主代理的 `./scripts/run_all_local_gates.sh --full` 结果为 PASS：P5 100/100、P6 17/17、P8 76/76、C++17/C++14、20 次重复、ASan/UBSan。
+- 独立 reviewer `/root/review_release_warning_fix` 首轮报告 P2=1、P3=1：原静态门只做 XML 文本匹配，且 KI-022 写成 5 份而实际覆盖 22 份。返修后 ElementTree 门确认无条件 `/utf-8`/`IMAGEPROCESS_EXPORTS`、条件覆盖继承占位和导出宏唯一性，计数同步为 22；最终 P0/P1/P2/P3=0/0/0/0，PASS。
+- 当前结论仅为本地实现/静态回归通过。本轮未另行声明独立 QA，目标 Windows Release Rebuild 未执行，因此不判定 KI-028 runtime PASS，也不声明历史 TensorRT 原型具备当前构建、性能或交付效力。
 
 ## 2026-07-26 P8 主机报告与 v4 证据返修
 

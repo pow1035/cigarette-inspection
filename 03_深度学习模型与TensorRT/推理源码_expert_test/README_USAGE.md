@@ -1,5 +1,8 @@
 # 🎯 YOLO26 TensorRT C++ 部署完成
 
+<!-- HISTORICAL_TENSORRT_PROTOTYPE -->
+> ⚠️ 历史原型资料：仅保留用于追溯，不是当前构建、性能或交付证据。当前项目状态与验证范围以根目录 [README](../../README.md) 为准。
+
 恭喜! 所有必需的代码和文档已经生成在 `expert_test/` 目录下。
 
 ## 📦 生成的文件 (15个)

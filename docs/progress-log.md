@@ -16,6 +16,15 @@
 - v4 证据认证要求 Package、EvidenceRoot、DeploymentRoot 和 bundle 外的 exactly 32-byte key；manifest 在内存形成固定 UTF-8 bytes，以 `CreateNew + Flush(true)` 写入，SHA/HMAC 针对同一 bytes 计算并复读确认未漂移。verifier 精确复验 preflight 顶层/claims/inputs/9 项检查、v2 reports、采集窗口和 7 个受信 provenance；receipt v4 绑定 HMAC。以上本地门已在 `6886856` 之后执行最终 full gate。
 - 独立 PowerShell 静态门当前在本机 Colima/Linux arm64 使用 PowerShell 7.6.3、PSScriptAnalyzer 1.25.0 扫描 13 个 `.ps1`，parser/analyzer finding 均为 0；CLI 契约 7/7 PASS。结果固定 `windowsRuntimeClaimed=false`，不并入 P8 76/76。
 - 使用隔离的 Python 3.12 环境安装 ONNX Runtime 1.20.1，精确加载 SHA-256 为 `956554A92E8E7F9338B86E2B25FAE3E40F87DDF7F702E04B213AE46C5E26D0C4` 的模型；`images`/`output0` 运行时形状为 `[1,3,992,992]`/`[1,300,6]`，CPU 零输入推理输出为有限 FP32。该检查只证明当前 Mac 可运行 ONNX CPU 诊断链，不是图像效果、正式 TensorRT 或性能证据；受控 reviewed-truth artifact 未随 Git 克隆，完整 pilot 复算仍需恢复该外部输入。
+- 当前工作树已统一 process DLL 的 `IMAGEPROCESS_EXPORTS` 定义并为 CigVision/process 全配置增加 `/utf-8`；22 份 TensorRT 历史原型 Markdown 已统一加免责声明。本轮 `./scripts/run_all_local_gates.sh --full` PASS，但仍缺目标 Windows Release Rebuild，不能声称原 warning 已在 MSVC 实际消失，也不能把历史原型资料计入当前 TensorRT/交付证据。
+
+## 2026-07-26 - Windows warning 源配置收口与历史原型免责声明
+
+- `process.vcxproj` 在共享编译定义中单点设置 `IMAGEPROCESS_EXPORTS`，`ImageProcess.h` 显式区分 DLL 导出/导入，`pch.h` 不再重复定义；CigVision/process 两个项目的全部配置统一增加 `/utf-8`。
+- `validate_p1_static.sh` 固定上述工程/头文件不变量并拒绝宏重复；`validate_project_docs.sh` 扫描 TensorRT 原型目录全部 22 份 Markdown，要求统一 marker、免责声明和当前 README 链接。
+- 主代理已运行 `./scripts/run_all_local_gates.sh --full`：P5 100/100、P6 17/17、P8 76/76、C++17/C++14、20 次重复、ASan/UBSan 全部通过。
+- 证据边界：这是本地源配置、文档与 SDK-free 回归，不是 Windows/MSVC runtime。KI-028 保持“验证中（源配置已修复）”，需在目标机 Release Rebuild 后再确认重定义/C4819 warning 消失；22 份原型文档不是当前构建、性能、TensorRT 或交付证据。
+- documentation maintenance 已同步 README、计划、证据和评审记录；独立 reviewer `/root/review_release_warning_fix` 首轮发现静态门未验证无条件 XML 语义及“5/22”计数漂移，返修后最终 PASS（P0/P1/P2/P3=0/0/0/0）。本轮未另行声明独立 QA；cleanup 无新增到期信号。
 
 ## 2026-07-26 - PowerShell parser/PSScriptAnalyzer 独立静态门
 

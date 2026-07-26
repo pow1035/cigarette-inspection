@@ -218,6 +218,11 @@ P5-01、P5-02A/B、P5-02C1 技术切片已通过门禁。2026-07-19 用户澄清
 - [x] 当前 v2/v4/HMAC/文件锁增量最终 reviewer `019f9a55-8131-7423-96a7-44d934c28255` 与 QA `019f9a55-99a2-7011-887f-119893e3ec4f` 均 PASS，P0/P1/P2/P3=0/0/0/0。
 - [x] 提交 `7e7c2de2b157cf5c2ace8b5263e8db5f57c89902` 已 push；2026-07-26（Asia/Shanghai）的在线 Actions `Local gates` 运行 `30169095184`（job `89706968923`）SUCCESS，全部步骤通过、check-run annotations 为空，原 Node 20 warning 已消失；checkout/setup-python v6 均固定完整提交 SHA。最终 reviewer `019f9a6b-f76e-7620-a9e4-1e681e7f8d0b` PASS（P0/P1/P2/P3=0/0/0/0，对抗 18/18），QA `019f9a6c-0733-7da1-986f-6176824be92d` PASS（P0/P1/P2/P3=0/0/0/0，对抗 17/17）。
 - [x] 第七轮/最终 documentation maintenance 同步 full gate 与文件锁快照防护，并冻结本地证据边界。
+- [x] process DLL 导出宏改为工程单点定义，CigVision/process 全配置增加 `/utf-8`；P1 静态门已加入防回退检查。
+- [x] TensorRT 历史原型目录 22 份 Markdown 已统一加免责声明，文档门强制其不得被当作当前构建、性能或交付证据。
+- [x] 上述增量后的 `./scripts/run_all_local_gates.sh --full` 本地门 PASS：P5 100、P6 17、P8 76、C++14/C++17、20 次重复、ASan/UBSan。
+- [x] 独立 reviewer `/root/review_release_warning_fix` 首轮两项 finding 已返修，最终 P0/P1/P2/P3=0/0/0/0、PASS；XML 门现验证无条件配置、继承占位和导出宏唯一性。
+- [ ] 在目标 Windows 执行 Release Rebuild，确认 `IMAGEPROCESS_EXPORTS` 重定义和 C4819 warning 实际消失；本地静态门不得替代该结果。
 - [ ] 目标机与外部阻断关闭前保持 P8 进行中：Windows/PowerShell/Qt/GPU/D 盘、真实数据/正式 TensorRT、许可和硬件均不得由本地门替代。
 
 PowerShell 静态门输出固定 `syntaxCompatibilityTargets=["5.1"]`、`scriptAnalyzerMinimumVersion="1.25.0"` 和 `windowsRuntimeClaimed=false`。HEAD `6886856` 最终 full gate 已覆盖 P8 76/76 与 PowerShell 13 个脚本/CLI 7/7；该结论不扩大 Windows/Qt/GPU/SDK/D 盘或硬件 runtime 声明。

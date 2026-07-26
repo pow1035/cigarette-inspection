@@ -1,5 +1,8 @@
 # TensorRT Python安装指南
 
+<!-- HISTORICAL_TENSORRT_PROTOTYPE -->
+> ⚠️ 历史原型资料：仅保留用于追溯，不是当前构建、性能或交付证据。当前项目状态与验证范围以根目录 [README](../../README.md) 为准。
+
 ## 问题
 
 ONNX导出成功 ✓
