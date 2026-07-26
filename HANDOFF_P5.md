@@ -1,8 +1,10 @@
 ﻿# P5 项目交接说明
 
-更新时间：2026-07-25
+更新时间：2026-07-27
 当前阶段：P8（本地稳定性、部署与交付预验收）；P5/P6/P7 外部阻断保留
 当前分支：`main`
+
+历史 CI 硬化证据：提交 `7e7c2de2b157cf5c2ace8b5263e8db5f57c89902` 的 GitHub Actions `Local gates` 运行 `30169095184`（job `89706968923`）SUCCESS，全部步骤通过、check-run annotations 为空、原 Node 20 warning 已消失，checkout/setup-python v6 均固定完整提交 SHA；最终 reviewer `019f9a6b-f76e-7620-a9e4-1e681e7f8d0b` 与 QA `019f9a6c-0733-7da1-986f-6176824be92d` PASS。该记录不覆盖当前 P8 v2 连续运行增量。
 
 ## 1. 本轮已经完成的工作
 
@@ -194,7 +196,17 @@ P5 的正式 TensorRT 与受控 artifact 仍由 KI-039/KI-040 阻断，不应因
 - SDK-free 产品状态当前 8/8；typed configured/applied profile、canonical/golden SHA-256、帧级漂移拒绝、TensorRT v2 配置绑定和品牌七阈值页面/持久化已接入。当前 UI 构造固定 local-only，不初始化相机或 DAQNavi；Qt/Windows 页面 runtime 和 Computer Use 尚未取得。
 - 首轮独立 reviewer/QA 的 8 项发现已全部修复；修复后 reviewer 与 QA 均 PASS，另覆盖 TSan、ASan/UBSan、重复压力和启动窗口 stop 探针。
 
-P7-01B 统计/诊断页和 P7-01C 配置身份/安全退出的本地源码已实现。P8 当前 76/76（preflight 17、soak 9、fixture release 17、wrapper/collector 2、package manifest 7、evidence verify/import 24），PowerShell 为 13 个脚本零 finding、CLI 7/7。v4 wrapper 以显式 RepositoryRoot 现场采集；collector 的 `Get-LockedFileSnapshot` 对完整 reparse 祖先链检查后持 `FileShare.Read` 锁并在锁内计算 SHA，wrapper 对 provenance collector 持读句柄贯穿执行并前后复算 SHA/复查 reparse 链。提交 `6886856` 后的最终 full gate 已通过：P5 100、P6 17、P8 76、C++14/C++17、20 次重复、ASan/UBSan。提交 `7e7c2de2b157cf5c2ace8b5263e8db5f57c89902` 已 push；2026-07-26（Asia/Shanghai）的在线 Actions `Local gates` 运行 `30169095184`（job `89706968923`）SUCCESS，全部步骤通过、check-run annotations 为空，原 Node 20 warning 已消失，checkout/setup-python v6 均固定完整提交 SHA。最终 reviewer `019f9a6b-f76e-7620-a9e4-1e681e7f8d0b` PASS（P0/P1/P2/P3=0/0/0/0，对抗 18/18），QA `019f9a6c-0733-7da1-986f-6176824be92d` PASS（P0/P1/P2/P3=0/0/0/0，对抗 17/17）。目标机仍须按 `docs/windows-target-execution.md` 准备外置 32-byte key、运行 v4 wrapper 并执行 SHA/HMAC verify/import。真实 Windows/Qt/GPU/SDK/硬件仍未验收；P5 reviewed-truth/fallback 受控数据仍未恢复，不能据本地门关闭 P5/P8。
+P7-01B 统计/诊断页和 P7-01C 配置身份/安全退出的本地源码已实现。P8 旧 v1 工具回归为 76/76（preflight 17、soak 9、fixture release 17、wrapper/collector 2、package manifest 7、evidence verify/import 24），HEAD `6886856` 的 full gate、最终 reviewer/QA 和后续 hosted run 均保留为历史快照。v4 wrapper 的现场 challenge、显式 RepositoryRoot、collector 锁内 SHA、外置 32-byte key 与 SHA/HMAC verify/import 语义没有变化。
+
+当前 P8 v2 连续运行切片把 Python 测试清单扩展到 81 项；当前候选已实跑连续专项 5/5、P8 精确 81/81、公开 wrapper 的 C++17 contract run + self-verify + 独立二次 verify，并通过当前树 `--core`/`--full`。新增：
+
+- `config/p8-continuous-soak-profiles-v1.json`：把短语义门和正式本地连续门锁定为版本化 profile；
+- `scripts/p8_continuous_soak.py`：对同一连续进程组采集 RSS、累计 CPU、CPU P50/P95、磁盘和输出，并复验完整 evidence；
+- `scripts/run_p8_local_continuous_soak.sh`：编译并运行 SDK-free C++ runner；
+- `tests/CigVision.LocalSoak/LocalSoakRuntime.cpp`：真实循环 `OfflineInspectionSession` 与 `ProductRuntimeState`，复核接收/处理/判定、sink、archive 和产品状态守恒；
+- `tests/p8/test_p8_continuous_soak.py`：覆盖瞬时成功假绿、健康运行与二次 verify、warm-up 后内存增长、证据篡改和 profile/CLI 锁定。
+
+`contract-test-v1` 只有 0.12 秒，CPU 最低工作量 0.01 秒、RSS 增长上限 16 MiB，只能证明短语义门。`local-sdkfree-v1` 固定 2×300 秒、60 秒 warm-up、每轮至少 240 个 resource samples/240 条 progress、最大 progress gap 5 秒、至少 240 sessions/122880 frames、进程组累计 CPU 至少 10 秒、RSS 增长不超过 64 MiB、磁盘余量至少 1 GiB；CLI 不能放宽这些阈值。正式 project `run` 内部完成受控编译：绑定 runtime kind、compiler path/size/SHA/version、standard/flags/include、8 个 source hash + snapshot 和 executable hash + snapshot，并拒绝编译期间源码漂移；外部 build provenance 只允许 contract test helper，伪造 project provenance exit 2 且不建 evidence。tool dependencies 现绑定新/旧两个 Python tool source 的 size/SHA/snapshot，并固定 POSIX `ps` 的 canonical path、size/SHA、version probe、argv 和 binary snapshot；helper 漂移、PATH shadow 与依赖篡改均拒绝。`durationSeconds` 是已验真 runtime 工作时长，`processLifetimeSeconds` 是冻结于真实退出点的进程寿命；Linux 进程组 CPU 由固定 `ps` 枚举后读取 `/proc/<pid>/stat` 汇总，pure-sleep 负路径会被 CPU 门拒绝。runtime summary 新增 `productStateOk/Ng/Error` 与 `progressRecords`，逐轮对齐 Offline 分桶。独立 inventory 不忽略 `.tmp`，tmp/symlink/FIFO 均失败；Windows 正常退出需两次 fresh tree enumeration，第二次枚举失败的回归会拒绝 clean gate。两种 profile 都固定 real IO/reject/product acceptance 为 false。当前统一 81、core/full 已 PASS；KI-048 reviewer 最终 PASS。正式 evidence `artifacts/p8-continuous-local-20260727-final-v2` 已完成 self-verify、主代理独立 verify 和 reviewer 两次独立 verify：两轮 300.046591/300.020852 秒，共 3,793,408 帧，manifest SHA-256 为 `2bd420fab44acbed98315ffac5cf6a2b22567dcae42d98e522be35de3a7bcdd4`；正式 evidence QA/observability/cleanup PASS。唯一非阻断 P3 是旧 `invalid-dependency-gap` 无 manifest 失败目录仍隔离保留：它被 Git 忽略，只作失败审计，不得引用、混入 `final-v2` 或交付，删除仅按用户/留存策略执行。P8 v2 本地连续工具证据可标 PASS，P8/AC-08 整体仍因外部目标机、数据、许可和硬件条件保持进行中。
 
 ## 4. 新接手者的启动顺序
 
@@ -204,8 +216,9 @@ P7-01B 统计/诊断页和 P7-01C 配置身份/安全退出的本地源码已实
 4. 阅读 `docs/p5-source-inventory.md` 和 `docs/p5-labeling-guide.md`；
 5. 阅读 `docs/progress-log.md`、`docs/evidence-matrix.md`、`docs/review-results.md`；
 6. 从受控渠道恢复 `artifacts/` 证据和数据并核对 SHA-256（若要复算 P5）；
-7. 先运行 `./scripts/run_all_local_gates.sh --full`，再按 `docs/windows-target-execution.md` 与 P6/P7 目标机 Qt/Windows 验证清单执行；本机不得伪造目标机结果；
-8. P5 外部输入恢复后再运行完整 P5 回归；任何情况下都不恢复真实硬件/剔除链路。
+7. 保留正式证据 `artifacts/p8-continuous-local-20260727-final-v2`，不要覆盖或用旧失败目录替代；如代码/profile 变化需重跑，必须创建新的 evidence root。`artifacts/p8-continuous-local-20260727-invalid-dependency-gap` 只按本地失败审计策略隔离保留，不引用、不交付；
+8. 再按 `docs/windows-target-execution.md` 与 P6/P7 目标机 Qt/Windows 验证清单执行；本机不得伪造目标机结果；
+9. P5 外部输入恢复后再运行完整 P5 回归；任何情况下都不恢复真实硬件/剔除链路。
 
 ## 5. Git 与数据边界
 

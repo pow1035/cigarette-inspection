@@ -20,7 +20,7 @@ Usage: ./scripts/run_all_local_gates.sh [--core|--full]
   --core  Documents, static invariants, exact Python suites, Python syntax,
           strict C++17 regressions, and standalone-header builds.
   --full  Core gates plus C++14 compatibility, simulation repetition, and
-          ASan/UBSan runs. This is the default.
+          ASan/UBSan runs including the continuous-soak runtime. This is the default.
 EOF
     exit 0
     ;;
@@ -77,7 +77,7 @@ echo "== Documentation and static invariants =="
 echo "== Exact Python regressions =="
 PYTHONDONTWRITEBYTECODE=1 run_python_suite tests/p5 100
 PYTHONDONTWRITEBYTECODE=1 run_python_suite tests/p6 17
-PYTHONDONTWRITEBYTECODE=1 run_python_suite tests/p8 76
+PYTHONDONTWRITEBYTECODE=1 run_python_suite tests/p8 81
 
 echo "== Python syntax without bytecode artifacts =="
 python3 - <<'PY'
@@ -126,6 +126,11 @@ g++ "${cxx17_flags[@]}" \
 "$gate_build_dir/offline-cxx17"
 "$gate_build_dir/simulation-cxx17"
 "$gate_build_dir/product-state-cxx17"
+./scripts/run_p8_local_continuous_soak.sh \
+  --profile contract-test-v1 \
+  --evidence-root "$gate_build_dir/local-soak-cxx17-evidence"
+python3 scripts/p8_continuous_soak.py verify \
+  --evidence-root "$gate_build_dir/local-soak-cxx17-evidence"
 
 echo "== Standalone SDK-free header builds =="
 header_index=0
@@ -168,6 +173,21 @@ if [[ "$mode" == "full" ]]; then
     -o "$gate_build_dir/product-state-cxx14"
   "$gate_build_dir/simulation-cxx14"
   "$gate_build_dir/product-state-cxx14"
+  python3 scripts/p8_continuous_soak.py run \
+    --evidence-root "$gate_build_dir/local-soak-cxx14-evidence" \
+    --profile contract-test-v1 \
+    --cwd "$repo_root" \
+    --compiler "$(command -v g++)" \
+    --standard c++14 \
+    -- \
+    --output-dir '{output_dir}' \
+    --duration-seconds '{minimum_duration_seconds}' \
+    --frames-per-session 512 \
+    --restart '{restart}' \
+    --round '{round}' \
+    --iteration '{iteration}'
+  python3 scripts/p8_continuous_soak.py verify \
+    --evidence-root "$gate_build_dir/local-soak-cxx14-evidence"
 
   echo "== Repeated optimized simulation =="
   g++ "${cxx17_flags[@]}" -O2 \
@@ -179,7 +199,7 @@ if [[ "$mode" == "full" ]]; then
   done
   echo "PASS optimized simulation repeat: 20/20"
 
-  echo "== ASan/UBSan simulation and product state =="
+  echo "== ASan/UBSan simulation, product state, and continuous-soak runtime =="
   sanitizer_flags=(
     "${cxx17_flags[@]}"
     -fsanitize=address,undefined
@@ -191,14 +211,46 @@ if [[ "$mode" == "full" ]]; then
   g++ "${sanitizer_flags[@]}" \
     tests/CigVision.ProductState/ProductStateTests.cpp \
     -o "$gate_build_dir/product-state-sanitized"
+  g++ "${sanitizer_flags[@]}" \
+    tests/CigVision.LocalSoak/LocalSoakRuntime.cpp \
+    -o "$gate_build_dir/local-soak-sanitized"
+  mkdir "$gate_build_dir/local-soak-sanitized-output"
   if [[ "$(uname -s)" == "Darwin" ]]; then
     echo "INFO Apple ASan does not support LeakSanitizer; detect_leaks=0"
     ASAN_OPTIONS=detect_leaks=0 "$gate_build_dir/simulation-sanitized"
     ASAN_OPTIONS=detect_leaks=0 "$gate_build_dir/product-state-sanitized"
+    ASAN_OPTIONS=detect_leaks=0 "$gate_build_dir/local-soak-sanitized" \
+      --output-dir "$gate_build_dir/local-soak-sanitized-output" \
+      --duration-seconds 0.12 --frames-per-session 128 \
+      --restart 1 --round 1 --iteration 1
   else
     ASAN_OPTIONS=detect_leaks=1 "$gate_build_dir/simulation-sanitized"
     ASAN_OPTIONS=detect_leaks=1 "$gate_build_dir/product-state-sanitized"
+    ASAN_OPTIONS=detect_leaks=1 "$gate_build_dir/local-soak-sanitized" \
+      --output-dir "$gate_build_dir/local-soak-sanitized-output" \
+      --duration-seconds 0.12 --frames-per-session 128 \
+      --restart 1 --round 1 --iteration 1
   fi
+  python3 - "$gate_build_dir/local-soak-sanitized-output/local-soak-summary.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+document = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+if not (
+    document.get("schemaVersion") == "cigvision-local-soak-runtime-v1"
+    and document.get("completed") is True
+    and document.get("invariantsPassed") is True
+    and document.get("sdkFree") is True
+    and document.get("realIoEnabled") is False
+    and document.get("realRejectEnabled") is False
+    and document.get("productAcceptanceClaimed") is False
+    and document.get("durationSeconds", 0) >= 0.12
+    and document.get("framesProcessed", 0) > 0
+):
+    raise SystemExit("ERROR sanitized local-soak runtime summary mismatch")
+print("PASS sanitized local-soak runtime summary")
+PY
 fi
 
 git diff --check

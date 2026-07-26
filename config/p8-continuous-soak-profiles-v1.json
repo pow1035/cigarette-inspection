@@ -1,0 +1,47 @@
+{
+  "schemaVersion": "p8-continuous-soak-profiles-v1",
+  "profiles": {
+    "contract-test-v1": {
+      "durationClass": "test-only-short",
+      "claimScope": "sdk-free-test-contract-only",
+      "roundsPerRestart": 1,
+      "restarts": 1,
+      "minimumDurationSeconds": 0.12,
+      "timeoutSeconds": 2.0,
+      "sampleIntervalSeconds": 0.02,
+      "terminationGraceSeconds": 0.5,
+      "rssWarmupSeconds": 0.04,
+      "minimumSampleCount": 4,
+      "minimumProcessGroupCpuSeconds": 0.01,
+      "maximumIntraRunRssGrowthBytes": 16777216,
+      "minimumProgressRecordCount": 2,
+      "maximumProgressGapSeconds": 0.5,
+      "minimumSessionsCompleted": 1,
+      "minimumFramesProcessed": 128,
+      "minimumDiskFreeBytes": 1,
+      "maximumOutputBytes": 4194304,
+      "runtimeContractSchema": "cigvision-local-soak-runtime-v1"
+    },
+    "local-sdkfree-v1": {
+      "durationClass": "continuous-local",
+      "claimScope": "sdk-free-local-continuous-evidence-only",
+      "roundsPerRestart": 2,
+      "restarts": 1,
+      "minimumDurationSeconds": 300.0,
+      "timeoutSeconds": 330.0,
+      "sampleIntervalSeconds": 1.0,
+      "terminationGraceSeconds": 5.0,
+      "rssWarmupSeconds": 60.0,
+      "minimumSampleCount": 240,
+      "minimumProcessGroupCpuSeconds": 10.0,
+      "maximumIntraRunRssGrowthBytes": 67108864,
+      "minimumProgressRecordCount": 240,
+      "maximumProgressGapSeconds": 5.0,
+      "minimumSessionsCompleted": 240,
+      "minimumFramesProcessed": 122880,
+      "minimumDiskFreeBytes": 1073741824,
+      "maximumOutputBytes": 67108864,
+      "runtimeContractSchema": "cigvision-local-soak-runtime-v1"
+    }
+  }
+}

@@ -61,15 +61,17 @@ for file in scripts/p5_input_readiness.py tests/p5/test_p5_input_readiness.py \
     scripts/p6_windows_simulation_evidence.py tests/p6/test_p6_windows_simulation_evidence.py \
     tests/p6/fake_cigvision_runtime.py scripts/run_windows_p6_simulation.ps1 \
     scripts/p8_package_manifest.py scripts/p8_preflight.py \
-    scripts/p8_soak_evidence.py scripts/p8_release.py \
+    scripts/p8_soak_evidence.py scripts/p8_continuous_soak.py \
+    scripts/run_p8_local_continuous_soak.sh scripts/p8_release.py \
     scripts/p8_windows_evidence_verify.py \
     scripts/collect_windows_p8_host_reports.ps1 \
     scripts/validate_powershell_scripts.ps1 \
     tests/powershell/test_validate_powershell_scripts.ps1 \
     scripts/run_all_local_gates.sh \
     scripts/run_windows_p8_preacceptance.ps1 config/p8-local-gates-v1.json \
+    config/p8-continuous-soak-profiles-v1.json \
     tests/p8/test_p8_package_manifest.py tests/p8/test_p8_preflight.py \
-    tests/p8/test_p8_soak.py \
+    tests/p8/test_p8_soak.py tests/p8/test_p8_continuous_soak.py \
     tests/p8/test_p8_release.py tests/p8/test_p8_windows_wrapper.py \
     tests/p8/test_p8_windows_evidence_verify.py \
     01_上位机_QT_新版_CigVision/源码/core/BatchCommandLine.h \
@@ -84,7 +86,8 @@ for file in scripts/p5_input_readiness.py tests/p5/test_p5_input_readiness.py \
     tests/CigVision.Simulation/SimulationTests.cpp \
     tests/CigVision.Simulation/CigVision.Simulation.vcxproj \
     tests/CigVision.ProductState/ProductStateTests.cpp \
-    tests/CigVision.ProductState/CigVision.ProductState.vcxproj; do
+    tests/CigVision.ProductState/CigVision.ProductState.vcxproj \
+    tests/CigVision.LocalSoak/LocalSoakRuntime.cpp; do
   if [[ ! -s "$file" ]]; then
     echo "FAIL missing or empty: $file" >&2
     exit 1
@@ -232,7 +235,7 @@ if rg -n 'v6.*(尚待|等待).*在线复验' README.md HANDOFF_P5.md AGENTS.md \
   echo "FAIL stale checkout/setup-python v6 online-validation status" >&2
   exit 1
 fi
-rg -q 'run_python_suite tests/p8 76' scripts/run_all_local_gates.sh
+rg -q 'run_python_suite tests/p8 81' scripts/run_all_local_gates.sh
 rg -q 'validate_powershell_scripts\.ps1' \
   .github/workflows/p5-local-gates.yml README.md docs/task-plan.md \
   docs/evidence-matrix.md
@@ -254,6 +257,23 @@ rg -q '_require_no_windows_reparse_ancestors' scripts/p8_preflight.py \
 rg -q 'treeEnumerationSucceeded' scripts/p8_soak_evidence.py \
   tests/p8/test_p8_soak.py
 rg -q 'math\.isfinite' scripts/p8_soak_evidence.py
+rg -q 'local-sdkfree-v1' config/p8-continuous-soak-profiles-v1.json \
+  scripts/p8_continuous_soak.py scripts/run_p8_local_continuous_soak.sh
+rg -q 'minimumDurationSeconds.*300\.0' scripts/p8_continuous_soak.py
+rg -q 'minimumSampleCount.*240' scripts/p8_continuous_soak.py
+rg -q 'maximumIntraRunRssGrowthBytes.*16 \* 1024 \* 1024' \
+  scripts/p8_continuous_soak.py
+rg -q 'maximumIntraRunRssGrowthBytes.*64 \* 1024 \* 1024' \
+  scripts/p8_continuous_soak.py
+rg -q '"maximumIntraRunRssGrowthBytes": 16777216' \
+  config/p8-continuous-soak-profiles-v1.json
+rg -q '"maximumIntraRunRssGrowthBytes": 67108864' \
+  config/p8-continuous-soak-profiles-v1.json
+rg -q 'RSS 增长 ≤16 MiB' docs/p8-local-closure.md
+rg -q 'RSS 增长不超过 64 MiB' docs/p8-local-closure.md
+rg -q 'LocalSoakRuntime\.cpp' scripts/run_all_local_gates.sh
+rg -q -- '--compiler' scripts/run_p8_local_continuous_soak.sh
+rg -q 'project runners must be built by run' scripts/p8_continuous_soak.py
 rg -q 'p8-windows-preacceptance-wrapper-v4' \
   scripts/run_windows_p8_preacceptance.ps1 \
   scripts/p8_windows_evidence_verify.py
@@ -339,9 +359,9 @@ rg -Fq 'CreateNew + Flush(true)' docs/windows-target-execution.md \
 rg -q 'provenanceFiles' scripts/run_windows_p8_preacceptance.ps1 \
   scripts/p8_windows_evidence_verify.py
 rg -q 'def import_evidence' scripts/p8_windows_evidence_verify.py
-rg -q 'run_python_suite tests/p8 76' scripts/run_all_local_gates.sh
+rg -q 'run_python_suite tests/p8 81' scripts/run_all_local_gates.sh
 rg -q 'PASS all local gates' scripts/run_all_local_gates.sh
-rg -q 'P8.*76' README.md docs/task-plan.md docs/evidence-matrix.md \
+rg -q 'P8.*81' README.md docs/task-plan.md docs/evidence-matrix.md \
   docs/progress-log.md docs/review-packet.md docs/review-results.md
 rg -q '13 个 .*\.ps1|13 个 `\.ps1`|13 脚本' \
   README.md docs/task-plan.md docs/evidence-matrix.md \

@@ -2,7 +2,14 @@
 
 ## 当前状态
 
-P3/P4 已具备逐帧 JSON、汇总计数、输入/输出哈希和 detector latency 证据；P6-01B 已实现产品 trace 源码，P6-02 已在 SDK-free 虚拟时钟下产出队列/丢弃/P95 指标。P7-01A 新增有界产品状态快照、最近结果、具名复核和诊断事件容器；统一持久化日志、资源指标和完整 UI 诊断页仍未实现，不声明现场可观测性通过。
+P3/P4 已具备逐帧 JSON、汇总计数、输入/输出哈希和 detector latency 证据；P6/P7 已形成 SDK-free 仿真与产品状态指标。P8 v2 增加同一进程组 RSS/累计 CPU/P50/P95、持续 progress、磁盘、输出、verified runtime 工作时长、进程寿命、受控 build/tool provenance、ProductRuntimeState 分桶和严格 inventory。当前连续专项 5/5、P8 精确 81/81、公开 wrapper C++17 contract run/self-verify/独立 verify、core/full 均 PASS；KI-048 已把新/旧 Python tool source 与 POSIX `ps` identity/snapshot 纳入 toolDependencies，并经独立 reviewer 最终复核 PASS。正式 `artifacts/p8-continuous-local-20260727-final-v2` 两轮 evidence、主代理/reviewer 独立 verify 和正式 evidence QA/observability/cleanup 均 PASS；该结论仅覆盖 P8 v2 本地 SDK-free 连续工具证据。
+
+| 轮次 | 工作时长 / 进程寿命 | samples / warm-up 后 | CPU / RSS 增长 | progress / 最大 gap | sessions / frames | OK / NG / Error |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | 300.046591 / 300.358913 秒 | 291 / 232 | 30.64 秒 / 16 KiB | 3786 / 0.085584 秒 | 3786 / 1,938,432 | 969,216 / 969,216 / 0 |
+| 2 | 300.020852 / 300.027510 秒 | 292 / 233 | 23.51 秒 / 0 | 3623 / 0.098617 秒 | 3623 / 1,854,976 | 927,488 / 927,488 / 0 |
+
+两轮 Offline 与 ProductRuntimeState 分桶逐项相等，error/drop/subsystem/save failure 为 0；29 个 inventory 文件精确匹配，manifest SHA-256 为 `2bd420fab44acbed98315ffac5cf6a2b22567dcae42d98e522be35de3a7bcdd4`。旧无 manifest 失败目录仅按本地失败审计策略隔离保留，不属于可观测性或验收证据。
 
 ## 统一事件字段
 
@@ -26,7 +33,8 @@ P3/P4 已具备逐帧 JSON、汇总计数、输入/输出哈希和 detector late
 - 预处理、推理、后处理、端到端时延的 P50/P95/P99。
 - OK/NG 数、按缺陷类别计数、模拟剔除数、跳过数和失败数。
 - 保存成功/失败数、磁盘剩余空间。
-- 进程内存、GPU 显存、CPU/GPU 利用率和连续运行时长。
+- 同一连续进程组的 RSS、累计 CPU 单调性、CPU interval P50/P95、进程数量、采样完整性、已验真 runtime 工作时长 `durationSeconds` 和冻结于真实退出点的 `processLifetimeSeconds`。Linux CPU 由 `ps` 枚举进程组后读取各 PID `/proc/<pid>/stat` 汇总；pure-sleep 不能冒充工作量。
+- GPU 显存与 GPU 利用率；P8 v2 本地 SDK-free profile 不采集 GPU，也不得从 CPU/RSS evidence 推断 GPU 稳定性。
 
 P5 先冻结效果数据集和指标口径，P6/P8 再冻结本地时延、队列、吞吐、资源和运行时长门槛。现场阈值保持未知，不由本地门槛推断。
 
@@ -37,9 +45,12 @@ P5 先冻结效果数据集和指标口径，P6/P8 再冻结本地时延、队�
 - P5：数据版本、标注版本、模型/engine/配置哈希、逐类及烟支级指标、错误样本和优化前后对照。
 - P6：文件/录制流、模拟相机与编号、队列深度、丢弃/乱序、端到端时延、模拟剔除命令及停止/恢复行为；P6-01B 的 `simulation-trace.json` 绑定配置、每帧 clock、command、receipt 和 error，模拟回执不早于计划时间；P6-02 的 `RealtimeSimulationSummary` 绑定逐帧 disposition、最大 queue/pipeline depth、P95 queue wait/end-to-end、逐相机守恒和可重算的序列账目；`scripts/p6_simulation_preflight.py` 在目标机运行前只读核对 manifest 的路径/哈希/元数据和 trace 的 Simulation-only/账目一致性；`scripts/p6_windows_simulation_evidence.py` 另保存命令、stdout/stderr、输入/逐帧/summary/trace 复核、六类 CLI rejection 和 SHA-256 evidence manifest。以上仍是 SDK-free/源码、输入预检和可测试编排证据，不替代 Qt/Windows runtime 或现场指标。
 - P7：Qt 用户操作、页面状态、模型状态、统计/复核/配置流程、废弃功能清单和 Computer Use 截图/观察。
-- P8：长时运行资源曲线、故障注入、恢复、部署、升级/回滚、本地预验收报告，以及 package manifest SHA、本次 wrapper challenge、现场 Windows/GPU v2 主机报告、显式 RepositoryRoot、collector SHA、wrapper 采集窗口、外部 wrapper manifest SHA/HMAC、结束复扫、严格 argv/profile/阈值/gate/run 守恒、真实 soak 语义和带 `verifierSha256`/manifest HMAC 的 import receipt v4。32-byte evidence key 必须在 Package、EvidenceRoot、DeploymentRoot 外单独保管，不进入 bundle。采集/交接步骤见 `docs/windows-target-execution.md`。
+- P8 v2 本地连续运行：短门为 0.12 秒、CPU ≥0.01 秒、progress ≥2/gap ≤0.5 秒、RSS ≤16 MiB；正式门为两轮各 ≥300 秒、60 秒 warm-up、samples/progress ≥240、gap ≤5 秒、sessions ≥240、frames ≥122880、CPU ≥10 秒、RSS ≤64 MiB、磁盘 ≥1 GiB。`local-soak-summary.json` 与 NDJSON 逐轮证明 Offline/ProductRuntimeState OK/NG/Error、sink/archive 和 processed 守恒。正式 project `run` 内部受控编译并快照 compiler/compile/8 source/executable；toolDependencies 另快照新/旧 Python tool source 与 POSIX `ps` identity/binary；外部 provenance 只允许 contract helper。inventory 不忽略 `.tmp`；Windows clean gate 需两次 fresh tree enumeration、no residual 与 enumeration success，并覆盖二次枚举失败。real IO/reject/product acceptance 均为 false。
+- P8 Windows/部署：长时运行资源曲线、故障注入、恢复、部署、升级/回滚、本地预验收报告，以及 package manifest SHA、本次 wrapper challenge、现场 Windows/GPU v2 主机报告、显式 RepositoryRoot、collector SHA、wrapper 采集窗口、外部 wrapper manifest SHA/HMAC、结束复扫、严格 argv/profile/阈值/gate/run 守恒、Windows soak 语义和带 `verifierSha256`/manifest HMAC 的 import receipt v4。32-byte evidence key 必须在 Package、EvidenceRoot、DeploymentRoot 外单独保管，不进入 bundle。P8 v2 不修改或替换这条 Windows v1/v4 证据链；采集/交接步骤见 `docs/windows-target-execution.md`。
 
-HEAD `6886856` 最终 full gate 已通过 P5 100、P6 17、P8 76、C++14/C++17、20 次重复、ASan/UBSan；PowerShell 13 个脚本零 finding、CLI 7/7。collector 的锁定文件快照记录完整 reparse 祖先链安全与 `FileShare.Read` 锁内 SHA；wrapper 对 provenance collector 的读锁贯穿执行并前后复算 SHA/复查 reparse。preflight 与 v4 wrapper/receipt 仍固定不声明产品验收。提交 `7e7c2de2b157cf5c2ace8b5263e8db5f57c89902` 已 push；2026-07-26（Asia/Shanghai）的在线 Actions `Local gates` 运行 `30169095184`（job `89706968923`）SUCCESS，全部步骤通过、check-run annotations 为空，原 Node 20 warning 已消失，checkout/setup-python v6 均固定完整提交 SHA。最终 reviewer `019f9a6b-f76e-7620-a9e4-1e681e7f8d0b` PASS（P0/P1/P2/P3=0/0/0/0，对抗 18/18），QA `019f9a6c-0733-7da1-986f-6176824be92d` PASS（P0/P1/P2/P3=0/0/0/0，对抗 17/17）。真实 Windows/Qt/GPU/SDK、D 盘资源曲线、P5 受控数据、许可、硬件和真实 bundle 尚未采集。
+2026-07-27 当前增量证据：连续运行专项 5/5、P8 精确 81/81、公开 wrapper C++17 contract run + self-verify + 独立 verify、core/full 均 PASS；伪造 project provenance、helper drift、PATH shadow、dependency record/helper/ps snapshot/identity 篡改和 pure-sleep CPU 负路径均按预期失败。KI-048 与正式两轮 evidence 已由独立 reviewer/QA/observability/cleanup 复核收口；本地连续工具证据 PASS。另明确本地 manifest/verify 没有带外 HMAC，只证明包内一致性和 snapshot/源码绑定，不能外推 Windows/GPU/产品验收。
+
+历史快照：HEAD `6886856` 最终 full gate 已通过 P5 100、P6 17、P8 76、C++14/C++17、20 次重复、ASan/UBSan；PowerShell 13 个脚本零 finding、CLI 7/7。collector 的锁定文件快照记录完整 reparse 祖先链安全与 `FileShare.Read` 锁内 SHA；wrapper 对 provenance collector 的读锁贯穿执行并前后复算 SHA/复查 reparse。preflight 与 v4 wrapper/receipt 仍固定不声明产品验收。提交 `7e7c2de2b157cf5c2ace8b5263e8db5f57c89902` 的在线 Actions `Local gates` 运行 `30169095184`（job `89706968923`）SUCCESS，全部步骤通过、check-run annotations 为空、原 Node 20 warning 已消失，checkout/setup-python v6 均固定完整提交 SHA；最终 reviewer `019f9a6b-f76e-7620-a9e4-1e681e7f8d0b` 与 QA `019f9a6c-0733-7da1-986f-6176824be92d` PASS。该运行只覆盖当时范围，不覆盖当前 P8 v2 连续运行增量。真实 Windows/Qt/GPU/TensorRT/SDK、D 盘资源曲线、P5 受控数据、许可、硬件和真实 bundle 尚未采集。
 
 最新提交 `6d492528c7f9c0b0b2e3cc70e1c60a74cb62cede` 的 hosted `Local gates` run `30188084112`（job `89756233568`）SUCCESS；当前记录以该运行作为最新在线门证据，边界仍为 `windowsRuntimeClaimed=false`、`productAcceptanceClaimed=false`。
 

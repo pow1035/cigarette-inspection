@@ -4,6 +4,22 @@
 
 当前实现入口是 **P8 本地稳定性与部署工具闭环**。P7 本地源码已完成，Windows/Qt runtime 保留为外部目标机阻断；P5/P6 外部阻断仍保留。P8 继续禁止真实相机、DAQNavi 和真实剔除，fixture/local tooling 不得冒充产品包。
 
+## P8 v2 连续运行防假绿增量（2026-07-27，评审已收口）
+
+- 评审范围：`config/p8-continuous-soak-profiles-v1.json`、`scripts/p8_continuous_soak.py`、`scripts/run_p8_local_continuous_soak.sh`、`tests/CigVision.LocalSoak/LocalSoakRuntime.cpp`、`tests/p8/test_p8_continuous_soak.py`，以及 `run_all_local_gates.sh`、文档门和本轮记录文档的接线。旧 `p8_soak_evidence.py` 与 Windows v1/v4 证据语义不在替换范围内。
+- 防假绿目标：短命 exit 0 不得因“进程成功”单独通过；每轮必须满足最低持续时长、最低完整采样数、累计 CPU 单调/interval 完整、同一连续进程组 warm-up 后 RSS 增长、磁盘和输出预算、无残留进程组，以及严格 runtime summary 守恒。
+- 锁定 profile：短门为 0.12 秒、CPU ≥0.01 秒、progress ≥2/gap ≤0.5 秒、RSS ≤16 MiB；正式门为 2×300 秒、330 秒 timeout、60 秒 RSS warm-up、每轮 samples/progress ≥240、gap ≤5 秒、sessions ≥240、frames ≥122880、CPU ≥10 秒、RSS ≤64 MiB、磁盘 ≥1 GiB。CLI 不提供阈值放宽参数。
+- Build/runtime 契约：正式 project `run` 在同一路径内用 `--compiler/--standard` 受控编译，确认源码编译期间未漂移，并把 runtime kind、compiler path/size/SHA/version、standard/flags/include、8 个 source hash + snapshot 和 executable hash + snapshot 写入 evidence；外部 `--build-provenance` 仅允许 contract test helper。伪造 project provenance 必须 exit 2 且不创建 evidence。runtime/progress 逐轮对齐 Offline 与 ProductRuntimeState 的 OK/NG/Error，并固定 real IO/reject/product acceptance 为 false。
+- 计时/资源/退出契约：`durationSeconds` 是已验真 runtime 工作时长，`processLifetimeSeconds` 冻结在真实退出点并约束前者不得超过后者；Linux 以 `ps` 枚举进程组，再从各 PID 的 `/proc/<pid>/stat` 汇总 CPU，pure-sleep 伪 runtime 必须失败。短/正式 RSS 上限分别为 16/64 MiB。独立 inventory 除 manifest 外不忽略 `.tmp`，tmp/symlink/FIFO 均失败；Windows 正常退出需两次 fresh process-tree enumeration，第二次枚举失败必须使 clean gate 失败。
+- 当前已取得：连续运行专项 5/5、P8 精确 81/81、公开 wrapper 的 C++17 contract run + self-verify + 独立二次 verify、`./scripts/run_all_local_gates.sh --core` 与 `--full` 均 PASS；full 另覆盖受控 C++14 contract + verify、repeat 20 和 ASan/UBSan runtime。公开 wrapper 前置检查 `python3`、`g++`、`ps`。
+- KI-048 最终状态：`p8_continuous_soak.py`/旧 `p8_soak_evidence.py` 的 repo-relative path/size/SHA/snapshot 与 POSIX `ps` 的 trusted canonical path、size/SHA、version probe、固定 argv、binary snapshot 均纳入 toolDependencies；helper drift、PATH shadow、dependency record/helper/ps snapshot/identity 篡改均 fail。独立 reviewer 最终 PASS，P0/P1/P2/P3=0/0/0/0。
+- 正式 evidence：`artifacts/p8-continuous-local-20260727-final-v2` 的 overall result 为 `passed-local-continuous-tooling`，2/2 runs succeeded。两轮工作时长 300.046591/300.020852 秒，samples 291/292，CPU 30.64/23.51 秒，RSS 增长 16 KiB/0，progress 3786/3623，最大 gap 0.085584/0.098617 秒，累计 3,793,408 帧；OK/NG 各 1,896,704，Error/drop/subsystem/save failure 全部为 0。
+- evidence 身份：manifest SHA-256 为 `2bd420fab44acbed98315ffac5cf6a2b22567dcae42d98e522be35de3a7bcdd4`；inventory 为 29 个文件、3,654,771 bytes，根目录含 manifest 共 30 个文件。生成进程 self-verify、主代理独立 verify、reviewer 两次独立 verify/标准库重算均 PASS。
+- 本地 evidence 信任边界：`soak-manifest.json` + 离线 `verify` 证明包内哈希/派生值/快照与当前源码绑定一致，但没有 Windows v4 的带外 HMAC，不能认证恶意方协调重写整个 evidence 包；应置于可信本地存储或另行保存带外摘要。这是边界声明，不是当前工具失败。
+- 独立 QA/observability/cleanup：正式 evidence 的时长、资源、progress、守恒、无残留和 strict inventory 均 PASS。cleanup 仅记录一个非阻断 P3：旧 `artifacts/p8-continuous-local-20260727-invalid-dependency-gap` 无 manifest、被 Git 忽略，只隔离保留作失败审计，不引用、不混入 `final-v2`、不交付；删除按用户/留存策略另行处理。
+- 最终 documentation maintenance 已同步正式 evidence、独立结论与限制；本轮提交门已通过文档验证、`light_gate.py`、`git diff --check`、正式 evidence 离线 verify 和 `./scripts/run_all_local_gates.sh --full`。P8 v2 本地连续工具证据可标 PASS，但 P8/AC-08 整体仍保持进行中。
+- 明确排除：Windows/MSVC、Qt、HALCON、MVS、DAQNavi、CUDA/TensorRT/OpenCV、GPU、D 盘产品运行、正式数据、许可、真实 IO/剔除和产品验收。
+
 ## Windows warning 源配置与历史原型免责声明增量（2026-07-26）
 
 - 评审范围：CigVision/process 两个 `.vcxproj`、`process/ImageProcess.h`、`process/pch.h`、TensorRT 历史原型目录全部 22 份 Markdown、`validate_p1_static.sh`、`validate_project_docs.sh` 及本轮记录文档。
@@ -35,7 +51,7 @@
 - 修复：P3 构建参数从自动变量 `$args` 改为 `$buildArguments`；P4 重复样本索引从闭包 `$i` 改为显式 `$sampleIndex` 循环。
 - 本机证据：Colima/Linux arm64，PowerShell 7.6.3，PSScriptAnalyzer 1.25.0；当前 13 个 `.ps1` parser finding 0、analyzer finding 0；有效仓库、损坏语法、PowerShell 7 三元语法被 5.1 门拒绝、缺失根目录、缺失 scripts 目录、空 scripts 目录和缺 analyzer 共 7/7 CLI 契约 PASS，exit 2/3 均输出机器可读 JSON。
 - 声明边界：5.1 兼容静态检查不等于 Windows PowerShell 5.1 实跑；该证据不证明 Windows、Qt、GPU、D 盘、真实数据、许可或硬件。
-- 计数边界：P8 当前 Python/静态契约回归是 76/76；PowerShell 13 脚本零 finding 和 7/7 CLI 契约单独记录。
+- 计数边界：该 PowerShell 增量快照时 P8 Python 回归为 76/76；当前清单已扩展到 81 项并已通过当前树 `--core`/`--full`。PowerShell 13 脚本零 finding 和 7/7 CLI 契约始终单独记录。
 - CI 边界：提交 `7e7c2de2b157cf5c2ace8b5263e8db5f57c89902` 已 push；2026-07-26（Asia/Shanghai）的在线 Actions `Local gates` 运行 `30169095184`（job `89706968923`）SUCCESS，全部步骤通过、check-run annotations 为空，原 Node 20 warning 已消失，checkout/setup-python v6 均固定完整提交 SHA。Linux CI 不覆盖 Windows/Qt/GPU/硬件 runtime。
 - 评审状态：此前 reviewer `019f99cb-7c02-7b23-b498-9b28e7ba761c` 与 QA `019f99d7-8a02-7da1-8641-2d533409d06d` 只覆盖 2026-07-25 的 70 项范围；PowerShell 增量 reviewer `019f9a17-7e58-7350-9ec3-7373f3151f4f` 与 QA `019f9a17-98ad-7f23-9c36-6d62a7fa49ec` 只覆盖其静态门快照。当前 v2/v4/HMAC/文件锁增量已由 reviewer `019f9a55-8131-7423-96a7-44d934c28255` 与 QA `019f9a55-99a2-7011-887f-119893e3ec4f` 最终复核并 PASS，P0/P1/P2/P3=0/0/0/0；CI 硬化最终 reviewer `019f9a6b-f76e-7620-a9e4-1e681e7f8d0b` PASS（P0/P1/P2/P3=0/0/0/0，对抗 18/18），QA `019f9a6c-0733-7da1-986f-6176824be92d` PASS（P0/P1/P2/P3=0/0/0/0，对抗 17/17）。P8 仍因目标机和外部输入保持进行中。
 - 文档维护验证：`./scripts/validate_project_docs.sh` PASS；`light_gate.py` 无 warning；`git diff --check` PASS。

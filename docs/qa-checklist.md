@@ -164,16 +164,23 @@
 | SDK-free soak | 通过（本地工具） | 9/9；多轮新目录、超时/崩溃、RSS/磁盘/输出、Windows Toolhelp 子进程与 API 失败门 |
 | fixture release | 通过（本地工具） | 17/17；source manifest 绑定复制、单快照 manifest、原子 activate/rollback、失败保持 current/shared |
 | Windows wrapper/collector | 通过（本地静态契约） | 2/2；collector `Get-LockedFileSnapshot` 检查完整 reparse 祖先链、以 `FileShare.Read` 锁内计算 SHA；wrapper 持 provenance collector 读锁贯穿执行并前后复算 SHA/复查 reparse |
-| PowerShell parser/PSScriptAnalyzer/5.1 兼容门 | 通过（本机静态） | Colima/Linux arm64，PowerShell 7.6.3、PSScriptAnalyzer 1.25.0；当前 13 个 `.ps1` parser/analyzer finding 0；`PSUseCompatibleSyntax` target 5.1；7/7 CLI 契约 PASS；`windowsRuntimeClaimed=false`，不并入 P8 76/76 |
+| PowerShell parser/PSScriptAnalyzer/5.1 兼容门 | 通过（本机静态） | Colima/Linux arm64，PowerShell 7.6.3、PSScriptAnalyzer 1.25.0；当前 13 个 `.ps1` parser/analyzer finding 0；`PSUseCompatibleSyntax` target 5.1；7/7 CLI 契约 PASS；`windowsRuntimeClaimed=false`，不并入 P8 的 81 项 Python 清单 |
 | 跨机 evidence verify/import | 通过（本地工具） | 24/24；HEAD `6886856` 最终 full gate 覆盖；带外 SHA/HMAC/key 与 `productAcceptanceClaimed=false` 边界不变 |
+| P8 v2 Python 防假绿语义 | 通过（当前本地候选） | 连续专项 5/5、P8 精确 81/81；覆盖受控 project build、外部 provenance 仅限 helper、伪造 project provenance 拒绝、verified duration/真实 process lifetime、Linux `/proc` CPU、pure-sleep CPU 负路径、16/64 MiB RSS、严格 inventory 与 Windows 双枚举失败/成功分支 |
+| `contract-test-v1` C++ 短语义门 | 通过（当前本地候选） | 公开 wrapper C++17 run + self-verify + 独立 verify PASS；profile 固定 0.12 秒、CPU ≥0.01 秒、RSS ≤16 MiB，只允许证明短 contract，不得写成长稳证据 |
+| `local-sdkfree-v1` 正式连续运行 | 通过（本地连续工具证据） | `artifacts/p8-continuous-local-20260727-final-v2`：两轮 300.046591/300.020852 秒，291/292 samples，progress 3786/3623、gap 0.085584/0.098617 秒，sessions 3786/3623，frames 1,938,432/1,854,976，CPU 30.64/23.51 秒，RSS +16 KiB/0；Offline/ProductRuntimeState 分桶一致、Error 0、无残留。self-verify、主代理独立 verify、reviewer 两次独立 verify PASS |
+| 当前树 core/full | 通过（提交门） | `run_all_local_gates.sh --core`/`--full` PASS；core 覆盖 P8 精确 81 与公开 C++17 wrapper run/self-verify/独立 verify，full 另覆盖受控 C++14 contract + verify、repeat 20、ASan/UBSan runtime。最终文档门、正式 evidence 离线 verify 和 `git diff --check` 同步 PASS |
+| P8 v2 独立 reviewer | 通过 | `/root/p8_v2_reviewer` 对 KI-048 与正式 `final-v2` evidence 最终 PASS，P0/P1/P2/P3=0/0/0/0；两次独立 verify、29 个 inventory 文件、8 个源码、compiler/executable、新旧工具与 `/bin/ps` identity 均匹配 |
+| P8 v2 独立 QA / observability | 通过 | `/root/p8_gate_docs_audit`：正式 evidence 两轮时长、CPU、RSS、磁盘、progress、业务守恒、无残留和 29-file strict inventory 均 PASS；error/drop/subsystem/save failure 为 0 |
+| P8 v2 定向 cleanup | 通过（1 个非阻断 P3） | 正式 evidence 根无 tmp、symlink、FIFO、socket、漏列文件或残留进程。旧 `artifacts/p8-continuous-local-20260727-invalid-dependency-gap` 无 manifest、被 Git 忽略，只隔离保留作失败审计，不引用、不混入 `final-v2`、不交付；删除按用户/留存策略另行执行 |
 | 早期 39 项独立 reviewer / QA | 通过（历史本地范围） | reviewer `019f99b4-2e4c-7742-9d20-60a0396d7900`、QA `019f99b4-4746-7d72-b5b6-568af6d8dfdd`；最终 P0/P1/P2=0/0/0，不覆盖 evidence v2 |
 | 历史 70 项独立 reviewer | 通过（历史本地范围） | `019f99cb-7c02-7b23-b498-9b28e7ba761c`：初审及追加 findings 全部关闭，P0/P1/P2=0/0/0；不覆盖当前 v2/v4/HMAC 返修 |
 | 历史 70 项独立 QA | 通过（历史本地范围） | `019f99d7-8a02-7da1-8641-2d533409d06d`：可信仓库 verifier 修复后 PASS，P0/P1/P2=0/0/0；不覆盖当前 v2/v4/HMAC 返修 |
-| 当前 P8 测试集 | 通过（本地工具） | 76/76：preflight 17、soak 9、release 17、wrapper/collector 2、package manifest 7、evidence verify/import 24 |
+| 历史 P8 v1 测试集 | 通过（历史本地工具） | 76/76：preflight 17、soak 9、release 17、wrapper/collector 2、package manifest 7、evidence verify/import 24；当前清单已扩展为 81 项，最新统一门待重跑 |
 | v2/v4/HMAC/文件锁返修 | 通过（最终本地门） | HEAD `6886856` full gate PASS；最终 reviewer `019f9a55-8131-7423-96a7-44d934c28255` 与 QA `019f9a55-99a2-7011-887f-119893e3ec4f` 均 PASS，P0/P1/P2/P3=0/0/0/0；不据此声明 Windows runtime 或产品验收 |
 | PowerShell 增量独立 reviewer | 通过（本机静态范围） | `019f9a17-7e58-7350-9ec3-7373f3151f4f` 在两项 P3 和一项文档计数 P2 修复后最终 PASS，P0/P1/P2/P3=0/0/0/0；确认 12 脚本零 finding、7/7 CLI、exit 2/3 JSON、5.1 语法拒绝及文档防回退 |
 | PowerShell 增量独立 QA | 通过（本机静态范围） | `019f9a17-98ad-7f23-9c36-6d62a7fa49ec` 最终 PASS，P0/P1/P2=0/0/0；12 脚本零 finding、7/7 CLI、exit 2/3 JSON、5.1 兼容拒绝、文件哈希不变 |
-| 最终 full local gate | 通过 | HEAD `6886856`：P5 100、P6 17、P8 76、C++14/C++17、20 次重复、ASan/UBSan；PowerShell 13 脚本零 finding、CLI 7/7 |
+| 历史最终 full local gate | 通过（历史快照） | HEAD `6886856`：P5 100、P6 17、P8 76、C++14/C++17、20 次重复、ASan/UBSan；PowerShell 13 脚本零 finding、CLI 7/7；不覆盖 P8 v2 |
 | Windows 目标机执行与跨机交接 | 手册已返修，runtime 未验证 | `docs/windows-target-execution.md` 固化 package manifest、外置 32-byte key、v4 wrapper 现场采集、带外 SHA/HMAC、拷回、verify/import 和声明边界 |
 | Windows/PowerShell/D 盘/GPU 长稳 | 未验证 | 本机无目标环境；不得把 `passed-local-tooling` 外推为 AC-08 产品通过 |
 

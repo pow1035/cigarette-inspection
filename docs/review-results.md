@@ -1,6 +1,10 @@
 # 评审结果
 
-## 当前状态（2026-07-26）
+## 当前状态（2026-07-27）
+
+- P8 v2 Python 清单已扩展到 81 项；当前冻结候选已通过连续专项 5/5、P8 精确 81/81、公开 wrapper 的 C++17 contract run + self-verify + 独立二次 verify，以及当前树 `--core`/`--full`。正式 `artifacts/p8-continuous-local-20260727-final-v2` 已完成 2×300 秒：两轮分别运行 300.046591/300.020852 秒，累计 3,793,408 帧，manifest SHA-256 为 `2bd420fab44acbed98315ffac5cf6a2b22567dcae42d98e522be35de3a7bcdd4`。
+- KI-048 已修复并完成独立复核：新/旧 Python tool source 和实际 POSIX `ps` identity/snapshot 均进入 toolDependencies，helper 漂移、PATH shadow 与 dependency/helper/`ps` snapshot/identity 篡改均拒绝。独立 reviewer 最终 PASS，P0/P1/P2/P3=0/0/0/0；正式 evidence 的 QA/observability/cleanup 也已 PASS，QA 仅记录旧失败目录隔离保留这一项非阻断 P3。
+- P8 v2 本地连续工具证据可标记 PASS；本轮提交门已通过文档验证、`light_gate.py`、`git diff --check`、正式 evidence 离线 verify 和 `./scripts/run_all_local_gates.sh --full`。P8/AC-08 整体仍因 Windows/Qt/GPU/TensorRT/SDK/D 盘、正式数据、许可和硬件阻断而进行中。
 
 - P5-02C3 双人复核真值晋级和 P5-02C5 临时 ONNX Runtime CPU 基线的独立 reviewer/QA 均已 PASS；相关历史章节中的“未开始”表述仅保留为当日记录。
 - P5-02C7 受控输入就绪工具经多轮独立对抗返修后 reviewer/QA PASS；当前代码快照为 readiness 24/24、P5 100/100。工具通过不等于外部 artifact ready，KI-040 继续开放。
@@ -8,8 +12,19 @@
 - P7 产品状态已扩展到 8/8：新增 typed configured/applied profile、canonical/golden SHA-256、detector→batch→worker→state 帧级身份回传、严格 TensorRT v2 配置、品牌七阈值页面与持久化。本轮独立 reviewer 已确认参数 SHA 同源问题 resolved；Qt/Windows runtime 和 Computer Use 尚未完成。
 - HEAD `6886856` 最终 full gate PASS：P5 100、P6 17、P8 76（preflight 17、soak 9、release 17、wrapper/collector 2、package manifest 7、evidence verify/import 24）、C++14/C++17、20 次重复、ASan/UBSan；PowerShell 13 个脚本零 finding、CLI 7/7。
 - 2026-07-26 PowerShell 静态门当前在 Colima/Linux arm64 以 PowerShell 7.6.3、PSScriptAnalyzer 1.25.0 扫描 13 个 `.ps1`，parser/analyzer finding 0，7/7 CLI 契约 PASS，报告固定 `windowsRuntimeClaimed=false`。GitHub Actions 已在线执行；首次运行暴露的 analyzer 缺失用例隔离差异已改为显式 `ScriptAnalyzerModulePath` 并在本机复验。
-- 当前工作树的 `IMAGEPROCESS_EXPORTS` 单点定义、两项目 `/utf-8` 和 22 份 TensorRT 历史原型免责声明已通过最新本地 `--full` 门；独立 reviewer `/root/review_release_warning_fix` 最终 PASS，本轮未另行声明独立 QA，且目标 Windows Release Rebuild 未执行。
+- warning 修复快照的 `IMAGEPROCESS_EXPORTS` 单点定义、两项目 `/utf-8` 和 22 份 TensorRT 历史原型免责声明曾通过当时的本地 `--full` 门；该结论不覆盖当前 P8 v2。独立 reviewer `/root/review_release_warning_fix` 最终 PASS，本轮未另行声明独立 QA，且目标 Windows Release Rebuild 未执行。
 - P8 仍不关闭：没有真实 Windows + Qt/HALCON/MVS/DAQNavi/CUDA/TensorRT/OpenCV、D 盘产品运行、真实数据、许可或硬件证据；`windowsRuntimeAccepted`、`productAcceptance`/`productAcceptanceClaimed`、真实 IO/剔除声明均为 false。
+
+## 2026-07-27 P8 v2 连续运行防假绿增量
+
+- 文档维护自查确认新增范围为锁定 profile、连续运行采集/验真工具、shell 入口、真实 SDK-free C++ runtime 和 5 项对抗测试；旧 Windows soak/verifier 未被修改或替换。
+- `contract-test-v1` 固定 0.12 秒、CPU ≥0.01 秒、progress ≥2/gap ≤0.5 秒。正式 `local-sdkfree-v1` 固定 2×300 秒、60 秒 warm-up、每轮 samples/progress ≥240、gap ≤5 秒、sessions ≥240、frames ≥122880、CPU ≥10 秒、RSS ≤64 MiB、磁盘 ≥1 GiB。
+- C++ runtime 真实执行 `OfflineInspectionSession`/`ProductRuntimeState`，要求 frame/decision、sink、archive、product-state 守恒，并固定 real IO、real reject、product acceptance 为 false。
+- 最终冻结候选：正式 project `run` 内部受控编译并快照 runtime/compiler/compile/8 source/executable，外部 provenance 只允许 contract helper，伪造 project provenance exit 2 且不建 evidence；`durationSeconds` 与真实退出点冻结的 `processLifetimeSeconds` 分离；Linux `/proc` 进程组 CPU 与 pure-sleep 负路径、持续 progress、ProductRuntimeState OK/NG/Error、严格 inventory 和 Windows 两次 fresh tree enumeration 均有回归。KI-048 另把新/旧 tool source 与 POSIX `ps` identity/binary 纳入 toolDependencies。
+- 最新验证为连续运行 5/5、P8 精确 81/81、公开 wrapper contract run/self-verify/独立 verify、`--core` 和 `--full` PASS；full 另覆盖 C++14、repeat 20 与 ASan/UBSan runtime。正式 evidence 2/2 runs succeeded：samples 291/292、warm-up 后 232/233、CPU 30.64/23.51 秒、RSS 增长 16 KiB/0、progress 3786/3623、最大 gap 0.085584/0.098617 秒；OK/NG 各 1,896,704，Error/drop/subsystem/save failure 全部为 0，29 个 inventory 文件共 3,654,771 bytes。
+- 文档 QA P2 已记录：本地 `soak-manifest.json` 与离线 `verify` 证明 evidence 内部一致性、snapshot/源码绑定和当前候选复验，不具备 Windows v4 的带外 HMAC，不能认证恶意方协调重写整个 evidence 包。这是本地可信存储/传输边界，不判定为工具失败。
+- 生成进程 self-verify、主代理独立 verify、独立 reviewer 两次 verify/标准库重算和正式 evidence QA/observability/cleanup 均 PASS；reviewer 最终 P0/P1/P2/P3=0/0/0/0。旧 `artifacts/p8-continuous-local-20260727-invalid-dependency-gap` 无 manifest、被 Git 忽略，只隔离保留作失败审计，不得引用、混入正式 evidence 或交付。
+- 历史 Windows v1/v4、HEAD `6886856` full gate、PowerShell 和 hosted CI 结论继续有效于各自旧范围，但不反向证明 P8 v2 连续运行稳定性。
 
 ## 2026-07-26 Windows warning 源配置与历史原型免责声明
 

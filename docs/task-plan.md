@@ -2,7 +2,7 @@
 
 <!-- CURRENT_PHASE:P8 -->
 
-当前阶段：P8 本地稳定性、部署与交付预验收进行中。P7 的本地源码与 SDK-free 参数/状态契约已完成，本机无法补 Windows/Qt runtime，故转为外部目标机阻断；P5/P6 外部阻断继续保留。真实相机、真实 IO 和真实剔除继续禁止。一次只允许一个阶段处于“进行中”。
+当前阶段：P8 本地稳定性、部署与交付预验收进行中。P8 Python 清单为 81 项；当前冻结候选已通过连续专项 5/5、P8 精确 81/81、公开 wrapper 的 C++17 contract run + self-verify + 独立二次 verify，以及当前树 core/full。正式 `final-v2` 2×300 秒 evidence、KI-048 独立 reviewer、QA/observability 和定向 cleanup 均已收口；本轮提交门也已通过，P8 v2 本地连续工具证据可标 PASS。P8/AC-08 整体仍因 Windows/Qt/GPU/TensorRT/SDK/D 盘、正式数据、许可和硬件阻断而进行中。P7 本地源码与 SDK-free 参数/状态契约已完成，剩余 Windows/Qt runtime 转为外部目标机阻断；P5/P6 外部阻断继续保留。真实相机、真实 IO 和真实剔除继续禁止。
 
 | 阶段 | 状态 | 目标 | 退出条件 |
 | --- | --- | --- | --- |
@@ -190,6 +190,25 @@ P5-01、P5-02A/B、P5-02C1 技术切片已通过门禁。2026-07-19 用户澄清
 - [x] 建立 local-only 严格 package preflight：重复键/NaN、路径、symlink、case/NFC、size/SHA、配置、品牌和输出隔离。
 - [x] 修复 `[General]`、应用目录、默认品牌、QRC 图标与开发机 UI 路径等静态部署阻断。
 - [x] 完成 SDK-free soak 证据编排和故障矩阵（9/9）。
+- [x] 保持旧 `p8_soak_evidence.py`、Windows v1/v4 证据链和历史 76 项验证语义不变，不用 P8 v2 改写既有 Windows evidence。
+- [x] 新增版本锁定的连续运行 profile、验证器、shell 入口、C++ runtime 与 5 项对抗测试：`config/p8-continuous-soak-profiles-v1.json`、`scripts/p8_continuous_soak.py`、`scripts/run_p8_local_continuous_soak.sh`、`tests/CigVision.LocalSoak/LocalSoakRuntime.cpp`、`tests/p8/test_p8_continuous_soak.py`。
+- [x] `contract-test-v1` 固定为 0.12 秒短语义门；CLI 不提供 duration/sample/RSS/disk/round/restart 等阈值放宽参数。
+- [x] `local-sdkfree-v1` 固定 1 次 restart × 2 轮、每轮至少 300 秒、60 秒 warm-up、至少 240 samples/240 progress records、最大 progress gap 5 秒、sessions ≥240、frames ≥122880、累计进程组 CPU ≥10 秒、RSS 增长 ≤64 MiB、磁盘 ≥1 GiB；短 profile CPU 门为 0.01 秒。
+- [x] 正式 project `run` 在同一路径内使用 `--compiler/--standard` 受控编译并强绑定 runtime kind、compiler path/size/SHA/version、standard/flags/include、8 个 source hash + snapshot 和 executable hash + snapshot；编译期间源码漂移 fail-closed。外部 `--build-provenance` 仅允许 contract test helper，伪造 project provenance exit 2 且不创建 evidence。
+- [x] C++ runner 实际循环 `OfflineInspectionSession`/`ProductRuntimeState`；runtime/progress 同时记录 `productStateOk/Ng/Error` 与 `progressRecords`，逐轮与 Offline OK/NG/Error 分桶一致，real IO/reject/product acceptance 固定 false。
+- [x] `durationSeconds` 只取已验真的 runtime 工作时长，`processLifetimeSeconds` 冻结于真实退出点并约束前者不得超过进程寿命；Linux `ps` 枚举进程组后读取各 PID `/proc/<pid>/stat` 汇总 CPU，pure-sleep 伪 runtime 被最低 CPU 门拒绝。短/正式 RSS 上限分别为 16/64 MiB。
+- [x] evidence inventory 除 manifest 外不忽略 `.tmp`，tmp/symlink/FIFO 均 fail；Windows 正常退出执行两次 fresh tree enumeration，clean gate 同时要求 `noResidualProcessConfirmed` 与 `treeEnumerationSucceeded`；回归覆盖第二次枚举失败必须 fail。
+- [x] 当前候选连续运行专项 5/5、P8 精确 81/81、公开 wrapper C++17 contract run + self-verify + 独立二次 verify 已通过；wrapper 显式前置检查 `python3`、`g++`、`ps`。
+- [x] 当前工作树 `./scripts/run_all_local_gates.sh --core` PASS；覆盖 P8 精确 81、公开 wrapper 的受控 C++17 contract run、自验和独立 verify。
+- [x] 当前工作树 `./scripts/run_all_local_gates.sh --full` PASS；另覆盖受控 C++14 contract run + verify、20 次优化仿真和 ASan/UBSan continuous-soak runtime。
+- [x] 用 `local-sdkfree-v1` 取得正式 2×300 秒、可二次 verify 的忽略目录 evidence：`artifacts/p8-continuous-local-20260727-final-v2` 两轮 300.046591/300.020852 秒，samples 291/292、CPU 30.64/23.51 秒、RSS 增长 16 KiB/0、progress 3786/3623、gap 0.085584/0.098617 秒，累计 3,793,408 帧；manifest SHA-256 `2bd420fab44acbed98315ffac5cf6a2b22567dcae42d98e522be35de3a7bcdd4`，29 个 inventory 文件、3,654,771 bytes。self-verify、主代理独立 verify 和 reviewer 两次独立 verify 均 PASS。
+- [x] KI-048 实现与本地回归已修：toolDependencies 绑定当前/旧 Python tool source 的 path/size/SHA/snapshot 与 POSIX `ps` 的 trusted canonical path、size/SHA、version probe、固定 argv、binary snapshot；helper drift、PATH shadow 和 dependency record/helper/ps snapshot/identity 篡改均 fail。专项 5/5、P8 81/81、core/full PASS。
+- [x] 完成 KI-048 独立 reviewer、QA 与 observability 复核：reviewer 最终 PASS，P0/P1/P2/P3=0/0/0/0；正式 evidence QA/observability 对两轮时长、CPU、RSS、磁盘、progress、业务守恒、无残留和 strict inventory 均 PASS。
+- [x] 完成 P8 v2 定向 cleanup：正式 evidence 根无 tmp、symlink、FIFO、socket、漏列文件或残留进程。旧 `artifacts/p8-continuous-local-20260727-invalid-dependency-gap` 无 manifest、被 Git 忽略，只隔离保留作失败审计，不引用、不混入 `final-v2`、不交付；QA 将其记录为唯一非阻断 P3，删除按用户/留存策略另行处理。
+- [x] 代码候选冻结后的第一次 documentation maintenance 已同步当前实现与 5/5、81/81、wrapper、core/full 证据；文档门 PASS、`light_gate.py` 无 warning、`git diff --check` PASS。
+- [x] 正式 2×300、独立 review/QA/observability 与 cleanup 结束后执行最终 documentation maintenance，清除当前状态中的中间表述并保持 P8/AC-08 外部阻断边界。
+- [x] 执行当前树提交门：文档验证 PASS、`light_gate.py` 无 warning、`git diff --check` PASS、正式 evidence 离线 verify PASS，`./scripts/run_all_local_gates.sh --full` PASS（P5 100/100、P6 17/17、P8 81/81、C++14/C++17、20 次重复、ASan/UBSan）。
+- [ ] 提交并 push P8 v2 增量，跟踪 GitHub Actions `Local gates`，只在在线结果成功后记录对应 commit/run/job。
 - [x] 完成 fixture release package/verify/activate/rollback 及本地 A→B→A 契约（17/17）。
 - [x] 增加 Windows P8 wrapper 和 D 盘/完整依赖清单输入契约；wrapper/collector 静态契约当前 2/2。
 - [x] 增加严格 package manifest generator：完整文件集、双重稳定性复扫、遍历 fail-closed、祖先 link/reparse 与 case/NFC 防护（7/7）。
@@ -202,7 +221,7 @@ P5-01、P5-02A/B、P5-02C1 技术切片已通过门禁。2026-07-19 用户澄清
 - [x] 早期 39 项本地工具范围已完成独立 reviewer/QA；该 PASS 不覆盖后续 evidence v2。
 - [x] cleanup 初审 4 P1/3 P2、reviewer 追加 2 P1/2 P2（gate/external 绑定、release 精确 schema、import 根白名单、文档）及 QA 追加 1 P1（不得提示执行待验 provenance verifier）均已修复。
 - [x] 历史 70 项范围最终独立 reviewer `019f99cb-7c02-7b23-b498-9b28e7ba761c` 与 QA `019f99d7-8a02-7da1-8641-2d533409d06d` 均 PASS，P0/P1/P2=0/0/0；该结论不覆盖后续主机报告 6 项增量。
-- [x] 当前 P8 测试集总数保持 76：preflight 17、soak 9、release 17、wrapper/collector 2、package manifest 7、evidence verify/import 24；PowerShell 仍为 13 个脚本和 7 个 CLI 契约。
+- [x] 历史 P8 v1 测试集总数为 76：preflight 17、soak 9、release 17、wrapper/collector 2、package manifest 7、evidence verify/import 24；PowerShell 仍为 13 个脚本和 7 个 CLI 契约。P8 Python 清单现为 81 项，当前候选精确 81/81 PASS。
 - [x] HEAD `6886856` 最终本地 full gate 已覆盖 challenge/HMAC/v2/v4/文件锁返修；不把本地门扩写为 Windows runtime 或产品验收。
 - [x] 第二轮 documentation maintenance agent 已在 cleanup 修复切片后同步计数、状态和 Windows 交接手册。
 - [x] 第三轮/最终 documentation maintenance agent 已同步最终评审状态；`.ruff_cache` 已清除。
@@ -226,7 +245,7 @@ P5-01、P5-02A/B、P5-02C1 技术切片已通过门禁。2026-07-19 用户澄清
 - [ ] 在目标 Windows 执行 Release Rebuild，确认 `IMAGEPROCESS_EXPORTS` 重定义和 C4819 warning 实际消失；本地静态门不得替代该结果。
 - [ ] 目标机与外部阻断关闭前保持 P8 进行中：Windows/PowerShell/Qt/GPU/D 盘、真实数据/正式 TensorRT、许可和硬件均不得由本地门替代。
 
-PowerShell 静态门输出固定 `syntaxCompatibilityTargets=["5.1"]`、`scriptAnalyzerMinimumVersion="1.25.0"` 和 `windowsRuntimeClaimed=false`。HEAD `6886856` 最终 full gate 已覆盖 P8 76/76 与 PowerShell 13 个脚本/CLI 7/7；该结论不扩大 Windows/Qt/GPU/SDK/D 盘或硬件 runtime 声明。
+PowerShell 静态门输出固定 `syntaxCompatibilityTargets=["5.1"]`、`scriptAnalyzerMinimumVersion="1.25.0"` 和 `windowsRuntimeClaimed=false`。HEAD `6886856` 最终 full gate 覆盖的是历史 P8 76/76 与 PowerShell 13 个脚本/CLI 7/7；当前 81 项连续运行增量已取得精确 81/core/full、正式 `final-v2` 2×300 evidence、KI-048 独立 reviewer 与 QA/observability/cleanup PASS，并通过本轮提交门。两类结论均不扩大 Windows/Qt/GPU/TensorRT/SDK/D 盘或硬件 runtime 声明。
 
 ## 审查与 QA 节奏
 
@@ -235,7 +254,7 @@ PowerShell 静态门输出固定 `syntaxCompatibilityTargets=["5.1"]`、`scriptA
 - UI 阶段：Windows 本地应用需要 Computer/人工运行证据；Mac 上的代码检查不能替代。
 - documentation maintenance agent 固定在每个实现切片后、独立 review/QA 结果返回后、最终门禁前运行，核对记录系统后再允许进入下一门。
 - 现场硬件阶段当前冻结且不排期；未来恢复时必须另立阶段，并由用户或现场人员报告人工 QA。
-- P3、P5、P7 后评估一次定向清理。P8 v2/v4 返修已处理递归清理、历史重放、协调伪造和 PATH 执行风险；最终 reviewer/QA 已复核 ownership/reparse 竞态、key 隔离和 HMAC 信任边界并 PASS。collector 保持单文件便于目标机部署，不因体量机械拆分。
+- P3、P5、P7 后评估一次定向清理。历史 P8 v2/v4 Windows 证据返修已处理递归清理、历史重放、协调伪造和 PATH 执行风险；当前连续运行 v2 的独立 cleanup 已完成，确认新旧证据链边界明确、正式 evidence 根无临时或特殊文件、测试覆盖无缺口。唯一非阻断 P3 是旧无 manifest 失败目录按留存策略隔离保留；collector 仍保持单文件便于目标机部署，不因体量机械拆分。
 
 ### P5-02C5 provisional fallback baseline
 
