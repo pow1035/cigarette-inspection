@@ -273,6 +273,11 @@ rg -q 'RSS 增长 ≤16 MiB' docs/p8-local-closure.md
 rg -q 'RSS 增长不超过 64 MiB' docs/p8-local-closure.md
 rg -q 'LocalSoakRuntime\.cpp' scripts/run_all_local_gates.sh
 rg -q -- '--compiler' scripts/run_p8_local_continuous_soak.sh
+rg -q "duration_argument='1\.0'" scripts/run_p8_local_continuous_soak.sh
+rg -q 'contract_test_duration_seconds="1\.0"' scripts/run_all_local_gates.sh
+rg -Fq -- '--duration-seconds "$contract_test_duration_seconds"' \
+  scripts/run_all_local_gates.sh
+rg -q 'RLIMIT_CORE' tests/p8/test_p8_soak.py
 rg -q 'project runners must be built by run' scripts/p8_continuous_soak.py
 rg -q 'p8-windows-preacceptance-wrapper-v4' \
   scripts/run_windows_p8_preacceptance.ps1 \

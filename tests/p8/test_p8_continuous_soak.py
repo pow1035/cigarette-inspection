@@ -556,6 +556,25 @@ class P8ContinuousSoakTests(unittest.TestCase):
         ):
             self.assertNotIn(forbidden, option_strings)
 
+        wrapper_source = (
+            ROOT / "scripts" / "run_p8_local_continuous_soak.sh"
+        ).read_text(encoding="utf-8")
+        full_gate_source = (
+            ROOT / "scripts" / "run_all_local_gates.sh"
+        ).read_text(encoding="utf-8")
+        self.assertIn("duration_argument='1.0'", wrapper_source)
+        self.assertIn(
+            'contract_test_duration_seconds="1.0"', full_gate_source,
+        )
+        self.assertIn(
+            '--duration-seconds "$contract_test_duration_seconds"',
+            full_gate_source,
+        )
+        self.assertNotIn(
+            "--duration-seconds '{minimum_duration_seconds}'",
+            full_gate_source,
+        )
+
         fake_process = mock.Mock(pid=123)
         termination_template = {
             "attempted": False,
@@ -677,7 +696,7 @@ class P8ContinuousSoakTests(unittest.TestCase):
                 "--standard", "c++17",
                 "--",
                 "--output-dir", "{output_dir}",
-                "--duration-seconds", "{minimum_duration_seconds}",
+                "--duration-seconds", "1.0",
                 "--frames-per-session", "512",
                 "--restart", "{restart}",
                 "--round", "{round}",
@@ -691,6 +710,13 @@ class P8ContinuousSoakTests(unittest.TestCase):
             self.assertTrue(controlled_manifest["commandTemplate"][0].startswith(
                 "{evidence_root}/provenance/runtime-executable"
             ))
+            self.assertEqual(controlled_manifest["commandTemplate"][4], "1.0")
+            self.assertGreaterEqual(
+                controlled_manifest["runs"][0]["processGroupCpuTotalSeconds"],
+                SOAK.LOCKED_PROFILES["contract-test-v1"][
+                    "minimumProcessGroupCpuSeconds"
+                ],
+            )
             self.assertEqual(
                 run_cli(["verify", "--evidence-root", str(controlled_evidence)]),
                 0,

@@ -154,6 +154,9 @@ if [[ "$header_index" -ne 7 ]]; then
 fi
 
 if [[ "$mode" == "full" ]]; then
+  # The profile remains locked at a 0.12 s minimum. Run the project contract
+  # for 1.0 s so 100 Hz Linux CPU accounting cannot quantize work to 0.00 s.
+  contract_test_duration_seconds="1.0"
   cxx14_flags=(
     -std=c++14
     -Wall
@@ -181,7 +184,7 @@ if [[ "$mode" == "full" ]]; then
     --standard c++14 \
     -- \
     --output-dir '{output_dir}' \
-    --duration-seconds '{minimum_duration_seconds}' \
+    --duration-seconds "$contract_test_duration_seconds" \
     --frames-per-session 512 \
     --restart '{restart}' \
     --round '{round}' \

@@ -3,16 +3,16 @@
 ## 当前状态（2026-07-27）
 
 - 当前优先项是 P8 v2 连续运行防假绿证据链。新增锁定 profile、连续采集/验真工具、shell 入口、真实 SDK-free C++ runner 和 5 项对抗测试；旧 Windows `p8_soak_evidence.py` 与 v1/v4 evidence 语义保持不变。
-- 当前候选已实跑连续专项 5/5、P8 精确 81/81、公开 wrapper C++17 `contract-test-v1` run + self-verify + 独立二次 verify，以及 `./scripts/run_all_local_gates.sh --core`/`--full`，均 PASS。full 另覆盖 C++14 contract + verify、repeat 20 与 ASan/UBSan continuous-soak runtime。
+- 正式 `final-v2` 本地连续 evidence 与其独立复核保持 PASS；提交 `5f6a06a` 后的 hosted `Local gates` run `30219159920`（job `89838475434`）FAIL，发现 0.12 秒短 project contract 在 Linux CPU tick 下得到 0.00 秒，以及旧 `os.abort()` crash fixture 被 core-dump 路径误归类。该失败是有效发现，当前提交门已重新打开。
 - 返修内容包括：正式 project `run` 内部受控编译、compiler/compile/8 source/executable provenance 与快照，外部 provenance 仅限 contract helper；`durationSeconds`/`processLifetimeSeconds` 分离；Linux `/proc` 进程组 CPU 与 pure-sleep 拒绝；`local-soak-progress.ndjson`、ProductRuntimeState OK/NG/Error 分桶；严格 inventory 与 Windows 两次 fresh-tree clean gate。短/正式 RSS 上限分别为 16/64 MiB；正式 profile 固定 2×300 秒、samples/progress ≥240、gap ≤5 秒、sessions ≥240、frames ≥122880、CPU ≥10 秒、磁盘 ≥1 GiB。
 - KI-048 已完成实现、本地回归和独立 reviewer 复核：toolDependencies 绑定当前/旧 Python tool source 的 path/size/SHA/snapshot，以及 POSIX `ps` 的可信 canonical path、size/SHA、version probe、固定 resource/tree argv 和 binary snapshot；helper drift、PATH shadow、dependency record/helper/ps snapshot/identity 篡改均拒绝。最终 reviewer PASS，P0/P1/P2/P3=0/0/0/0。
 - 正式 `artifacts/p8-continuous-local-20260727-final-v2` 已完成 2×300 秒、self-verify、主代理独立 verify 和 reviewer 两次独立 verify。R1/R2 分别为 300.046591/300.020852 秒、291/292 samples、30.64/23.51 CPU 秒、RSS +16 KiB/0、progress 3786/3623、gap 0.085584/0.098617 秒，累计 3,793,408 帧；manifest SHA-256 为 `2bd420fab44acbed98315ffac5cf6a2b22567dcae42d98e522be35de3a7bcdd4`。
 - 正式 evidence QA/observability/cleanup PASS。唯一非阻断 P3 是旧无 manifest 的 `invalid-dependency-gap` 失败目录仍隔离保留；它被 Git 忽略，只作失败审计，不得引用、混入正式 evidence 或交付，删除仅按用户/留存策略另行执行。
-- 代码候选冻结后的第一次 documentation maintenance 曾同步实现和短/综合门；正式 evidence 与独立结论返回后已启动本次最终 documentation maintenance。P8 v2 本地连续工具证据可以标 PASS，但 P8/AC-08 整体仍受 Windows/Qt/GPU/D 盘、数据、许可和硬件条件阻断。
+- 当前未提交修复让 public wrapper/direct project contract 实际运行 1.0 秒，locked profile 最低仍为 0.12 秒、timeout 仍为 2.0 秒、其他阈值不变；旧 crash fixture 在 POSIX abort 前设置 `RLIMIT_CORE=0`。Mac 与 Colima/Linux 原始 full、P8 81/81、当前 CI 修复 reviewer 与 QA/observability 均 PASS；提交/push 与 hosted rerun 待结果。
 - 文档 QA P2 已收进证据边界：本地 `soak-manifest.json`/离线 verify 只认证 evidence 内部一致性和 snapshot/源码绑定，没有 Windows v4 的带外 HMAC，不能抵抗恶意方协调重写整包；这不影响当前本地工具门结论。
 
 - 当前阶段已推进到 P8。P7 本地源码和 SDK-free 参数/状态契约已完成，剩余 Windows/Qt runtime 作为外部目标机阻断保留，不再占用本地实现主线。
-- 2026-07-26 最新推送 `6d492528c7f9c0b0b2e3cc70e1c60a74cb62cede` 已由 GitHub Actions `Local gates` run `30188084112`（job `89756233568`）SUCCESS；该在线结果仅覆盖当前本地/静态门，不覆盖 Windows/MSVC、Qt、GPU/TensorRT、D 盘或硬件 runtime。
+- 上一成功 hosted 基线为 `6d492528` / run `30188084112`（job `89756233568`）SUCCESS。当前最新推送 `5f6a06a` / run `30219159920`（job `89838475434`）FAIL；返修尚未推送，rerun pending。在线结果均不覆盖 Windows/MSVC、Qt、GPU/TensorRT、D 盘或硬件 runtime。
 - P7 产品状态已扩展为 8/8：新增 typed configured/applied 参数 profile、canonical SHA-256、golden 身份、帧级参数哈希漂移拒绝和 TensorRT adapter 投影。品牌七阈值改用独立页面并写入当前品牌 `para.ini`；当前 Mac 无 Qt/MSVC，页面和 JSON runtime 尚未声称通过。
 - 完整仓库已重新克隆到本地，`main` 与 `origin/main` 同步，拉取完成时工作树干净；旧稀疏副本已移入系统废纸篓。
 - P5-02C3 双人复核真值晋级与 P5-02C5 临时 ONNX Runtime CPU 基线均已完成独立 reviewer/QA 门禁；正式 TensorRT 基线仍按 KI-039 保持 BLOCKED / NOT VERIFIED。
@@ -34,8 +34,8 @@
 - 新增 `scripts/p8_continuous_soak.py`：按同一进程组/进程树采样 RSS 与累计 CPU，计算 CPU P50/P95，检查时长、采样完整性、warm-up 后 RSS、磁盘、输出、超时、崩溃、残留进程和 evidence hash，并支持离线二次 verify。
 - 新增 `tests/CigVision.LocalSoak/LocalSoakRuntime.cpp` 和 shell 编译入口。runner 循环真实 `OfflineInspectionSession`/`ProductRuntimeState`，不只是 sleep；写出严格 `local-soak-summary.json`，复核接收/处理/判定、sink、archive 和产品状态守恒。
 - 安全边界固定 `sdkFree=true`、`realIoEnabled=false`、`realRejectEnabled=false`、`productAcceptanceClaimed=false`、`windowsRuntimeVerified=false`；GPU 不声明。
-- 新增 `tests/p8/test_p8_continuous_soak.py` 5 项，P8 清单从历史 76 项扩展为 81 项。当前候选定向 5/5、P8 精确 81/81、公开 wrapper C++17 contract self-verify/独立 verify 与 core/full 已通过；历史 HEAD `6886856` 的 76 项/full/reviewer/QA 继续作为旧范围快照。
-- 正式 `final-v2` 2×300/verify、dependency provenance 独立 reviewer、QA/observability/cleanup 均已收口；最终文档门、正式 evidence 离线 verify 和当前树 `./scripts/run_all_local_gates.sh --full` 均 PASS。该提交前门只支持 P8 v2 本地连续工具证据，不把本地工具 PASS 写成 P8/AC-08 整体通过。
+- 新增 `tests/p8/test_p8_continuous_soak.py` 5 项，P8 清单从历史 76 项扩展为 81 项。正式 `final-v2` 2×300/verify、dependency provenance 独立 reviewer、QA/observability/cleanup 已收口；其绑定的连续工具、profile、runtime、旧 helper/core headers 未被当前 CI 返修改动。
+- hosted run `30219159920` 的两项失败分别由 1.0 秒实际 contract 运行和 POSIX `RLIMIT_CORE=0` fixture 处理；当前 Mac/Linux full、独立 reviewer 与 QA/observability 已通过，hosted rerun 仍待结果，不把返修候选写成最终提交门 PASS。
 
 ## 2026-07-26 - Windows warning 源配置收口与历史原型免责声明
 

@@ -273,6 +273,9 @@ class P8SoakEvidenceTests(unittest.TestCase):
             root = Path(temporary)
             runtime = write_runtime(root, """
                 import os
+                if os.name != "nt":
+                    import resource
+                    resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
                 os.abort()
             """)
             arguments, evidence = self.arguments(root, runtime)

@@ -167,11 +167,12 @@
 | PowerShell parser/PSScriptAnalyzer/5.1 兼容门 | 通过（本机静态） | Colima/Linux arm64，PowerShell 7.6.3、PSScriptAnalyzer 1.25.0；当前 13 个 `.ps1` parser/analyzer finding 0；`PSUseCompatibleSyntax` target 5.1；7/7 CLI 契约 PASS；`windowsRuntimeClaimed=false`，不并入 P8 的 81 项 Python 清单 |
 | 跨机 evidence verify/import | 通过（本地工具） | 24/24；HEAD `6886856` 最终 full gate 覆盖；带外 SHA/HMAC/key 与 `productAcceptanceClaimed=false` 边界不变 |
 | P8 v2 Python 防假绿语义 | 通过（当前本地候选） | 连续专项 5/5、P8 精确 81/81；覆盖受控 project build、外部 provenance 仅限 helper、伪造 project provenance 拒绝、verified duration/真实 process lifetime、Linux `/proc` CPU、pure-sleep CPU 负路径、16/64 MiB RSS、严格 inventory 与 Windows 双枚举失败/成功分支 |
-| `contract-test-v1` C++ 短语义门 | 通过（当前本地候选） | 公开 wrapper C++17 run + self-verify + 独立 verify PASS；profile 固定 0.12 秒、CPU ≥0.01 秒、RSS ≤16 MiB，只允许证明短 contract，不得写成长稳证据 |
+| `contract-test-v1` C++ 短语义门 | 本地/独立复核通过；hosted 待复核 | hosted run `30219159920` 在 Linux 将 0.12 秒实际运行的 CPU 量化为 0.00 秒。当前候选让 wrapper/direct project contract 实际运行 1.0 秒，locked minimum 0.12 秒、timeout 2.0 秒和其他阈值不变；Mac/Colima/Linux full 与独立 reviewer PASS |
 | `local-sdkfree-v1` 正式连续运行 | 通过（本地连续工具证据） | `artifacts/p8-continuous-local-20260727-final-v2`：两轮 300.046591/300.020852 秒，291/292 samples，progress 3786/3623、gap 0.085584/0.098617 秒，sessions 3786/3623，frames 1,938,432/1,854,976，CPU 30.64/23.51 秒，RSS +16 KiB/0；Offline/ProductRuntimeState 分桶一致、Error 0、无残留。self-verify、主代理独立 verify、reviewer 两次独立 verify PASS |
-| 当前树 core/full | 通过（提交门） | `run_all_local_gates.sh --core`/`--full` PASS；core 覆盖 P8 精确 81 与公开 C++17 wrapper run/self-verify/独立 verify，full 另覆盖受控 C++14 contract + verify、repeat 20、ASan/UBSan runtime。最终文档门、正式 evidence 离线 verify 和 `git diff --check` 同步 PASS |
-| P8 v2 独立 reviewer | 通过 | `/root/p8_v2_reviewer` 对 KI-048 与正式 `final-v2` evidence 最终 PASS，P0/P1/P2/P3=0/0/0/0；两次独立 verify、29 个 inventory 文件、8 个源码、compiler/executable、新旧工具与 `/bin/ps` identity 均匹配 |
-| P8 v2 独立 QA / observability | 通过 | `/root/p8_gate_docs_audit`：正式 evidence 两轮时长、CPU、RSS、磁盘、progress、业务守恒、无残留和 29-file strict inventory 均 PASS；error/drop/subsystem/save failure 为 0 |
+| 当前树 core/full | 通过（本地） | Mac 与 Colima Docker/Linux arm64、`CLK_TCK=100` 均直接执行原始 `./scripts/run_all_local_gates.sh --full` exit 0：P5 100、P6 17、P8 81、C++17/C++14、repeat20、ASan/UBSan 全 PASS |
+| hosted Linux `Local gates` | 返修待复核 | `5f6a06a` → run `30219159920` / job `89838475434` FAIL，两项失败均为有效发现；当前修复 reviewer 与 QA/observability PASS，尚未提交/push，第二次 hosted rerun pending |
+| P8 v2 独立 reviewer | 通过 | `/root/p8_v2_reviewer` 对当前 CI 修复和正式 `final-v2` evidence 最终 PASS，P0/P1/P2/P3=0/0/0/0；Linux 原始 full、两次独立 verify、29 个 inventory 文件、8 个源码、compiler/executable、新旧工具与 `/bin/ps` identity 均匹配 |
+| P8 v2 独立 QA / observability | 通过 | `/root/p8_gate_docs_audit`：正式 evidence 两轮时长、CPU、RSS、磁盘、progress、业务守恒、无残留和 29-file strict inventory 均 PASS；当前 CI 修复文档复验也 PASS，P0/P1/P2/P3=0/0/0/0 |
 | P8 v2 定向 cleanup | 通过（1 个非阻断 P3） | 正式 evidence 根无 tmp、symlink、FIFO、socket、漏列文件或残留进程。旧 `artifacts/p8-continuous-local-20260727-invalid-dependency-gap` 无 manifest、被 Git 忽略，只隔离保留作失败审计，不引用、不混入 `final-v2`、不交付；删除按用户/留存策略另行执行 |
 | 早期 39 项独立 reviewer / QA | 通过（历史本地范围） | reviewer `019f99b4-2e4c-7742-9d20-60a0396d7900`、QA `019f99b4-4746-7d72-b5b6-568af6d8dfdd`；最终 P0/P1/P2=0/0/0，不覆盖 evidence v2 |
 | 历史 70 项独立 reviewer | 通过（历史本地范围） | `019f99cb-7c02-7b23-b498-9b28e7ba761c`：初审及追加 findings 全部关闭，P0/P1/P2=0/0/0；不覆盖当前 v2/v4/HMAC 返修 |

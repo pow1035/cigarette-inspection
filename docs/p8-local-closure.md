@@ -8,10 +8,11 @@ P8 当前只建立可在无 Qt、Windows、GPU 和现场硬件环境运行的本
 历史 Windows/package 工具链 76 项（HEAD 6886856 历史 full PASS）
 → 独立新增 P8 v2 连续运行防假绿语义 5 项
 → 当前连续专项 5/5、P8 精确 81/81、公开 C++17 wrapper run/self-verify/独立 verify PASS
-→ 当前 core/full、KI-048 独立复核与正式 final-v2 2×300/独立 verify/QA/observability/cleanup PASS
+→ KI-048 与正式 final-v2 2×300/独立 verify/QA/observability/cleanup PASS
+→ hosted Linux 首轮发现两项短门跨平台缺口；当前返修 Mac/Linux full、reviewer 与 QA/observability PASS，hosted rerun 待完成
 ```
 
-历史本地工具通过状态写作 `passed-local-tooling`；当前 P8 v2 正式 manifest 写作 `passed-local-continuous-tooling`。短 contract、综合本地门、KI-048 dependency provenance、正式两轮 evidence、独立 verify 和正式 evidence QA/observability/cleanup 均已通过，因此 P8 v2 本地连续工具证据可以标 PASS。它仍不等于 AC-08 或 P8 整体通过，不证明 Windows/Qt 产品、TensorRT/GPU、D 盘安装、生产吞吐、商业准确率、真实磁盘满恢复或现场 IO/剔除。
+历史本地工具通过状态写作 `passed-local-tooling`；当前 P8 v2 正式 manifest 写作 `passed-local-continuous-tooling`。短 contract、当前 Mac/Colima/Linux 综合本地门、KI-048 dependency provenance、正式两轮 evidence、独立 verify、当前 CI 修复 reviewer/QA/observability 和正式 evidence QA/observability/cleanup 均已通过，因此 P8 v2 本地连续工具证据可以标 PASS。hosted rerun 尚未完成；它仍不等于 AC-08 或 P8 整体通过，不证明 Windows/Qt 产品、TensorRT/GPU、D 盘安装、生产吞吐、商业准确率、真实磁盘满恢复或现场 IO/剔除。
 
 ## 工具
 
@@ -102,10 +103,10 @@ release 文件不可在验证后静默变化。activate/rollback 只在目标 re
 - 连续运行防假绿：5/5；
 - P8 Python 清单：81 项；当前精确 81/81 PASS。
 - 公开 wrapper：C++17 contract run + self-verify + 独立二次 verify PASS；伪造 project provenance exit 2 且不创建 evidence。
-- 当前综合门：`./scripts/run_all_local_gates.sh --core` 与 `--full` PASS；full 另覆盖受控 C++14 contract + verify、repeat 20、ASan/UBSan continuous-soak runtime。
+- 当前返修门：`5f6a06a` hosted run `30219159920` 有效发现 Linux CPU tick/core-dump 两项缺口；未提交修复现已取得 Mac 与 Colima/Linux 原始 full、P8 81/81、独立 reviewer 和 QA/observability PASS。提交/push 与 hosted rerun 待完成。
 - 独立 PowerShell 静态门：13 个 `.ps1` parser/analyzer 0 finding；PowerShell CLI 契约 7/7 PASS（不计入上述 81 项清单）。
 
-2026-07-27 当前候选已通过连续运行专项 5/5、P8 精确 81/81、公开 wrapper C++17 contract run + self-verify + 独立 verify、`--core` 与 `--full`。KI-048 已完成 toolDependencies 实现、本地回归和独立 reviewer 复核；正式 `final-v2` 2×300 秒、独立 verify、正式 evidence QA/observability/cleanup 与本轮提交门均 PASS。因此 P8 v2 本地连续工具证据通过；P8/AC-08 整体继续受外部目标机、数据、许可和硬件条件阻断。
+2026-07-27 KI-048 与正式 `final-v2` 2×300 秒、独立 verify、正式 evidence QA/observability/cleanup 均已通过。提交 `5f6a06a` 的 hosted run `30219159920` 随后发现短 contract CPU tick 和 POSIX core-dump fixture 两项跨平台缺口；当前未提交修复的 Mac/Linux full、独立 reviewer 与 QA/observability 已通过，hosted rerun 尚未收口。因此正式本地连续 evidence 结论保持有效，最终提交门仍不标 PASS；P8/AC-08 整体继续进行中。
 
 历史快照：HEAD `6886856` 最终 full gate PASS：P5 100/100、P6 17/17、P8 76/76、C++14/C++17、20 次重复、ASan/UBSan；PowerShell 13 个 `.ps1` parser/analyzer 0 finding、CLI 7/7。collector 的 `Get-LockedFileSnapshot` 以完整 reparse 祖先链检查和 `FileShare.Read` 锁内 SHA 固化文件身份；wrapper 持 provenance collector 读锁贯穿执行并前后复算 SHA/复查 reparse。该时点最终 reviewer/QA 均 PASS，P0/P1/P2/P3=0/0/0/0；它不覆盖当前连续运行增量。
 

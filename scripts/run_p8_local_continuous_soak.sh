@@ -49,6 +49,12 @@ for tool in python3 g++ ps; do
   fi
 done
 compiler="$(command -v g++)"
+duration_argument='{minimum_duration_seconds}'
+if [[ "$profile" == "contract-test-v1" ]]; then
+  # The locked gate remains 0.12 s. Exercise a longer short run so Linux
+  # 10 ms CPU accounting cannot quantize real SDK-free work down to 0.00 s.
+  duration_argument='1.0'
+fi
 
 python3 "$repo_root/scripts/p8_continuous_soak.py" run \
   --evidence-root "$evidence_root" \
@@ -58,7 +64,7 @@ python3 "$repo_root/scripts/p8_continuous_soak.py" run \
   --standard c++17 \
   -- \
   --output-dir '{output_dir}' \
-  --duration-seconds '{minimum_duration_seconds}' \
+  --duration-seconds "$duration_argument" \
   --frames-per-session 512 \
   --restart '{restart}' \
   --round '{round}' \
