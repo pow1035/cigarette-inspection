@@ -41,6 +41,8 @@ P5 先冻结效果数据集和指标口径，P6/P8 再冻结本地时延、队�
 
 HEAD `6886856` 最终 full gate 已通过 P5 100、P6 17、P8 76、C++14/C++17、20 次重复、ASan/UBSan；PowerShell 13 个脚本零 finding、CLI 7/7。collector 的锁定文件快照记录完整 reparse 祖先链安全与 `FileShare.Read` 锁内 SHA；wrapper 对 provenance collector 的读锁贯穿执行并前后复算 SHA/复查 reparse。preflight 与 v4 wrapper/receipt 仍固定不声明产品验收。提交 `7e7c2de2b157cf5c2ace8b5263e8db5f57c89902` 已 push；2026-07-26（Asia/Shanghai）的在线 Actions `Local gates` 运行 `30169095184`（job `89706968923`）SUCCESS，全部步骤通过、check-run annotations 为空，原 Node 20 warning 已消失，checkout/setup-python v6 均固定完整提交 SHA。最终 reviewer `019f9a6b-f76e-7620-a9e4-1e681e7f8d0b` PASS（P0/P1/P2/P3=0/0/0/0，对抗 18/18），QA `019f9a6c-0733-7da1-986f-6176824be92d` PASS（P0/P1/P2/P3=0/0/0/0，对抗 17/17）。真实 Windows/Qt/GPU/SDK、D 盘资源曲线、P5 受控数据、许可、硬件和真实 bundle 尚未采集。
 
+最新提交 `6d492528c7f9c0b0b2e3cc70e1c60a74cb62cede` 的 hosted `Local gates` run `30188084112`（job `89756233568`）SUCCESS；当前记录以该运行作为最新在线门证据，边界仍为 `windowsRuntimeClaimed=false`、`productAcceptanceClaimed=false`。
+
 真实相机、MVS 采集、DAQNavi 输入输出和真实剔除日志属于冻结的未来阶段，不作为 P5-P8 待补事件。
 
 若完整日志框架在早期过重，先使用带固定字段的 UTF-8 滚动文件日志；限制必须写入 `known-issues.md`，不能用零散 `qDebug()` 作为最终证据。

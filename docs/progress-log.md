@@ -3,6 +3,7 @@
 ## 当前状态（2026-07-26）
 
 - 当前阶段已推进到 P8。P7 本地源码和 SDK-free 参数/状态契约已完成，剩余 Windows/Qt runtime 作为外部目标机阻断保留，不再占用本地实现主线。
+- 2026-07-26 最新推送 `6d492528c7f9c0b0b2e3cc70e1c60a74cb62cede` 已由 GitHub Actions `Local gates` run `30188084112`（job `89756233568`）SUCCESS；该在线结果仅覆盖当前本地/静态门，不覆盖 Windows/MSVC、Qt、GPU/TensorRT、D 盘或硬件 runtime。
 - P7 产品状态已扩展为 8/8：新增 typed configured/applied 参数 profile、canonical SHA-256、golden 身份、帧级参数哈希漂移拒绝和 TensorRT adapter 投影。品牌七阈值改用独立页面并写入当前品牌 `para.ini`；当前 Mac 无 Qt/MSVC，页面和 JSON runtime 尚未声称通过。
 - 完整仓库已重新克隆到本地，`main` 与 `origin/main` 同步，拉取完成时工作树干净；旧稀疏副本已移入系统废纸篓。
 - P5-02C3 双人复核真值晋级与 P5-02C5 临时 ONNX Runtime CPU 基线均已完成独立 reviewer/QA 门禁；正式 TensorRT 基线仍按 KI-039 保持 BLOCKED / NOT VERIFIED。

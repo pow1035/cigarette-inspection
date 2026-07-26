@@ -79,6 +79,8 @@ HEAD `6886856` 最终 full gate（2026-07-26）PASS：P5 100/100、P6 17/17、P8
 
 最终独立复核（2026-07-26）：reviewer `019f9a55-8131-7423-96a7-44d934c28255` 与 QA `019f9a55-99a2-7011-887f-119893e3ec4f` 对当前 v2/v4/HMAC/文件锁增量均给出 PASS，P0/P1/P2/P3=0/0/0/0。PowerShell 静态门在 Colima/Linux arm64 使用 PowerShell 7.6.3 与 PSScriptAnalyzer 1.25.0 扫描 13 个 `.ps1`，parser/analyzer finding 0，CLI 7/7。提交 `7e7c2de2b157cf5c2ace8b5263e8db5f57c89902` 已 push；2026-07-26（Asia/Shanghai）的在线 Actions `Local gates` 运行 `30169095184`（job `89706968923`）SUCCESS，全部步骤通过、check-run annotations 为空，原 Node 20 warning 已消失，checkout/setup-python v6 均固定完整提交 SHA。该 CI 硬化切片的最终 reviewer `019f9a6b-f76e-7620-a9e4-1e681e7f8d0b` PASS（P0/P1/P2/P3=0/0/0/0，对抗 18/18），QA `019f9a6c-0733-7da1-986f-6176824be92d` PASS（P0/P1/P2/P3=0/0/0/0，对抗 17/17）。首次运行发现的全局 analyzer 隔离差异已改用显式 `ScriptAnalyzerModulePath` 并本地复验；真实 Windows/Qt/GPU/SDK/D 盘、数据、许可和硬件仍不在该在线证据范围内。
 
+最新推送核验（2026-07-26）：提交 `6d492528c7f9c0b0b2e3cc70e1c60a74cb62cede` 的 `Local gates` run `30188084112`（job `89756233568`）SUCCESS；只证明当前本地/静态门，不覆盖目标机 runtime。
+
 ## P5-02C5 provisional fallback pilot baseline (2026-07-19)
 
 - Status: implementation, local verification, independent review, and QA PASS; formal TensorRT remains blocked.

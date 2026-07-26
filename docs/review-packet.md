@@ -11,6 +11,7 @@
 - 本地验证：主代理已运行 `./scripts/run_all_local_gates.sh --full`，P5 100/100、P6 17/17、P8 76/76、C++17/C++14、20 次重复、ASan/UBSan 全部通过。
 - 待补证据：目标 Windows Release Rebuild 的原始 MSBuild 日志，需确认 `IMAGEPROCESS_EXPORTS` 重定义和 C4819 warning 实际消失；本地静态门不能支持该 runtime 声明。
 - 评审状态：独立 reviewer `/root/review_release_warning_fix` 首轮提出 XML 门禁语义和 22 份文档计数两项 finding；返修后最终 PASS（P0/P1/P2/P3=0/0/0/0）。本轮未另行声明独立 QA，且不得用静态 PASS 代替目标 Windows Rebuild。
+- 推送后在线复核：`6d492528c7f9c0b0b2e3cc70e1c60a74cb62cede` → `Local gates` run `30188084112` / job `89756233568` SUCCESS；该 CI 只覆盖当前本地/静态门。
 
 ## P8 主机报告与 v4 证据返修（2026-07-26）
 

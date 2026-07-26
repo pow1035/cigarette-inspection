@@ -161,4 +161,6 @@ python3 scripts/p5_input_readiness.py --require-reviewed --require-fallback
 
 GitHub Actions 的 `Local gates` 工作流会在 pull request、`main` push 和手动触发时执行文档/P1 静态门、P5/P6/P8 Python 回归（P8 当前精确计数 76）、contracts/offline/simulation/product-state 四组无 SDK C++ 回归，以及上述 PowerShell parser/PSScriptAnalyzer/Windows PowerShell 5.1 兼容门和 7 个 CLI 契约用例。提交 `7e7c2de2b157cf5c2ace8b5263e8db5f57c89902` 已 push；2026-07-26（Asia/Shanghai）的在线运行 `30169095184`（job `89706968923`）SUCCESS，全部步骤通过、check-run annotations 为空，原 Node 20 warning 已消失，`actions/checkout`/`actions/setup-python` v6 均固定完整提交 SHA。最终 reviewer `019f9a6b-f76e-7620-a9e4-1e681e7f8d0b` PASS（P0/P1/P2/P3=0/0/0/0，对抗 18/18），QA `019f9a6c-0733-7da1-986f-6176824be92d` PASS（P0/P1/P2/P3=0/0/0/0，对抗 17/17）。Windows/MSVC、Qt UI、TensorRT/GPU 和现场硬件仍保留为人工或目标机门禁，不能由该 Linux CI 代替。
 
+最新推送 `6d492528c7f9c0b0b2e3cc70e1c60a74cb62cede` 的在线 `Local gates` run `30188084112`（job `89756233568`）已 SUCCESS；该结果只确认当前提交的本地/静态门在托管 Linux 上通过，不能代替目标 Windows/MSVC、Qt、GPU、TensorRT、D 盘或硬件验证。
+
 构建产物、IDE 缓存、依赖安装包、模型/engine、大测试数据和 `artifacts/` 证据目录不得提交。不要提交账号、许可证、设备序列号、客户资料、密钥或含机器身份的未脱敏日志。

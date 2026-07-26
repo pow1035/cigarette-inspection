@@ -12,6 +12,7 @@
 4. 每阶段结束时更新 `docs/progress-log.md`、`docs/evidence-matrix.md`、`docs/review-packet.md`、`docs/review-results.md` 和相关状态。
 5. 未通过提交门时，不声称阶段完成，不提交、合并或发布。
 6. 当前 `CURRENT_PHASE` 是 P8；测试集保持 P8 76 项，PowerShell 静态门保持 13 个脚本和 7 个 CLI 契约。主机证据已返修为现场 challenge 采集、v2 host report、v4 wrapper/receipt 与外置 HMAC 密钥；HEAD `6886856` 的最终 `--full` 门及最终 reviewer/QA 均已 PASS。提交 `7e7c2de2b157cf5c2ace8b5263e8db5f57c89902` 已 push；2026-07-26（Asia/Shanghai）的 GitHub Actions `Local gates` 运行 `30169095184`（job `89706968923`）SUCCESS，全部步骤通过、check-run annotations 为空，Node 20 warning 已消失，checkout/setup-python v6 均固定完整提交 SHA。最终 reviewer `019f9a6b-f76e-7620-a9e4-1e681e7f8d0b` PASS（P0/P1/P2/P3=0/0/0/0，对抗 18/18），QA `019f9a6c-0733-7da1-986f-6176824be92d` PASS（P0/P1/P2/P3=0/0/0/0，对抗 17/17）。P8 整体因 P5/P6/P7 外部输入，以及真实 Windows + Qt/HALCON/MVS/DAQNavi/CUDA/TensorRT/OpenCV 环境、数据、许可和硬件阻断保持进行中。P5-P8 只做本地数据效果、实时仿真、Qt 产品化和交付预验收，不得擅自恢复现场硬件路线。
+7. 最新推送核验：提交 `6d492528c7f9c0b0b2e3cc70e1c60a74cb62cede` 已 push；对应 GitHub Actions `Local gates` run `30188084112`（job `89756233568`）SUCCESS。该运行覆盖当前树的 core 门和 PowerShell 静态门，仍不扩大 Windows/MSVC、Qt、GPU、TensorRT、D 盘或硬件声明。
 
 ## 文档维护节奏
 

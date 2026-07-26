@@ -222,6 +222,7 @@ P5-01、P5-02A/B、P5-02C1 技术切片已通过门禁。2026-07-19 用户澄清
 - [x] TensorRT 历史原型目录 22 份 Markdown 已统一加免责声明，文档门强制其不得被当作当前构建、性能或交付证据。
 - [x] 上述增量后的 `./scripts/run_all_local_gates.sh --full` 本地门 PASS：P5 100、P6 17、P8 76、C++14/C++17、20 次重复、ASan/UBSan。
 - [x] 独立 reviewer `/root/review_release_warning_fix` 首轮两项 finding 已返修，最终 P0/P1/P2/P3=0/0/0/0、PASS；XML 门现验证无条件配置、继承占位和导出宏唯一性。
+- [x] 提交 `6d492528c7f9c0b0b2e3cc70e1c60a74cb62cede` 已 push；对应 GitHub Actions `Local gates` run `30188084112`（job `89756233568`）SUCCESS，当前提交的 core/PowerShell 门在线复核通过。
 - [ ] 在目标 Windows 执行 Release Rebuild，确认 `IMAGEPROCESS_EXPORTS` 重定义和 C4819 warning 实际消失；本地静态门不得替代该结果。
 - [ ] 目标机与外部阻断关闭前保持 P8 进行中：Windows/PowerShell/Qt/GPU/D 盘、真实数据/正式 TensorRT、许可和硬件均不得由本地门替代。
 

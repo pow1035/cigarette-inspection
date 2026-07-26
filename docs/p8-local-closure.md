@@ -7,7 +7,7 @@ P8 当前只建立可在无 Qt、Windows、GPU 和现场硬件环境运行的本
 ```text
 严格输入/包预检 → SDK-free soak → fixture 发布包验证
 → 原子激活/回滚 → SHA/HMAC 证据 → 当前测试集 76 项
-→ HEAD 6886856 最终 full gate PASS
+→ HEAD 6886856 最终 full gate PASS；最新推送 6d49252 的 hosted Local gates run 30188084112 SUCCESS
 → 独立 PowerShell parser/PSScriptAnalyzer/5.1 兼容静态门
 ```
 
