@@ -4,6 +4,8 @@ import hashlib
 import http.client
 import importlib.util
 import json
+import os
+import subprocess
 import struct
 import tempfile
 import threading
@@ -12,6 +14,7 @@ import urllib.error
 import urllib.request
 import zlib
 from pathlib import Path
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -114,6 +117,153 @@ def make_package(root):
     return package, static_dir
 
 
+def make_development_package(root, train_count=3, validation_count=2):
+    package = root / "development-package"
+    static_dir = root / "development-static"
+    package.mkdir(parents=True)
+    static_dir.mkdir()
+    (static_dir / "index.html").write_text(
+        "<!doctype html><title>P5 development</title>", encoding="utf-8")
+
+    catalog_path = ROOT / "config" / "p5-class-catalog.json"
+    catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+    categories = [{
+        "id": item["id"], "name": item["name"],
+        "display_name_zh": item["displayNameZh"],
+        "mapping_status": item["mappingStatus"],
+        "supercategory": "cigarette_defect",
+    } for item in catalog["classes"]]
+    catalog_hash = hashlib.sha256(catalog_path.read_bytes()).hexdigest()
+
+    manifest_images = []
+    review_rows = []
+    split_payloads = {}
+    next_id = 1
+    next_annotation_id = 1
+    for split, count in (("train", train_count), ("validation", validation_count)):
+        images_dir = package / split / "images"
+        images_dir.mkdir(parents=True)
+        images = []
+        annotations = []
+        for index in range(count):
+            image_id = next_id
+            next_id += 1
+            name = f"{split}-{index + 1:02d}.png"
+            width, height = 80 + image_id, 40 + image_id
+            payload = png_bytes(width, height, image_id)
+            (images_dir / name).write_bytes(payload)
+            sha = hashlib.sha256(payload).hexdigest()
+            decision = "NG" if index == 0 else "OK"
+            image = {
+                "id": image_id, "file_name": name, "width": width,
+                "height": height, "sha256": sha, "source_group": "fixture",
+                "split": split, "annotation_status": "preannotated",
+                "is_ground_truth": False, "authorization_status": "unverified",
+                "cigarette_decision": decision, "p4_result_present": True,
+            }
+            images.append(image)
+            manifest_images.append({
+                **image, "relative_path": name, "format": "PNG",
+                "canonical": True, "canonical_file_name": name,
+            })
+            review_rows.append({
+                "split": split, "file_name": name, "sha256": sha,
+                "source_group": "fixture", "dimensions": f"{width}x{height}",
+                "predicted_decision": decision,
+                "human_review_status": "pending", "reviewed_decision": "",
+                "reviewer_notes": "",
+            })
+            if decision == "NG":
+                annotations.append({
+                    "id": next_annotation_id, "image_id": image_id,
+                    "category_id": 1, "bbox": [1, 2, 10, 5], "area": 50,
+                    "iscrowd": 0, "score": 0.75,
+                    "detector_version": "fixture-prediction",
+                    "source": "prediction", "annotation_status": "preannotated",
+                    "is_ground_truth": False,
+                })
+                next_annotation_id += 1
+        split_payloads[split] = {
+            "info": {
+                "ground_truth_complete": False,
+                "accuracy_metrics_claimed": False,
+                "class_catalog_sha256": catalog_hash,
+                "human_review_status": "pending",
+                "training_complete": False,
+                "split": split,
+            },
+            "images": images, "annotations": annotations,
+            "categories": categories,
+        }
+        (package / f"{split}-preannotations.coco.json").write_text(
+            json.dumps(split_payloads[split]), encoding="utf-8")
+
+    for index in range(2):
+        name = f"pilot-{index + 1:02d}.png"
+        payload = png_bytes(70 + index, 35 + index, 90 + index)
+        sha = hashlib.sha256(payload).hexdigest()
+        manifest_images.append({
+            "id": next_id, "file_name": name, "width": 70 + index,
+            "height": 35 + index, "sha256": sha, "source_group": "fixture",
+            "split": "pilot", "annotation_status": "preannotated",
+            "is_ground_truth": False, "authorization_status": "unverified",
+            "p4_result_present": True, "relative_path": name, "format": "PNG",
+            "canonical": True, "canonical_file_name": name,
+        })
+        next_id += 1
+
+    with (package / "review.csv").open("w", encoding="utf-8", newline="") as stream:
+        writer = csv.DictWriter(stream, fieldnames=list(review_rows[0]))
+        writer.writeheader()
+        writer.writerows(review_rows)
+    development_manifest = {
+        "schema_version": "p5-dataset-manifest-v1",
+        "images": manifest_images,
+        "development_split": {
+            "schema_version": "p5-development-split-v1",
+            "canonical_counts": {
+                "pilot": 2, "train": train_count,
+                "validation": validation_count,
+                "excluded_near_pilot_unassigned": 0,
+            },
+        },
+    }
+    (package / "development-manifest.json").write_text(
+        json.dumps(development_manifest), encoding="utf-8")
+    (package / "selection.json").write_text(json.dumps({
+        "schema_version": "p5-development-selection-v1",
+        "train_count": train_count, "validation_count": validation_count,
+        "ground_truth": False, "accuracy_metrics_claimed": False,
+        "human_review_status": "pending", "training_complete": False,
+    }), encoding="utf-8")
+    write_development_evidence_manifest(package)
+    return package, static_dir
+
+
+def write_development_evidence_manifest(package, **overrides):
+    outputs = []
+    for path in sorted(
+            (item for item in package.rglob("*")
+             if item.is_file() and item.name != "manifest.json"),
+            key=lambda item: item.relative_to(package).as_posix()):
+        outputs.append({
+            "path": path.relative_to(package).as_posix(),
+            "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+            "size": path.stat().st_size,
+        })
+    manifest = {
+        "schema_version": "p5-development-package-evidence-v1",
+        "status": "PASS",
+        "outputs": outputs,
+        "ground_truth": False,
+        "accuracy_metrics_claimed": False,
+        "human_review_status": "pending",
+        "training_complete": False,
+    }
+    manifest.update(overrides)
+    (package / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+
+
 class WorkbenchServerTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -159,6 +309,10 @@ class WorkbenchServerTests(unittest.TestCase):
     def test_health_state_save_and_static_image_success(self):
         status, health = self.request("GET", "/api/health")
         self.assertEqual((status, health["status"]), (200, "ok"))
+        request = urllib.request.Request(self.base + "/favicon.ico", method="GET")
+        with urllib.request.urlopen(request, timeout=5) as response:
+            self.assertEqual(response.status, 204)
+            self.assertEqual(response.read(), b"")
         state = self.state()
         self.assertEqual(len(state["images"]), 30)
         state["operator_id"] = "annotator-a"
@@ -342,6 +496,43 @@ class WorkbenchServerTests(unittest.TestCase):
             with self.assertRaisesRegex(SERVER.WorkbenchError, "preview provenance"):
                 SERVER.ReviewWorkbench(package, Path(temp) / "workspace", static_dir)
 
+    def test_legacy_pilot_workspace_fingerprint_is_migrated(self):
+        state_path = self.server.workbench.state_path
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        legacy_fingerprint = hashlib.sha256(json.dumps(
+            self.server.workbench.package_bindings,
+            sort_keys=True, separators=(",", ":")
+        ).encode("utf-8")).hexdigest()
+        state["package_fingerprint"] = legacy_fingerprint
+        state.pop("package_kind")
+        state.pop("dataset_split")
+        state_path.write_text(json.dumps(state), encoding="utf-8")
+
+        reopened = SERVER.ReviewWorkbench(
+            self.server.workbench.package, self.workspace,
+            self.server.workbench.static_dir)
+        migrated = json.loads(state_path.read_text(encoding="utf-8"))
+        self.assertEqual(migrated["package_fingerprint"], reopened.package_fingerprint)
+        self.assertEqual(migrated["package_kind"], "pilot")
+        self.assertEqual(migrated["dataset_split"], "pilot")
+        self.assertEqual(reopened.get_state()["revision"], state["revision"])
+
+    def test_legacy_state_schema_is_not_rewritten_without_audited_migration(self):
+        state_path = self.server.workbench.state_path
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        state["state_schema_version"] = "p5-workbench-state-v1"
+        for image in state["images"]:
+            image.pop("annotator_id")
+        state_path.write_text(json.dumps(state), encoding="utf-8")
+        before = state_path.read_bytes()
+
+        with self.assertRaisesRegex(
+                SERVER.WorkbenchError, "explicit audited migration"):
+            SERVER.ReviewWorkbench(
+                self.server.workbench.package, self.workspace,
+                self.server.workbench.static_dir)
+        self.assertEqual(state_path.read_bytes(), before)
+
     def test_pass1_export_has_human_provenance_and_no_prediction_fields(self):
         self.server.workbench.source_coco["info"].update({
             "reviewed_by": "forged-reviewer", "authorization_status": "approved"})
@@ -379,6 +570,30 @@ class WorkbenchServerTests(unittest.TestCase):
         self.assertEqual(exported["info"]["review_state_sha256"], result["review_state_sha256"])
         self.assertEqual(exported["images"][0]["annotated_by"], "annotator-a")
         self.assertEqual(exported["images"][0]["completed_revision"], 1)
+
+    def test_shared_workspace_stale_writer_and_disk_tamper_are_rejected(self):
+        second = SERVER.ReviewWorkbench(
+            self.server.workbench.package, self.workspace,
+            self.server.workbench.static_dir)
+        first_state = self.request("GET", "/api/state")[1]
+        second_state = second.get_state()
+        first_state["operator_id"] = "writer-a"
+        self.assertEqual(self.request("POST", "/api/save", first_state)[0], 200)
+        second_state["operator_id"] = "writer-b"
+        with self.assertRaisesRegex(SERVER.WorkbenchError, "stale revision"):
+            second.save(second_state)
+
+        complete = self.request("GET", "/api/state")[1]
+        complete["operator_id"] = "writer-a"
+        for image in complete["images"]:
+            image["review_state"] = "complete"
+            image["decision"] = "OK"
+            image["boxes"] = []
+        self.assertEqual(self.request("POST", "/api/save", complete)[0], 200)
+        self.server.workbench.state_path.write_text("{invalid", encoding="utf-8")
+        status, payload = self.request("POST", "/api/export-pass1", {})
+        self.assertEqual(status, 409)
+        self.assertIn("workspace state is unavailable or invalid", payload["error"])
 
     def test_completed_images_cannot_be_resigned_by_global_operator_change(self):
         state = self.complete(self.state(), "alice")
@@ -439,6 +654,520 @@ class WorkbenchServerTests(unittest.TestCase):
         self.assertEqual(response.status, 413)
         response.read()
         connection.close()
+
+
+class DevelopmentWorkbenchTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.root = Path(self.temp.name)
+        self.package, self.static_dir = make_development_package(self.root)
+        self.workspace = self.root / "train-workspace"
+        self.server = SERVER.create_server(
+            self.package, self.workspace, port=0,
+            static_dir=self.static_dir, split="train")
+        self.thread = threading.Thread(
+            target=self.server.serve_forever, daemon=True)
+        self.thread.start()
+        self.base = f"http://127.0.0.1:{self.server.server_address[1]}"
+
+    def tearDown(self):
+        self.server.shutdown()
+        self.server.server_close()
+        self.thread.join(timeout=5)
+        self.temp.cleanup()
+
+    def request(self, method, path, payload=None):
+        raw = json.dumps(payload).encode("utf-8") if payload is not None else None
+        request = urllib.request.Request(
+            self.base + path, data=raw,
+            headers={"Content-Type": "application/json"}, method=method)
+        try:
+            with urllib.request.urlopen(request, timeout=5) as response:
+                body = response.read()
+                return response.status, json.loads(body) if body else None
+        except urllib.error.HTTPError as error:
+            body = error.read()
+            return error.code, json.loads(body) if body else None
+
+    def test_train_state_health_and_no_rendered_preview(self):
+        status, health = self.request("GET", "/api/health")
+        self.assertEqual(status, 200)
+        self.assertEqual(health["package_kind"], "development")
+        self.assertEqual(health["dataset_split"], "train")
+        self.assertEqual(health["image_count"], 3)
+        status, state = self.request("GET", "/api/state")
+        self.assertEqual(status, 200)
+        self.assertEqual(state["session"]["dataset_split"], "train")
+        self.assertEqual(len(state["images"]), 3)
+        self.assertTrue(all(image["preview_url"] is None for image in state["images"]))
+        status, payload = self.request(
+            "GET", "/previews/train-01.annotated.png")
+        self.assertEqual(status, 404)
+        self.assertIn("does not include", payload["error"])
+
+    def test_train_pass1_export_preserves_split_and_non_truth_status(self):
+        state = self.request("GET", "/api/state")[1]
+        state["operator_id"] = "train-annotator"
+        for image in state["images"]:
+            image["review_state"] = "annotation-complete"
+        self.assertEqual(self.request("POST", "/api/save", state)[0], 200)
+        status, result = self.request("POST", "/api/export-pass1", {})
+        self.assertEqual(status, 200)
+        self.assertEqual(result["dataset_split"], "train")
+        export_path = self.workspace / "pass1-train-annotations.coco.json"
+        self.assertEqual(Path(result["path"]), export_path)
+        exported = json.loads(export_path.read_text(encoding="utf-8"))
+        self.assertEqual(exported["info"]["dataset_split"], "train")
+        self.assertEqual(exported["info"]["package_kind"], "development")
+        self.assertFalse(exported["info"]["ground_truth_complete"])
+        self.assertTrue(all(image["split"] == "train" for image in exported["images"]))
+        self.assertTrue(all(image["is_ground_truth"] is False
+                            for image in exported["images"]))
+
+    def test_workspace_cannot_be_reused_for_validation(self):
+        self.assertTrue((self.workspace / "review-state.json").is_file())
+        with self.assertRaisesRegex(
+                SERVER.WorkbenchError, "selected package|dataset split"):
+            SERVER.ReviewWorkbench(
+                self.package, self.workspace, self.static_dir, "validation")
+
+    def test_runtime_development_source_replacement_is_refused(self):
+        state = self.request("GET", "/api/state")[1]
+        source_path = self.server.workbench.images_dir / "train-01.png"
+        source_path.write_bytes(png_bytes(81, 41, 99))
+        status, payload = self.request("GET", "/images/train-01.png")
+        self.assertEqual(status, 409)
+        self.assertIn("changed after startup", payload["error"])
+        status, payload = self.request("GET", "/api/state")
+        self.assertEqual(status, 409)
+        self.assertIn("changed after startup", payload["error"])
+        status, payload = self.request("POST", "/api/save", state)
+        self.assertEqual(status, 409)
+        self.assertIn("changed after startup", payload["error"])
+
+    def test_development_package_drift_during_startup_is_refused(self):
+        original_load = SERVER.ReviewWorkbench._load_package
+
+        def replace_after_load(workbench):
+            result = original_load(workbench)
+            selection_path = workbench.package / "selection.json"
+            selection = json.loads(selection_path.read_text(encoding="utf-8"))
+            selection["human_review_status"] = "changed-during-startup"
+            selection_path.write_text(json.dumps(selection), encoding="utf-8")
+            return result
+
+        with mock.patch.object(
+                SERVER.ReviewWorkbench, "_load_package", replace_after_load):
+            with self.assertRaisesRegex(
+                    SERVER.WorkbenchError, "changed after startup"):
+                SERVER.ReviewWorkbench(
+                    self.package, self.root / "startup-drift-workspace",
+                    self.static_dir, "train")
+
+    def test_pilot_overlap_and_wrong_split_are_rejected(self):
+        coco_path = self.package / "train-preannotations.coco.json"
+        coco = json.loads(coco_path.read_text(encoding="utf-8"))
+        manifest = json.loads(
+            (self.package / "development-manifest.json").read_text(encoding="utf-8"))
+        pilot = next(item for item in manifest["images"] if item["split"] == "pilot")
+        coco["images"][0]["sha256"] = pilot["sha256"]
+        coco_path.write_text(json.dumps(coco), encoding="utf-8")
+        write_development_evidence_manifest(self.package)
+        with self.assertRaisesRegex(SERVER.WorkbenchError, "overlaps pilot"):
+            SERVER.ReviewWorkbench(
+                self.package, self.root / "overlap-workspace",
+                self.static_dir, "train")
+
+        self.package, self.static_dir = make_development_package(
+            self.root / "wrong-split")
+        coco_path = self.package / "validation-preannotations.coco.json"
+        coco = json.loads(coco_path.read_text(encoding="utf-8"))
+        coco["images"][0]["split"] = "train"
+        coco_path.write_text(json.dumps(coco), encoding="utf-8")
+        write_development_evidence_manifest(self.package)
+        with self.assertRaisesRegex(SERVER.WorkbenchError, "wrong development split"):
+            SERVER.ReviewWorkbench(
+                self.package, self.root / "wrong-split-workspace",
+                self.static_dir, "validation")
+
+    def test_development_evidence_manifest_status_schema_and_outputs_are_required(self):
+        manifest_path = self.package / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["status"] = "FAIL"
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        with self.assertRaisesRegex(SERVER.WorkbenchError, "PASS status"):
+            SERVER.ReviewWorkbench(
+                self.package, self.root / "status-workspace",
+                self.static_dir, "train")
+
+        self.package, self.static_dir = make_development_package(
+            self.root / "bad-outputs")
+        manifest_path = self.package / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["outputs"] = []
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        with self.assertRaisesRegex(SERVER.WorkbenchError, "output bindings"):
+            SERVER.ReviewWorkbench(
+                self.package, self.root / "outputs-workspace",
+                self.static_dir, "train")
+
+    def test_train_validation_name_or_hash_overlap_is_rejected(self):
+        development_path = self.package / "development-manifest.json"
+        development = json.loads(development_path.read_text(encoding="utf-8"))
+        train = next(item for item in development["images"] if item["split"] == "train")
+        validation = next(
+            item for item in development["images"] if item["split"] == "validation")
+        validation["sha256"] = train["sha256"]
+        development_path.write_text(json.dumps(development), encoding="utf-8")
+        write_development_evidence_manifest(self.package)
+        with self.assertRaisesRegex(
+                SERVER.WorkbenchError, "train and validation membership overlaps"):
+            SERVER.ReviewWorkbench(
+                self.package, self.root / "cross-split-workspace",
+                self.static_dir, "train")
+
+    def test_workspace_must_be_disjoint_from_package_and_static_assets(self):
+        for workspace in (
+                self.package,
+                self.package / "train" / "images",
+                self.package.parent,
+                self.static_dir,
+                self.static_dir / "nested",
+        ):
+            with self.subTest(workspace=workspace):
+                with self.assertRaisesRegex(SERVER.WorkbenchError, "must not overlap"):
+                    SERVER.ReviewWorkbench(
+                        self.package, workspace, self.static_dir, "train")
+
+    def test_launcher_rejects_overlap_before_creating_workspace(self):
+        workspace = self.package / "must-not-be-created"
+        command = [
+            "powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass",
+            "-File", str(ROOT / "scripts" / "run_windows_p5_development_review.ps1"),
+            "-Split", "train", "-Package", str(self.package),
+            "-Workspace", str(workspace), "-Port", "8765",
+        ]
+        result = subprocess.run(
+            command, cwd=ROOT, capture_output=True, text=True, timeout=15)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("must not overlap", result.stderr + result.stdout)
+        self.assertFalse(workspace.exists())
+
+    def test_launcher_reviewer_mode_requires_existing_pass1(self):
+        workspace = self.root / "reviewer-launch-workspace"
+        command = [
+            "powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass",
+            "-File", str(ROOT / "scripts" / "run_windows_p5_development_review.ps1"),
+            "-Split", "train", "-Mode", "reviewer",
+            "-Package", str(self.package), "-Workspace", str(workspace),
+            "-Port", "8765",
+        ]
+        result = subprocess.run(
+            command, cwd=ROOT, capture_output=True, text=True, timeout=15)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("requires the immutable pass1", result.stderr + result.stdout)
+        self.assertFalse(workspace.exists())
+
+    @unittest.skipUnless(os.name == "nt", "Windows junction behavior")
+    def test_launcher_junction_overlap_is_rejected_before_write(self):
+        junction = self.root / "package-junction"
+        created = subprocess.run(
+            [
+                "cmd.exe", "/d", "/c", "mklink", "/J",
+                str(junction), str(self.package),
+            ],
+            capture_output=True, text=True, timeout=15,
+        )
+        if created.returncode != 0:
+            self.skipTest(
+                f"cannot create test junction: {created.stderr or created.stdout}")
+        workspace = junction / "must-not-be-created-through-junction"
+        before = {
+            path.relative_to(self.package).as_posix():
+            hashlib.sha256(path.read_bytes()).hexdigest()
+            for path in self.package.rglob("*") if path.is_file()
+        }
+        command = [
+            "powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass",
+            "-File", str(ROOT / "scripts" / "run_windows_p5_development_review.ps1"),
+            "-Split", "train", "-Package", str(self.package),
+            "-Workspace", str(workspace), "-Port", "8765",
+        ]
+        try:
+            result = subprocess.run(
+                command, cwd=ROOT, capture_output=True, text=True, timeout=15)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("must not overlap", result.stderr + result.stdout)
+            self.assertFalse(workspace.exists())
+            after = {
+                path.relative_to(self.package).as_posix():
+                hashlib.sha256(path.read_bytes()).hexdigest()
+                for path in self.package.rglob("*") if path.is_file()
+            }
+            self.assertEqual(after, before)
+        finally:
+            if junction.exists():
+                junction.rmdir()
+
+    def test_invalid_development_split_is_rejected(self):
+        with self.assertRaisesRegex(SERVER.WorkbenchError, "train or validation"):
+            SERVER.ReviewWorkbench(
+                self.package, self.root / "bad-workspace",
+                self.static_dir, "pilot")
+
+
+class ReviewerWorkbenchTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.root = Path(self.temp.name)
+        self.package, self.static_dir = make_development_package(self.root)
+        annotation_workspace = self.root / "annotation-workspace"
+        annotation = SERVER.ReviewWorkbench(
+            self.package, annotation_workspace, self.static_dir, "train")
+        state = annotation.get_state()
+        state["operator_name"] = "标注员 A"
+        state["operator_id"] = "annotator-001"
+        for image in state["images"]:
+            image["review_state"] = "complete"
+        annotation.save(state)
+        annotation.export_pass1()
+        self.pass1 = annotation_workspace / "pass1-train-annotations.coco.json"
+
+        self.workspace = self.root / "reviewer-workspace"
+        self.server = SERVER.create_server(
+            self.package, self.workspace, port=0,
+            static_dir=self.static_dir, split="train", mode="reviewer",
+            pass1=self.pass1)
+        self.thread = threading.Thread(
+            target=self.server.serve_forever, daemon=True)
+        self.thread.start()
+        self.base = f"http://127.0.0.1:{self.server.server_address[1]}"
+
+    def tearDown(self):
+        self.server.shutdown()
+        self.server.server_close()
+        self.thread.join(timeout=5)
+        self.temp.cleanup()
+
+    def request(self, method, path, payload=None):
+        raw = json.dumps(payload).encode("utf-8") if payload is not None else None
+        request = urllib.request.Request(
+            self.base + path, data=raw,
+            headers={"Content-Type": "application/json"}, method=method)
+        try:
+            with urllib.request.urlopen(request, timeout=5) as response:
+                body = response.read()
+                return response.status, json.loads(body) if body else None
+        except urllib.error.HTTPError as error:
+            body = error.read()
+            return error.code, json.loads(body) if body else None
+
+    def state(self):
+        return self.request("GET", "/api/state")[1]
+
+    def complete_review(self, name="复核员 B", reviewer_id="reviewer-002"):
+        state = self.state()
+        state["operator_name"] = name
+        state["operator_id"] = reviewer_id
+        for image in state["images"]:
+            image["review_state"] = "complete"
+        return state
+
+    def test_reviewer_health_and_state_are_bound_to_pass1(self):
+        status, health = self.request("GET", "/api/health")
+        self.assertEqual(status, 200)
+        self.assertEqual(health["mode"], "reviewer")
+        state = self.state()
+        self.assertEqual(state["session"]["mode"], "reviewer")
+        self.assertEqual(state["session"]["dataset_split"], "train")
+        self.assertTrue(all(image["review_state"] == "pending"
+                            for image in state["images"]))
+        self.assertTrue(all(image["annotated_by"] == "标注员 A"
+                            for image in state["images"]))
+        self.assertTrue(all(image["annotator_id"] == "annotator-001"
+                            for image in state["images"]))
+        self.assertTrue(all(len(image["source_content_sha256"]) == 64
+                            for image in state["images"]))
+
+    def test_review_candidate_is_complete_auditable_and_still_non_truth(self):
+        state = self.complete_review()
+        self.assertEqual(self.request("POST", "/api/save", state)[0], 200)
+        status, result = self.request("POST", "/api/export-reviewed", {})
+        self.assertEqual(status, 200)
+        self.assertEqual(result["status"], "independently-reviewed")
+        self.assertEqual(result["authorization_status"], "unverified")
+        self.assertFalse(result["is_ground_truth"])
+        self.assertEqual(result["changed_image_count"], 0)
+        candidate = json.loads(Path(result["path"]).read_text(encoding="utf-8"))
+        self.assertEqual(
+            candidate["info"]["annotation_stage"],
+            "independent-review-candidate")
+        self.assertFalse(candidate["info"]["ground_truth_complete"])
+        self.assertEqual(
+            SERVER._sha256(self.pass1),
+            candidate["info"]["source_pass1_sha256"])
+        self.assertTrue(all(item["is_ground_truth"] is False
+                            for item in candidate["images"]))
+        self.assertTrue(all(item["authorization_status"] == "unverified"
+                            for item in candidate["images"]))
+        self.assertTrue(all(item["reviewed_by"] == "复核员 B"
+                            for item in candidate["images"]))
+        self.assertTrue(all(item["reviewer_id"] == "reviewer-002"
+                            for item in candidate["images"]))
+        self.assertTrue(all(item["review_outcome"] in {"accepted", "unresolved"}
+                            for item in candidate["images"]))
+        self.assertTrue(all(item["reviewed_at"]
+                            for item in candidate["images"]))
+        self.assertTrue(all(item["annotator_id"] == "annotator-001"
+                            for item in candidate["annotations"]))
+        self.assertTrue(all("score" not in item
+                            for item in candidate["annotations"]))
+
+    def test_reviewer_correction_is_recorded_without_mutating_pass1(self):
+        before = self.pass1.read_bytes()
+        state = self.complete_review()
+        target = state["images"][1]
+        target["notes"] = "second-person correction"
+        self.assertEqual(self.request("POST", "/api/save", state)[0], 200)
+        status, result = self.request("POST", "/api/export-reviewed", {})
+        self.assertEqual(status, 200)
+        self.assertEqual(result["changed_image_count"], 1)
+        candidate = json.loads(Path(result["path"]).read_text(encoding="utf-8"))
+        corrected = next(
+            item for item in candidate["images"] if item["id"] == target["id"])
+        self.assertEqual(corrected["review_outcome"], "corrected")
+        self.assertTrue(corrected["review_changed"])
+        self.assertEqual(self.pass1.read_bytes(), before)
+
+    def test_same_reviewer_identity_is_rejected_after_nfkc_normalization(self):
+        state = self.complete_review(
+            name=" 标注员　Ａ ", reviewer_id=" ANNOTATOR-001 ")
+        status, payload = self.request("POST", "/api/save", state)
+        self.assertEqual(status, 409)
+        self.assertIn("must differ", payload["error"])
+        self.assertFalse(
+            (self.workspace / "review-candidate-train.coco.json").exists())
+
+    def test_same_reviewer_identity_is_rejected_with_default_ignorables(self):
+        state = self.complete_review(
+            name="标注员 A\u200b", reviewer_id="annotator-001\u034f")
+        status, payload = self.request("POST", "/api/save", state)
+        self.assertEqual(status, 409)
+        self.assertIn("must differ", payload["error"])
+
+    def test_reserved_default_ignorables_cannot_bypass_identity_gate(self):
+        state = self.complete_review()
+        state["operator_name"] = (
+            state["images"][0]["annotated_by"] + "\u2065")
+        state["operator_id"] = (
+            state["images"][0]["annotator_id"] + "\ufff0")
+        status, payload = self.request("POST", "/api/save", state)
+        self.assertEqual(status, 409)
+        self.assertIn("must differ", payload["error"])
+        self.assertFalse(
+            (self.workspace / "review-candidate-train.coco.json").exists())
+
+    def test_incomplete_review_and_raw_pass1_export_are_refused(self):
+        status, payload = self.request("POST", "/api/export-reviewed", {})
+        self.assertEqual(status, 409)
+        self.assertIn("independently reviewed", payload["error"])
+        status, payload = self.request("POST", "/api/export-pass1", {})
+        self.assertEqual(status, 409)
+        self.assertIn("annotator mode", payload["error"])
+
+    def test_pass1_runtime_drift_is_fail_closed(self):
+        pass1 = json.loads(self.pass1.read_text(encoding="utf-8"))
+        pass1["images"][0]["notes"] = "tampered"
+        self.pass1.write_text(json.dumps(pass1), encoding="utf-8")
+        status, payload = self.request("GET", "/api/state")
+        self.assertEqual(status, 409)
+        self.assertIn("changed after startup", payload["error"])
+
+    def test_workspace_tamper_cannot_change_source_binding_or_outcome(self):
+        state_path = self.workspace / "reviewer-state.json"
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        state["images"][0]["source_content_sha256"] = "0" * 64
+        state_path.write_text(json.dumps(state), encoding="utf-8")
+        status, payload = self.request("GET", "/api/state")
+        self.assertEqual(status, 409)
+        self.assertIn("changed outside this process", payload["error"])
+
+    def test_completed_outcome_and_identity_are_recomputed_from_content(self):
+        state = self.complete_review()
+        self.assertEqual(self.request("POST", "/api/save", state)[0], 200)
+        state_path = self.workspace / "reviewer-state.json"
+        saved = json.loads(state_path.read_text(encoding="utf-8"))
+        saved["images"][0]["review_outcome"] = "corrected"
+        state_path.write_text(json.dumps(saved), encoding="utf-8")
+        status, payload = self.request("GET", "/api/state")
+        self.assertEqual(status, 409)
+        self.assertIn("changed outside this process", payload["error"])
+
+    def test_coherent_completed_disk_rewrite_is_rejected(self):
+        state = self.complete_review()
+        self.assertEqual(self.request("POST", "/api/save", state)[0], 200)
+        state_path = self.workspace / "reviewer-state.json"
+        saved = json.loads(state_path.read_text(encoding="utf-8"))
+        target = saved["images"][0]
+        target["notes"] = "forged but internally coherent"
+        target["reviewed_by"] = "forged reviewer"
+        target["reviewer_id"] = "forged-reviewer-999"
+        target["review_outcome"] = "corrected"
+        state_path.write_text(json.dumps(saved), encoding="utf-8")
+
+        status, payload = self.request("GET", "/api/state")
+        self.assertEqual(status, 409)
+        self.assertIn("changed outside this process", payload["error"])
+        status, payload = self.request("POST", "/api/export-reviewed", {})
+        self.assertEqual(status, 409)
+        self.assertIn("changed outside this process", payload["error"])
+
+    def test_source_annotator_identity_is_rebound_to_pass1_on_restart(self):
+        state_path = self.workspace / "reviewer-state.json"
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        state["images"][0]["annotated_by"] = "forged-source-name"
+        state["images"][0]["annotator_id"] = "forged-source-id"
+        state_path.write_text(json.dumps(state), encoding="utf-8")
+
+        with self.assertRaisesRegex(
+                SERVER.WorkbenchError,
+                "source annotator binding does not match pass1"):
+            SERVER.ReviewWorkbench(
+                self.package, self.workspace, self.static_dir,
+                "train", "reviewer", self.pass1)
+
+    def test_reviewer_workspace_cannot_contain_pass1(self):
+        with self.assertRaisesRegex(
+                SERVER.WorkbenchError, "must not contain"):
+            SERVER.ReviewWorkbench(
+                self.package, self.pass1.parent, self.static_dir,
+                "train", "reviewer", self.pass1)
+
+    def test_pass1_without_stable_annotator_id_is_rejected(self):
+        self.server.shutdown()
+        self.server.server_close()
+        self.thread.join(timeout=5)
+        pass1 = json.loads(self.pass1.read_text(encoding="utf-8"))
+        pass1["info"].pop("annotator_ids")
+        for image in pass1["images"]:
+            image.pop("annotator_id")
+        for annotation in pass1["annotations"]:
+            annotation.pop("annotator_id")
+        legacy = self.root / "legacy-pass1.json"
+        legacy.write_text(json.dumps(pass1), encoding="utf-8")
+        with self.assertRaisesRegex(
+                SERVER.WorkbenchError, "stable ids"):
+            SERVER.ReviewWorkbench(
+                self.package, self.root / "legacy-review-workspace",
+                self.static_dir, "train", "reviewer", legacy)
+        self.server = SERVER.create_server(
+            self.package, self.root / "replacement-workspace", port=0,
+            static_dir=self.static_dir, split="train", mode="reviewer",
+            pass1=self.pass1)
+        self.thread = threading.Thread(
+            target=self.server.serve_forever, daemon=True)
+        self.thread.start()
+        self.base = f"http://127.0.0.1:{self.server.server_address[1]}"
 
 
 if __name__ == "__main__":

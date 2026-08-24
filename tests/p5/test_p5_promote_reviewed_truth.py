@@ -42,7 +42,7 @@ def make_fixture(root):
         records.append({**common, "relative_path": name, "canonical": True, "canonical_file_name": name})
         images.append({
             **common, "id": image_id, "annotation_status": "annotated",
-            "is_ground_truth": False, "source": "human", "annotated_by": "肖朗",
+            "is_ground_truth": False, "source": "human", "annotated_by": "标注员A",
             "cigarette_decision": decision,
             "notes": "待确认" if decision == "REVIEW" else "",
         })
@@ -63,16 +63,16 @@ def make_fixture(root):
             "schema_version": "p5-coco-v1", "annotation_stage": "pass1",
             "annotation_status": "annotated", "ground_truth_complete": False,
             "accuracy_metrics_claimed": False, "source": "human",
-            "annotators": ["肖朗"], "class_catalog_sha256": catalog_hash,
+            "annotators": ["标注员A"], "class_catalog_sha256": catalog_hash,
         },
         "images": images,
         "annotations": [
             {"id": 1, "image_id": 2, "category_id": 1, "bbox": [1, 2, 10, 5],
              "area": 50, "iscrowd": 0, "annotation_status": "annotated",
-             "is_ground_truth": False, "source": "human", "annotated_by": "肖朗"},
+             "is_ground_truth": False, "source": "human", "annotated_by": "标注员A"},
             {"id": 2, "image_id": 3, "category_id": 7, "bbox": [2, 3, 8, 4],
              "area": 32, "iscrowd": 0, "annotation_status": "annotated",
-             "is_ground_truth": False, "source": "human", "annotated_by": "肖朗"},
+             "is_ground_truth": False, "source": "human", "annotated_by": "标注员A"},
         ],
         "categories": categories(catalog),
     }
@@ -100,7 +100,10 @@ def promote(paths, hashes, output, **overrides):
     arguments = {
         "pass1_path": paths["pass1"], "manifest_path": paths["manifest"],
         "predictions_path": paths["predictions"], "class_catalog_path": paths["catalog"],
-        "output_dir": output, "annotated_by": "肖朗", "reviewed_by": "小狼",
+        "output_dir": output, "annotated_by": "标注员A",
+        "annotator_id": "annotator-01", "reviewed_by": "复核员B",
+        "reviewer_id": "reviewer-01", "approved_by": "项目批准人",
+        "approver_id": "approver-01", "approval_basis": "fixture-owner-approval",
         "reviewed_at": dt.datetime.fromtimestamp(
             paths["pass1"].stat().st_mtime_ns / 1_000_000_000,
             tz=dt.timezone.utc).isoformat(),
@@ -129,7 +132,10 @@ class PromotionTests(unittest.TestCase):
             self.assertEqual(1, summary["formal_ground_truth_box_count"])
             self.assertEqual([1], [item["id"] for item in truth["annotations"]])
             self.assertTrue(all(item["is_ground_truth"] for item in truth["images"]))
-            self.assertTrue(all(item["reviewed_by"] == "小狼" for item in truth["images"]))
+            self.assertTrue(all(item["reviewed_by"] == "复核员B" for item in truth["images"]))
+            self.assertTrue(all(item["annotator_id"] == "annotator-01"
+                                for item in truth["images"]))
+            self.assertEqual("approver-01", attestation["approver_id"])
             self.assertEqual("approved", approved["images"][0]["authorization_status"])
             self.assertEqual("unverified", approved["images"][-1]["authorization_status"])
             self.assertEqual(predictions["annotations"], evaluation["annotations"])
@@ -153,9 +159,27 @@ class PromotionTests(unittest.TestCase):
             paths, hashes, _, _, _ = make_fixture(root)
             output = root / "output"
             with self.assertRaisesRegex(PROMOTION.PromotionError, "distinct"):
-                promote(paths, hashes, output, reviewed_by="肖朗")
+                promote(paths, hashes, output, reviewed_by=" 标注员Ａ ")
             self.assertFalse(output.exists())
             self.assertFalse(any(path.name.endswith(".staging") for path in root.iterdir()))
+
+    def test_rejects_equivalent_stable_ids(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths, hashes, _, _, _ = make_fixture(root)
+            output = root / "output"
+            with self.assertRaisesRegex(PROMOTION.PromotionError, "stable ids"):
+                promote(paths, hashes, output, reviewer_id=" ANNOTATOR-01 ")
+            self.assertFalse(output.exists())
+
+    def test_rejects_missing_explicit_approval(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths, hashes, _, _, _ = make_fixture(root)
+            output = root / "output"
+            with self.assertRaisesRegex(PROMOTION.PromotionError, "approval requires"):
+                promote(paths, hashes, output, approval_basis=" ")
+            self.assertFalse(output.exists())
 
     def test_rejects_input_hash_drift(self):
         with tempfile.TemporaryDirectory() as temporary:

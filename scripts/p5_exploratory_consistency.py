@@ -28,6 +28,13 @@ RESULT_TYPES = (
     "human_only",
 )
 VALID_DECISIONS = {"OK", "NG", "REVIEW"}
+CATEGORY_FIELDS = (
+    "id",
+    "name",
+    "display_name_zh",
+    "mapping_status",
+    "supercategory",
+)
 
 
 class InputContractError(ValueError):
@@ -122,6 +129,83 @@ def _require_unreviewed_reference(dataset: dict[str, Any], role: str) -> None:
                 raise InputContractError(f"{role} {section} must explicitly keep is_ground_truth=false")
 
 
+def _catalog_categories(catalog: dict[str, Any]) -> dict[int, dict[str, Any]]:
+    classes = catalog.get("classes")
+    if not isinstance(classes, list):
+        raise InputContractError("class catalog classes must be a list")
+    categories: dict[int, dict[str, Any]] = {}
+    for item in classes:
+        if not isinstance(item, dict):
+            raise InputContractError("class catalog class must be an object")
+        category_id = item.get("id")
+        if not isinstance(category_id, int) or isinstance(category_id, bool):
+            raise InputContractError("class catalog IDs must be integers")
+        if category_id in categories:
+            raise InputContractError(f"duplicate class catalog ID: {category_id}")
+        category = {
+            "id": category_id,
+            "name": item.get("name"),
+            "display_name_zh": item.get("displayNameZh", item.get("name")),
+            "mapping_status": item.get("mappingStatus"),
+            "supercategory": "cigarette_defect",
+        }
+        if any(not isinstance(category[field], str) or not category[field]
+               for field in CATEGORY_FIELDS if field != "id"):
+            raise InputContractError(f"class catalog category {category_id} has invalid metadata")
+        categories[category_id] = category
+    return categories
+
+
+def _validate_categories(
+        predictions: dict[str, Any],
+        human: dict[str, Any],
+        expected: dict[int, dict[str, Any]] | None,
+) -> dict[int, dict[str, Any]]:
+    pred_categories = _index_unique(
+        predictions.get("categories", []), "id", "prediction category")
+    human_categories = _index_unique(
+        human.get("categories", []), "id", "human category")
+    for role, categories in (
+        ("prediction", pred_categories),
+        ("human", human_categories),
+    ):
+        for category_id, category in categories.items():
+            if not isinstance(category_id, int) or isinstance(category_id, bool):
+                raise InputContractError(f"{role} category IDs must be integers")
+            for field in CATEGORY_FIELDS:
+                if field not in category:
+                    raise InputContractError(
+                        f"{role} category {category_id} missing {field}")
+    if set(pred_categories) != set(human_categories):
+        raise InputContractError("prediction and human category ID sets differ")
+    for category_id in sorted(pred_categories):
+        for field in CATEGORY_FIELDS:
+            if pred_categories[category_id].get(field) != human_categories[category_id].get(field):
+                raise InputContractError(
+                    f"prediction and human category {category_id} differ for {field}")
+    if expected is not None:
+        if set(pred_categories) != set(expected):
+            raise InputContractError("class catalog category IDs do not match both inputs")
+        for category_id in sorted(expected):
+            for role, categories in (
+                ("prediction", pred_categories),
+                ("human", human_categories),
+            ):
+                for field in CATEGORY_FIELDS:
+                    if categories[category_id].get(field) != expected[category_id][field]:
+                        raise InputContractError(
+                            f"{role} category {category_id} differs from class catalog for {field}")
+    return pred_categories
+
+
+def _validate_decision_box_count(
+        role: str, image_id: int, decision: str, box_count: int) -> None:
+    if decision == "OK" and box_count:
+        raise InputContractError(f"{role} image {image_id} is OK but contains defect boxes")
+    if decision == "NG" and not box_count:
+        raise InputContractError(f"{role} image {image_id} is NG but has no defect boxes")
+
+
 def _validate_bbox(bbox: Any, image: dict[str, Any], label: str) -> tuple[float, float, float, float]:
     if not isinstance(bbox, list) or len(bbox) != 4:
         raise InputContractError(f"{label} bbox must contain four values")
@@ -138,14 +222,15 @@ def _validate_bbox(bbox: Any, image: dict[str, Any], label: str) -> tuple[float,
     return x, y, width, height
 
 
-def validate_inputs(predictions: dict[str, Any], human: dict[str, Any]) -> tuple[dict[int, dict[str, Any]], dict[int, dict[str, Any]], dict[int, dict[str, Any]]]:
+def validate_inputs(
+        predictions: dict[str, Any],
+        human: dict[str, Any],
+        expected_categories: dict[int, dict[str, Any]] | None = None,
+) -> tuple[dict[int, dict[str, Any]], dict[int, dict[str, Any]], dict[int, dict[str, Any]]]:
     _require_unreviewed_reference(predictions, "predictions")
     _require_unreviewed_reference(human, "human_reference")
 
-    pred_categories = _index_unique(predictions.get("categories", []), "id", "prediction category")
-    human_categories = _index_unique(human.get("categories", []), "id", "human category")
-    if pred_categories != human_categories:
-        raise InputContractError("prediction and human category catalogs differ")
+    pred_categories = _validate_categories(predictions, human, expected_categories)
 
     pred_images = _index_unique(predictions["images"], "id", "prediction image")
     human_images = _index_unique(human["images"], "id", "human image")
@@ -165,7 +250,19 @@ def validate_inputs(predictions: dict[str, Any], human: dict[str, Any]) -> tuple
             raise InputContractError(f"image {image_id} has invalid predicted_decision")
         if human_decision not in VALID_DECISIONS:
             raise InputContractError(f"image {image_id} has invalid human cigarette_decision")
+        if pred_image.get("annotation_status") != "preannotated":
+            raise InputContractError(
+                f"prediction image {image_id} must have annotation_status=preannotated")
+        if human_image.get("annotation_status") != "annotated":
+            raise InputContractError(
+                f"human image {image_id} must have annotation_status=annotated")
+        if human_image.get("source") != "human":
+            raise InputContractError(f"human image {image_id} must have source=human")
 
+    box_counts: dict[str, Counter[int]] = {
+        "prediction": Counter(),
+        "human": Counter(),
+    }
     for role, dataset, images in (
         ("prediction", predictions, pred_images),
         ("human", human, human_images),
@@ -179,6 +276,29 @@ def validate_inputs(predictions: dict[str, Any], human: dict[str, Any]) -> tuple
             if category_id not in pred_categories:
                 raise InputContractError(f"{role} annotation {annotation_id} references an unknown category")
             _validate_bbox(annotation.get("bbox"), images[image_id], f"{role} annotation {annotation_id}")
+            expected_status = "preannotated" if role == "prediction" else "annotated"
+            if annotation.get("annotation_status") != expected_status:
+                raise InputContractError(
+                    f"{role} annotation {annotation_id} must have "
+                    f"annotation_status={expected_status}")
+            if role == "human" and annotation.get("source") != "human":
+                raise InputContractError(
+                    f"human annotation {annotation_id} must have source=human")
+            box_counts[role][image_id] += 1
+
+    for image_id in sorted(pred_images):
+        _validate_decision_box_count(
+            "prediction",
+            image_id,
+            pred_images[image_id]["predicted_decision"],
+            box_counts["prediction"][image_id],
+        )
+        _validate_decision_box_count(
+            "human",
+            image_id,
+            human_images[image_id]["cigarette_decision"],
+            box_counts["human"][image_id],
+        )
 
     return pred_images, human_images, pred_categories
 
@@ -231,10 +351,16 @@ def match_image_boxes(pred_annotations: list[dict[str, Any]], human_annotations:
     return rows
 
 
-def analyze(predictions: dict[str, Any], human: dict[str, Any], iou_threshold: float = 0.5) -> dict[str, Any]:
+def analyze(
+        predictions: dict[str, Any],
+        human: dict[str, Any],
+        iou_threshold: float = 0.5,
+        expected_categories: dict[int, dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     if not math.isfinite(iou_threshold) or not 0 < iou_threshold <= 1:
         raise InputContractError("iou_threshold must be greater than 0 and at most 1")
-    pred_images, human_images, categories = validate_inputs(predictions, human)
+    pred_images, human_images, categories = validate_inputs(
+        predictions, human, expected_categories)
 
     pred_by_image: dict[int, list[dict[str, Any]]] = defaultdict(list)
     human_by_image: dict[int, list[dict[str, Any]]] = defaultdict(list)
@@ -467,12 +593,9 @@ def run(prediction_path: Path, human_path: Path, class_catalog_path: Path, outpu
     actual_catalog_hash = sha256_file(class_catalog_path)
     if expected_catalog_hashes != {actual_catalog_hash}:
         raise InputContractError("class catalog hash does not match both input declarations")
-    catalog_ids = {item.get("id") for item in catalog.get("classes", [])}
-    input_ids = {item.get("id") for item in predictions.get("categories", [])}
-    if catalog_ids != input_ids:
-        raise InputContractError("class catalog IDs do not match the COCO categories")
+    expected_categories = _catalog_categories(catalog)
 
-    result = analyze(predictions, human, iou_threshold)
+    result = analyze(predictions, human, iou_threshold, expected_categories)
     bindings = {
         "predictions": {"path": str(prediction_path.resolve()), "sha256": sha256_file(prediction_path)},
         "human_reference": {"path": str(human_path.resolve()), "sha256": sha256_file(human_path)},

@@ -35,6 +35,7 @@ COLORS = {
 REASON_LABELS = {
     "decision_different": "图片决定不同",
     "class_changed": "同位置类别改变",
+    "unmatched_boxes": "框位置或数量不一致",
     "human_review": "人工待确认",
 }
 RESULT_LABELS = {
@@ -126,30 +127,6 @@ def atomic_image(path: Path, image: Image.Image) -> None:
         raise
 
 
-def _load_bitmap_font() -> ImageFont.ImageFont:
-    """Load a FreeType-independent Pillow font for deterministic degradation.
-
-    Pillow's public ``load_default`` factory switched to a bundled TrueType
-    font when FreeType is available.  That makes the apparent bitmap fallback
-    depend on the same optional extension that may have just failed.  The
-    legacy PILfont loader is intentionally used first because it is pure
-    bitmap data and does not call ``ImageFont.truetype``.
-    """
-    bitmap_loader = getattr(ImageFont, "load_default_imagefont", None)
-    if bitmap_loader is not None:
-        try:
-            return bitmap_loader()
-        except (OSError, ImportError, AttributeError, TypeError):
-            # Keep a compatibility path for Pillow versions without a usable
-            # legacy loader.  The final exception is converted to a project
-            # error below instead of leaking an implementation-specific error.
-            pass
-    try:
-        return ImageFont.load_default()
-    except (OSError, ImportError, AttributeError, TypeError) as exc:
-        raise VisualPackError("Pillow has no usable bitmap or TrueType font") from exc
-
-
 def load_font(font_path: Path | None, size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
     candidates = [font_path] if font_path else []
     candidates.extend([
@@ -162,7 +139,11 @@ def load_font(font_path: Path | None, size: int) -> ImageFont.FreeTypeFont | Ima
                 return ImageFont.truetype(str(candidate), size=size)
             except (OSError, ImportError):
                 continue
-    return _load_bitmap_font()
+    try:
+        return ImageFont.load_default()
+    except (OSError, ImportError):
+        # Pillow 10.1+ may implement load_default() through FreeType too.
+        return ImageFont.load_default_imagefont()
 
 
 def raster_ascii(value: Any) -> str:
@@ -260,16 +241,33 @@ def select_cases(analysis: dict[str, Any]) -> list[dict[str, Any]]:
             reasons.append("decision_different")
         if row["decision_result"] == "review_excluded":
             reasons.append("human_review")
-        by_image[image_id] = {"image_row": row, "reasons": reasons, "class_changed_box_count": 0}
+        by_image[image_id] = {
+            "image_row": row,
+            "reasons": reasons,
+            "class_changed_box_count": 0,
+            "prediction_only_box_count": 0,
+            "human_only_box_count": 0,
+        }
     for row in analysis["box_rows"]:
-        if row["result_type"] == "spatial_match_class_changed":
-            image_id = int(row["image_id"])
+        image_id = int(row["image_id"])
+        result_type = row["result_type"]
+        if result_type == "spatial_match_class_changed":
             by_image[image_id]["class_changed_box_count"] += 1
             if "class_changed" not in by_image[image_id]["reasons"]:
                 by_image[image_id]["reasons"].append("class_changed")
+        elif result_type in {"prediction_only", "human_only"}:
+            count_key = f"{result_type}_box_count"
+            by_image[image_id][count_key] += 1
+            if "unmatched_boxes" not in by_image[image_id]["reasons"]:
+                by_image[image_id]["reasons"].append("unmatched_boxes")
 
     selected = [value for value in by_image.values() if value["reasons"]]
-    priority = {"decision_different": 0, "class_changed": 1, "human_review": 2}
+    priority = {
+        "decision_different": 0,
+        "class_changed": 1,
+        "unmatched_boxes": 2,
+        "human_review": 3,
+    }
     selected.sort(key=lambda value: (
         min(priority[reason] for reason in value["reasons"]),
         int(value["image_row"]["image_id"]),
@@ -361,7 +359,7 @@ def render_html(rows: list[dict[str, Any]], summary: dict[str, Any]) -> str:
         cards.append(f'''<article class="card">
 <div class="head"><div><strong>图片 {row["image_id"]}</strong> · {html.escape(row["file_name"])}</div><div>{badges}</div></div>
 <img loading="lazy" src="{html.escape(row["visual_path"])}" alt="图片 {row["image_id"]} 的模型与单标注员参考对照">
-<div class="meta">模型决定：<b>{row["predicted_decision"]}</b>　单标注员决定：<b>{row["human_decision"]}</b>　模型框：{row["prediction_box_count"]}　人工参考框：{row["human_box_count"]}　类别变化框：{row["class_changed_box_count"]}</div>
+<div class="meta">模型决定：<b>{row["predicted_decision"]}</b>　单标注员决定：<b>{row["human_decision"]}</b>　模型框：{row["prediction_box_count"]}　人工参考框：{row["human_box_count"]}　类别变化框：{row["class_changed_box_count"]}　仅模型侧框：{row["prediction_only_box_count"]}　仅人工侧框：{row["human_only_box_count"]}</div>
 </article>''')
     return f'''<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -371,7 +369,7 @@ body{{margin:0;background:#eef1f4;color:#20252b;font-family:"Microsoft YaHei",sa
 </style></head><body><main>
 <h1>P5 模型输出与单标注员参考：探索性分歧可视化</h1>
 <p class="warning"><b>重要限制：</b>模型输出不是真值，单标注员首轮参考也不是真值。本页面只用于定位分歧和业务澄清，不用于训练、参数调整、正式效果结论或验收。</p>
-<div class="summary"><span>重点图片 {summary['selected_image_count']}</span><span>决定不同 {summary['decision_different_image_count']}</span><span>待确认 {summary['human_review_image_count']}</span><span>类别变化框 {summary['class_changed_box_count']}</span></div>
+<div class="summary"><span>重点图片 {summary['selected_image_count']}</span><span>决定不同 {summary['decision_different_image_count']}</span><span>待确认 {summary['human_review_image_count']}</span><span>类别变化框 {summary['class_changed_box_count']}</span><span>位置或数量分歧图片 {summary['unmatched_box_image_count']}</span><span>未匹配框 {summary['unmatched_box_count']}</span></div>
 <div class="legend"><b>框颜色：</b><i style="background:{COLORS['spatial_match_same_class']}"></i>同位置同类别<i style="background:{COLORS['spatial_match_class_changed']}"></i>同位置类别改变<i style="background:{COLORS['prediction_only']}"></i>仅模型侧<i style="background:{COLORS['human_only']}"></i>仅人工参考侧</div>
 {''.join(cards)}
 <p class="warning"><b>再次提醒：</b>“相同”或“不同”只是两份非真值资料之间的描述，不能解释为正式检测表现。</p>
@@ -390,6 +388,8 @@ def render_readme(summary: dict[str, Any]) -> str:
         f"- 图片决定不同：{summary['decision_different_image_count']}",
         f"- 人工待确认：{summary['human_review_image_count']}",
         f"- 同位置类别改变框：{summary['class_changed_box_count']}（分布在 {summary['class_changed_image_count']} 张图片）",
+        f"- 框位置或数量不一致：{summary['unmatched_box_count']} 个未匹配框（分布在 {summary['unmatched_box_image_count']} 张图片）",
+        f"- 未匹配框分侧计数：模型侧 {summary['prediction_only_box_count']}，人工参考侧 {summary['human_only_box_count']}",
         "",
         "打开 `index.html` 查看中文离线画廊。每张图从左到右为原图、模型输出、单标注员参考。",
         "",
@@ -484,6 +484,8 @@ def build_pack(prediction_path: Path, human_path: Path, catalog_path: Path, anal
                 "prediction_box_count": int(image_row["prediction_box_count"]),
                 "human_box_count": int(image_row["human_box_count"]),
                 "class_changed_box_count": item["class_changed_box_count"],
+                "prediction_only_box_count": item["prediction_only_box_count"],
+                "human_only_box_count": item["human_only_box_count"],
                 "visual_path": f"cases/{visual_name}",
             })
             source_bindings.append({
@@ -505,7 +507,14 @@ def build_pack(prediction_path: Path, human_path: Path, catalog_path: Path, anal
             "human_review_image_count": sum("human_review" in row["reason_codes"].split(";") for row in rows),
             "class_changed_image_count": sum("class_changed" in row["reason_codes"].split(";") for row in rows),
             "class_changed_box_count": sum(row["class_changed_box_count"] for row in rows),
-            "case_order": "decision_different_then_class_changed_then_human_review",
+            "unmatched_box_image_count": sum("unmatched_boxes" in row["reason_codes"].split(";") for row in rows),
+            "prediction_only_box_count": sum(row["prediction_only_box_count"] for row in rows),
+            "human_only_box_count": sum(row["human_only_box_count"] for row in rows),
+            "unmatched_box_count": sum(
+                row["prediction_only_box_count"] + row["human_only_box_count"]
+                for row in rows
+            ),
+            "case_order": "decision_different_then_class_changed_then_unmatched_boxes_then_human_review",
             "iou_threshold": iou_threshold,
             "color_legend": COLORS,
         }

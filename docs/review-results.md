@@ -1,5 +1,13 @@
 # 评审结果
 
+## 2026-08-23 production acceptance acceleration checkpoint
+
+- Implementation/QA slice: `production_acceptance_status.py` is read-only, preserves the external-evidence boundary, and prioritizes controlled P5 artifact recovery.
+- Regression: 4/4 PASS; P5 178/8 skipped, P6 17/2 skipped, P8 81/10 skipped; Python compile and diff check PASS.
+- Degraded validation: `validate_project_docs.sh` could not run because this Windows host has no bash/WSL distribution; `light_gate.py` PASS. No production acceptance claim.
+- Recovery digest slice: external digest helper tests cover match, mismatch, missing, invalid digest, and JSON output; no recovered artifact was available on this host.
+- Windows build slice: Release Rebuild exit 0, `CigVision.exe` and `process.dll` present, C4828 count 0 after UTF-8 normalization; Debug/HALCON 25.05 and runtime startup remain unverified.
+
 ## 当前状态（2026-07-27）
 
 - P8 v2 正式 `artifacts/p8-continuous-local-20260727-final-v2` 已完成 2×300 秒和多次独立 verify；其绑定源文件未被当前 CI 返修改动。提交 `5f6a06a` 的 hosted `Local gates` run `30219159920`（job `89838475434`）FAIL，P8 81 项中准确发现 Linux CPU tick 将 0.12 秒 project contract 量化为 0.00 秒，以及 POSIX core dump 使旧 abort fixture 被误分类。
@@ -349,3 +357,7 @@ P4 关闭后的路线调整属于用户产品规划决定，不改变 P4 reviewe
 - Evidence report SHA-256: `2bc9b7115ba67563308fcb70fe3c4435c8849b89346962b8148d6487917b24d3`.
 - Evidence manifest SHA-256: `9a9fd67471413eebcd8cd57179a8048bf7e868f313035921459046b6735968d6`.
 - Formal TensorRT baseline remains BLOCKED / NOT VERIFIED under KI-039.
+- 2026-08-24 runtime review: TensorRT 10.15.1 ONNX rebuild and Windows batch evidence passed (116/116, zero runtime errors, negative paths 4/4/2/2). Review scope is execution integrity only; no accuracy, commercial, real-IO, safety, or production-signoff claim is made.
+- 2026-08-24 P2/P7 local review: corrected `run_windows_p2_contract_tests.ps1` relative evidence-root handling; independent rerun passes Debug/Release 7/7. ProductState Release executable passes 8/8. Scope is contract/state behavior only; Qt UI, hardware, and production acceptance remain unverified.
+- 2026-08-24 P3 local review: Windows offline evidence passed Debug/Release 7/7, Qt Release rebuild, 8-frame batch and invalid-manifest negative path. Startup PNG/JSON are present. Scope remains offline fixture/runtime evidence; no GPU, real device, or commercial effect claim.
+- 2026-08-24 P6/P8 acceleration review: P6 Windows simulation passed with all expected negative paths; P8/P6 regression passed `87/87` with `12` skips and `80` subtests. MSVC contract soak passed in `artifacts/p8-msvc-contract-20260824-v9`, including native build provenance, runtime contracts, Windows resource sampling, CPU/RSS gates, and self-verify. The locked `local-sdkfree-v1` soak and production Windows/GPU/Qt/DAQNavi/IO gates remain unverified; no blocking code defect was found in this local slice.

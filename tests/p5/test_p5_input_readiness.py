@@ -24,6 +24,12 @@ def digest(path: Path) -> str:
 
 
 class InputReadinessTests(unittest.TestCase):
+    def test_repository_catalog_retains_evidence_bound_lf_bytes(self):
+        catalog = ROOT / "config" / "p5-class-catalog.json"
+        payload = catalog.read_bytes()
+        self.assertNotIn(b"\r\n", payload)
+        self.assertEqual(digest(catalog), READY.EXPECTED_CLASS_CATALOG_SHA256)
+
     def test_fresh_checkout_reports_missing_required_external_inputs(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

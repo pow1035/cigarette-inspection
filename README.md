@@ -103,6 +103,24 @@ python3 scripts/p8_windows_evidence_verify.py import \
   --store-root artifacts/p8-evidence-store
 ```
 
+## 生产验收状态
+
+用只读状态聚合器快速查看当前可推进任务。它不会把本地或仿真结果外推为生产验收：
+
+```bash
+python3 scripts/production_acceptance_status.py --output work/production-acceptance-status.json
+```
+
+可选执行本地工程门：`--run-local-gates core` 或 `--run-local-gates full`。目标 Windows/GPU、真实相机、DAQNavi、IO/剔除、安全联锁和三方签字仍必须有独立证据。
+
+恢复 artifact 后，先用受控渠道提供的外部摘要核对具体 manifest 文件，再运行 readiness：
+
+```bash
+python3 scripts/p5_verify_external_digest.py \
+  --file artifacts/p5-reviewed-truth-YYYYMMDD-HHMMSS/evidence-manifest.json \
+  --expected-sha256 <externally-recorded-sha256>
+```
+
 ## 本地路线
 
 | 阶段 | 目标 | 当前状态 |

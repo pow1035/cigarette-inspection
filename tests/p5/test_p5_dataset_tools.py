@@ -43,7 +43,12 @@ def image(image_id, name, decision, status="reviewed", is_gt=True):
              "is_ground_truth": is_gt,
              "authorization_status": "approved"}
     if status == "reviewed":
-        value.update({"annotated_by": "annotator-a", "reviewed_by": "reviewer-b"})
+        value.update({
+            "annotated_by": "annotator-a", "annotator_id": "annotator-01",
+            "reviewed_by": "reviewer-b", "reviewer_id": "reviewer-01",
+        })
+    if status == "preannotated":
+        value["p4_result_present"] = True
     return value
 
 
@@ -54,6 +59,11 @@ def ann(annotation_id, image_id, category_id, bbox, status="reviewed", is_gt=Tru
              "source": "human" if is_gt else "prediction"}
     if not is_gt:
         value.update({"score": 0.9, "detector_version": "synthetic"})
+    else:
+        value.update({
+            "annotated_by": "annotator-a", "annotator_id": "annotator-01",
+            "reviewed_by": "reviewer-b", "reviewer_id": "reviewer-01",
+        })
     return value
 
 
@@ -78,22 +88,75 @@ def ground_truth_attestation(bindings=None):
         "authorization_status": "approved",
         "evaluation_split": "test",
         "annotated_by": "annotator-a",
+        "annotator_id": "annotator-01",
         "reviewed_by": "reviewer-b",
+        "reviewer_id": "reviewer-01",
         "reviewed_at": "2026-07-11T16:00:00+08:00",
+        "authorization_approved_by": "approver-c",
+        "approver_id": "approver-01",
+        "approval_basis": "fixture-owner-approval",
         "ground_truth_sha256": bindings["ground_truth"]["sha256"],
         "manifest_sha256": bindings["manifest"]["sha256"],
         "class_catalog_sha256": bindings["class_catalog"]["sha256"],
     }
 
 
+AUTO_RUNTIME_EVIDENCE = object()
+
+
+def tensorrt_runtime_evidence(predictions, manifest, bindings, split="test"):
+    selected = [
+        {"file_name": item["file_name"], "sha256": item["sha256"]}
+        for item in manifest["images"]
+        if item.get("canonical") is True and item.get("split") == split
+    ]
+    count = len(selected)
+    return {
+        "schema_version": "p5-tensorrt-pilot-runtime-v1",
+        "status": "PASS",
+        "backend": "TensorRT",
+        "tensorrt_version": "10.15.1.29",
+        "formal_p4_tensorrt_evidence": True,
+        "engine_plan_version_verified": True,
+        "accuracy_claimed": False,
+        "ground_truth_available": False,
+        "exit_code": 0,
+        "errors": 0,
+        "dropped": 0,
+        "save_failures": 0,
+        "sample_count": count,
+        "result_json_count": count,
+        "source_png_count": count,
+        "annotated_png_count": count,
+        "processed": count,
+        "input_images": selected,
+        "model": {"sha256": bindings["model"]["sha256"]},
+        "engine": {"sha256": bindings["engine"]["sha256"]},
+        "detector_config": {"sha256": bindings["detector_config"]["sha256"]},
+        "predictions": {"sha256": bindings["predictions"]["sha256"]},
+        "runner_script": {"sha256": bindings["runtime_runner"]["sha256"]},
+        "executable": {"sha256": bindings["runtime_executable"]["sha256"]},
+        "safety_config": {"sha256": bindings["safety_config"]["sha256"]},
+        "safety": {
+            "reject_enabled": False,
+            "hardware_initialized": False,
+            "reject_commands_generated": False,
+        },
+    }
+
+
 def run_evaluate(truth, predictions, manifest, iou=0.5, split="test",
                  attestation=None, bindings=None, runtime_contract=None,
-                 detector_config=None):
+                 detector_config=None, runtime_evidence=AUTO_RUNTIME_EVIDENCE):
     bindings = bindings or evaluation_bindings()
     attestation = attestation or ground_truth_attestation(bindings)
+    if runtime_evidence is AUTO_RUNTIME_EVIDENCE:
+        runtime_evidence = (
+            tensorrt_runtime_evidence(predictions, manifest, bindings, split)
+            if "engine" in bindings else None)
     return TOOLS.evaluate(
         truth, predictions, manifest, iou, attestation, bindings, split,
-        runtime_contract, detector_config)
+        runtime_contract, detector_config, runtime_evidence)
 
 
 class AuditTests(unittest.TestCase):
@@ -399,7 +462,8 @@ class ValidationTests(unittest.TestCase):
         manifest["images"][0]["split"] = "train"
         truth = dataset([image(1, "a.png", "OK")], [])
         predictions = dataset([image(1, "a.png", "OK", "preannotated", False)], [], complete=False)
-        with self.assertRaisesRegex(TOOLS.DatasetError, "evaluation split"):
+        with self.assertRaisesRegex(
+                TOOLS.DatasetError, "no canonical images in split|outside the required split"):
             run_evaluate(truth, predictions, manifest, split="test")
 
     def test_prediction_markers_cannot_be_relabelled_as_ground_truth(self):
@@ -414,6 +478,16 @@ class ValidationTests(unittest.TestCase):
         truth = dataset([reviewed_image], [prediction_annotation])
         errors = TOOLS.validate_annotations(truth, manifest, require_reviewed=True)
         self.assertGreaterEqual(sum("prediction provenance" in error for error in errors), 2)
+
+    def test_reviewed_annotation_personnel_must_match_its_image(self):
+        manifest = fixture_manifest()
+        annotation = ann(1, 1, 1, [1, 1, 10, 10])
+        annotation["reviewer_id"] = "other-reviewer"
+        truth = dataset([image(1, "a.png", "NG")], [annotation])
+        errors = TOOLS.validate_annotations(
+            truth, manifest, require_reviewed=True)
+        self.assertTrue(any(
+            "personnel identity does not match" in error for error in errors))
 
     def test_attestation_hash_mismatch_refuses_evaluation(self):
         manifest = fixture_manifest()
@@ -451,7 +525,10 @@ class ValidationTests(unittest.TestCase):
         truth = dataset([image(1, "a.png", "OK")], [])
         predictions = dataset([image(1, "a.png", "OK", "preannotated", False)], [], complete=False)
         bindings = evaluation_bindings()
-        del bindings["engine"]
+        for name in (
+                "engine", "runtime_evidence", "runtime_runner",
+                "runtime_executable", "safety_config"):
+            del bindings[name]
         bindings["runtime_contract"] = {"path": "runtime.json", "sha256": "9" * 64}
         with tempfile.TemporaryDirectory() as temp:
             source = Path(temp) / "source-runtime.json"
@@ -507,6 +584,103 @@ class ValidationTests(unittest.TestCase):
             run_evaluate(
                 truth, predictions, manifest,
                 attestation=ground_truth_attestation(bindings), bindings=bindings)
+
+    def test_tensorrt_evaluation_requires_bound_runtime_execution(self):
+        manifest = fixture_manifest()
+        truth = dataset([image(1, "a.png", "OK")], [])
+        predictions = dataset(
+            [image(1, "a.png", "OK", "preannotated", False)], [], complete=False)
+        bindings = evaluation_bindings()
+        with self.assertRaisesRegex(TOOLS.DatasetError, "runtime evidence is invalid"):
+            run_evaluate(
+                truth, predictions, manifest, bindings=bindings,
+                runtime_evidence=None)
+        forged = tensorrt_runtime_evidence(predictions, manifest, bindings)
+        forged["engine"]["sha256"] = "0" * 64
+        with self.assertRaisesRegex(TOOLS.DatasetError, "engine SHA-256"):
+            run_evaluate(
+                truth, predictions, manifest, bindings=bindings,
+                runtime_evidence=forged)
+        uppercase = tensorrt_runtime_evidence(predictions, manifest, bindings)
+        for field in (
+                "model", "engine", "detector_config", "predictions",
+                "runner_script", "executable", "safety_config"):
+            uppercase[field]["sha256"] = uppercase[field]["sha256"].upper()
+        report = run_evaluate(
+            truth, predictions, manifest, bindings=bindings,
+            runtime_evidence=uppercase)
+        self.assertTrue(report["formal_p4_tensorrt_evidence"])
+
+        missing_runner = tensorrt_runtime_evidence(predictions, manifest, bindings)
+        del missing_runner["runner_script"]
+        with self.assertRaisesRegex(TOOLS.DatasetError, "runner_script SHA-256"):
+            run_evaluate(
+                truth, predictions, manifest, bindings=bindings,
+                runtime_evidence=missing_runner)
+
+    def test_plain_text_engine_candidate_is_rejected(self):
+        with tempfile.TemporaryDirectory() as temp:
+            engine = Path(temp) / "fake.engine"
+            engine.write_text("not a TensorRT engine" * 300, encoding="utf-8")
+            with self.assertRaisesRegex(TOOLS.DatasetError, "not a binary"):
+                TOOLS.validate_engine_candidate(engine)
+            too_small = Path(temp) / "tiny.engine"
+            too_small.write_bytes(b"\x00\x01")
+            with self.assertRaisesRegex(TOOLS.DatasetError, "too small"):
+                TOOLS.validate_engine_candidate(too_small)
+
+    def test_missing_prediction_image_is_not_treated_as_empty_inference(self):
+        manifest = fixture_manifest(("a.png", "b.png"))
+        truth = dataset([
+            image(1, "a.png", "OK"),
+            image(2, "b.png", "OK"),
+        ], [])
+        predictions = dataset(
+            [image(1, "a.png", "OK", "preannotated", False)], [], complete=False)
+        with self.assertRaisesRegex(TOOLS.DatasetError, "missing canonical images"):
+            run_evaluate(truth, predictions, manifest)
+
+    def test_normalized_identity_cannot_bypass_independent_review(self):
+        manifest = fixture_manifest()
+        truth = dataset([image(1, "a.png", "OK")], [])
+        predictions = dataset(
+            [image(1, "a.png", "OK", "preannotated", False)], [], complete=False)
+        bindings = evaluation_bindings()
+        attestation = ground_truth_attestation(bindings)
+        attestation["reviewed_by"] = " ANNOTATOR-A "
+        with self.assertRaisesRegex(TOOLS.DatasetError, "provenance is invalid"):
+            run_evaluate(
+                truth, predictions, manifest, bindings=bindings,
+                attestation=attestation)
+
+    def test_default_ignorable_identity_cannot_bypass_independent_review(self):
+        manifest = fixture_manifest()
+        truth = dataset([image(1, "a.png", "OK")], [])
+        predictions = dataset(
+            [image(1, "a.png", "OK", "preannotated", False)], [],
+            complete=False)
+        bindings = evaluation_bindings()
+        attestation = ground_truth_attestation(bindings)
+        attestation["reviewed_by"] = "annotator-a\u200b"
+        attestation["reviewer_id"] = "annotator-01\u034f"
+        with self.assertRaisesRegex(TOOLS.DatasetError, "provenance is invalid"):
+            run_evaluate(
+                truth, predictions, manifest, bindings=bindings,
+                attestation=attestation)
+    def test_reserved_default_ignorables_cannot_bypass_review(self):
+        manifest = fixture_manifest()
+        truth = dataset([image(1, "a.png", "OK")], [])
+        predictions = dataset(
+            [image(1, "a.png", "OK", "preannotated", False)], [],
+            complete=False)
+        bindings = evaluation_bindings()
+        attestation = ground_truth_attestation(bindings)
+        attestation["reviewed_by"] = "annotator-a\u2065"
+        attestation["reviewer_id"] = "annotator-01\ufff0"
+        with self.assertRaisesRegex(TOOLS.DatasetError, "provenance is invalid"):
+            run_evaluate(
+                truth, predictions, manifest, bindings=bindings,
+                attestation=attestation)
 
 
 class EvaluationTests(unittest.TestCase):

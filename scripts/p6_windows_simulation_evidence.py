@@ -231,6 +231,7 @@ class EvidenceCollector:
     ) -> None:
         self.root = root
         self.executable = executable
+        self.test_only_runner = executable.suffix.lower() == ".py"
         self.manifest = manifest
         self.config = config
         self.reject_delay_micros = reject_delay_micros
@@ -270,8 +271,16 @@ class EvidenceCollector:
         return condition
 
     def run_process(self, name: str, command: list[str]) -> int | None:
+        launch_command = list(command)
+        # The test harness may provide a Python runner on Windows; keep real
+        # production .exe execution unchanged while making that fixture
+        # explicit and portable.
+        if os.name == "nt" and launch_command:
+            candidate = Path(launch_command[0])
+            if candidate.suffix.lower() == ".py":
+                launch_command = [sys.executable, *launch_command]
         command_record = {
-            "arguments": command,
+            "arguments": launch_command,
             "workingDirectory": str(REPO_ROOT),
             "shell": False,
         }
@@ -286,7 +295,7 @@ class EvidenceCollector:
         stderr = ""
         try:
             completed = subprocess.run(
-                command,
+                launch_command,
                 cwd=REPO_ROOT,
                 capture_output=True,
                 text=True,
@@ -589,9 +598,10 @@ class EvidenceCollector:
     def finalize(self) -> int:
         windows_host = platform.system() == "Windows"
         passed = not self.failures
-        if passed and windows_host:
+        target_runtime_verified = passed and windows_host and not self.test_only_runner
+        if target_runtime_verified:
             overall = "passed"
-        elif passed and self.allow_non_windows_test:
+        elif passed and (self.allow_non_windows_test or self.test_only_runner):
             overall = "passed-test-only"
         else:
             overall = "failed"
@@ -608,8 +618,9 @@ class EvidenceCollector:
                 "release": platform.release(),
                 "python": platform.python_version(),
             },
-            "targetWindowsRuntimeVerified": passed and windows_host,
-            "nonWindowsTestOnly": bool(self.allow_non_windows_test and not windows_host),
+            "targetWindowsRuntimeVerified": target_runtime_verified,
+            "nonWindowsTestOnly": bool(
+                self.allow_non_windows_test and (not windows_host or self.test_only_runner)),
             "realHardwareUsed": False,
             "realIoEnabled": False,
             "realRejectEnabled": False,

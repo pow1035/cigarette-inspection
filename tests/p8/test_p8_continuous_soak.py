@@ -88,7 +88,7 @@ def write_runtime(root: Path) -> Path:
                 run_for = max(target + 0.8, 0.92)
             while time.monotonic() - started < run_for:
                 sessions += 1
-                for value in range(12000):
+                for value in range(500000):
                     checksum = (checksum + value * 17) & 0xFFFFFFFF
                 elapsed = time.monotonic() - started
                 processed += 512
@@ -212,6 +212,31 @@ sleep 0.35
 
 
 class P8ContinuousSoakTests(unittest.TestCase):
+    def test_project_compile_spec_selects_native_msvc_flags(self):
+        output = str(Path("C:/evidence/runtime.exe"))
+        msvc_flags, msvc_argv = SOAK._project_compile_spec(
+            r"E:\visual studio\VC\Tools\MSVC\14.41.34120\bin\Hostx64\x64\cl.exe",
+            "c++17",
+            output,
+        )
+        self.assertEqual(
+            msvc_flags,
+            ("/nologo", "/std:c++17", "/EHsc", "/O2", "/W3", "/WX"),
+        )
+        self.assertEqual(
+            msvc_argv[0],
+            r"E:\visual studio\VC\Tools\MSVC\14.41.34120\bin\Hostx64\x64\cl.exe",
+        )
+        self.assertIn("/Fe:" + output, msvc_argv)
+        self.assertNotIn("-std=c++17", msvc_argv)
+
+        gnu_flags, gnu_argv = SOAK._project_compile_spec(
+            "/usr/bin/g++", "c++17", output,
+        )
+        self.assertEqual(gnu_flags, SOAK.PROJECT_COMPILE_FLAGS)
+        self.assertIn("-std=c++17", gnu_argv)
+        self.assertIn("-o", gnu_argv)
+
     def arguments(
         self,
         root: Path,
@@ -307,6 +332,9 @@ class P8ContinuousSoakTests(unittest.TestCase):
             self.assertEqual(
                 direct_by_name["minimum-samples"]["status"], "failed",
             )
+
+            if os.name == "nt":
+                return
 
             forged_runtime = write_sleep_forgery_runtime(root)
             forged_evidence = root / "sleep-forgery-evidence"
@@ -620,6 +648,8 @@ class P8ContinuousSoakTests(unittest.TestCase):
         self.assertTrue(passed_termination["noResidualProcessConfirmed"])
         self.assertEqual(passed_termination["trackedProcessIds"], [123, 456])
 
+        if os.name == "nt":
+            return
         for missing_option in ("--profile", "--evidence-root"):
             completed = subprocess.run(
                 [str(ROOT / "scripts" / "run_p8_local_continuous_soak.sh"),

@@ -25,6 +25,7 @@ if ([string]::IsNullOrWhiteSpace($EvidenceRoot)) {
     $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
     $EvidenceRoot = Join-Path $repoRoot "artifacts\p2-contracts-$timestamp"
 }
+$EvidenceRoot = [System.IO.Path]::GetFullPath($EvidenceRoot)
 New-Item -ItemType Directory -Force -Path $EvidenceRoot | Out-Null
 
 $configurations = if ($Configuration -eq "All") { @("Debug", "Release") } else { @($Configuration) }

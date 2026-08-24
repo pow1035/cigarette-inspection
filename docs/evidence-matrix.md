@@ -4,6 +4,7 @@
 
 | 验收 ID | 声明 | 证据 | 状态 | 限制 |
 | --- | --- | --- | --- | --- |
+| KI-051 | Windows evidence-bound JSON line-ending guard | `.gitattributes`; `tests/p5/test_p5_input_readiness.py`; `scripts/p5_input_readiness.py` | 已修复 | Readiness now reaches the intended external-input gate; controlled artifacts are still required |
 | AC-00-01 | 项目入口可导航到记录系统 | `AGENTS.md`；`scripts/validate_project_docs.sh` 输出；独立 reviewer 结论 | 通过 | 仅证明入口与文件存在 |
 | AC-00-02 | 需求被拆分并记录 | `docs/requirements.md`；独立 reviewer 结论 | 通过 | P5-P8 本地门槛仍需逐阶段冻结；现场参数已移出当前排期 |
 | AC-00-03 | 架构边界和安全门被记录 | `docs/architecture.md`；独立 reviewer 结论 | 通过 | 尚未通过代码或运行验证 |
@@ -13,8 +14,8 @@
 | AC-00-07 | P0 未修改业务源码 | 增强后的 `scripts/validate_project_docs.sh` exit 0；限定业务目录的 `git status` 输出为空 | 通过 | P0 新增项仅为 `AGENTS.md`、`docs/`、`scripts/` |
 
 | AC-01-01 | Windows 工具链清单可执行 | docs/windows-build-baseline.md；scripts/check_windows_build_env.ps1；`artifacts/p1-windows-20260711-115033/manifest.json`、`env-debug.log`、`env-release.log` | 通过 | Release 实际组合已由 MSBuild 和启动证明：VS2022 17.11.2、Qt 5.9.9、HALCON 22.11.4.0、MVS 4.8.0.3、DAQNavi 4.1.22.0；不等于硬件功能通过 |
-| AC-01-02 | 目标 Windows 构建成功 | `artifacts/p1-windows-20260711-115033/full-terminal.log`、`msbuild-release.log`、`manifest.json`、`source-snapshot.diff`、`startup-metadata.json`、`startup-observation.json`、`startup-window-capture.json`、`startup-window.png`、`evidence-file-hashes.json`；reviewer `019f4f47-4af3-7960-bfa1-8ff7bfad0bc0`；QA `019f4f47-5f24-7fa0-9632-960d0d0d5b36` | 通过 | Release environment/MSBuild exit 0，`CigVision.exe` 成功启动；`CigVision.exe`、`process.dll` 均已生成并记录 SHA-256，但启动模块列表未显示 `process.dll` 已加载；Debug 25.05 缺失，All 顶层为 `partial`/exit 1 |
-| AC-01-03 | 映射、内存、帧元数据和编号快照问题已返修 | scripts/validate_p1_static.sh exit 0；源码 diff；独立 QA 返修复核 | 通过（静态） | 不证明相机运行；轻量回调留在 P2/P3 |
+| AC-01-02 | 目标 Windows 构建成功 | `artifacts/p1-windows-20260824-release-utf8/manifest.json`、`msbuild-release.log`、`env-release.log`；Release MSBuild exit 0；CigVision.exe/process.dll；C4828 修复后无警告 | 通过 | 仅证明当前 Windows 构建机；不证明客户现场依赖、启动或硬件 |
+| AC-01-03 | 映射、内存、帧元数据和编号快照问题已返修 | scripts/validate_p1_static.sh exit 0；源码 diff；独立 QA 返修复核；`artifacts/p1-windows-20260824-release-utf8/startup-smoke.json` | 通过（静态+启动烟测） | 不证明真实相机/SDK、Qt 工作流、GPU 或现场 IO |
 | AC-01-04 | P1 无剔除输出实现且默认关闭 | config.ini 的 rejectEnabled=false；新版工程无 DO 输出实现；P1 静态门 | 通过（静态） | 不是运行时硬件安全门，KI-024 继续追踪 |
 | AC-01-05 | 采集生命周期有进程期回调守卫、双层屏障、故障锁定、IO 故障安全停止和清理路径 | CigVision/MyCamera/readIOTask diff；P1 静态门；独立 QA 返修复核 | 通过（静态） | 晚到帧污染、重复启停、Stop 失败和断连仍需 Windows/MVS QA |
 | AC-01-06 | 工程依赖关系和父目录 include 已声明 | 三个 vcxproj 通过 XML 解析；process 的 `$(ProjectDir)..`；`IMAGEPROCESS_EXPORTS` 工程单点定义；CigVision/process 全配置 `/utf-8`；P1 静态门；历史 Release Rebuild exit 0；独立 reviewer `/root/review_release_warning_fix` 最终 PASS | 通过（新增 warning 修复仅静态） | 历史 Release 证明当时路径和依赖可用；本轮宏/编码配置仍待目标 Windows Release Rebuild 确认 warning 消失，Debug 仍因 25.05 缺失未进入 MSBuild |
@@ -84,6 +85,9 @@ P7 参数身份增量（2026-07-25）：ProductState 已扩展到 8/8，并在 G
 
 上一成功 hosted 基线（2026-07-26）：提交 `6d492528c7f9c0b0b2e3cc70e1c60a74cb62cede` 的 `Local gates` run `30188084112`（job `89756233568`）SUCCESS。首轮 `5f6a06a` / run `30219159920`（job `89838475434`）FAIL；修复提交 `cc7a3ab` / run `30221330296`（job `89844182732`）SUCCESS，GitHub API 返回的 10 个已执行步骤（编号 1–7、13–15）全部成功，check-run annotations 为空；两者均不覆盖目标机 runtime。
 
+| AC-05-07 | Production acceptance status separates local gates from external data, target-machine, site-safety, and sign-off gates | `scripts/production_acceptance_status.py`; `tests/test_production_acceptance_status.py`; fresh-clone exit 2 with machine-readable next actions | In progress | Aggregator does not replace manual labeling, target-machine execution, witnessed IO safety, or signatures |
+| AC-05-08 | Recovered P5 evidence-manifest is checked against an external SHA-256 before readiness | `scripts/p5_verify_external_digest.py`; `tests/test_p5_verify_external_digest.py`; match/mismatch/missing/invalid exit contract | In progress | Tool verifies the supplied digest only; it does not authenticate who supplied it |
+
 ## P5-02C5 provisional fallback pilot baseline (2026-07-19)
 
 - Status: implementation, local verification, independent review, and QA PASS; formal TensorRT remains blocked.
@@ -115,3 +119,26 @@ P7 参数身份增量（2026-07-25）：ProductState 已扩展到 8/8，并在 G
 - Local gates: `validate_project_docs.sh` PASS; `validate_p1_static.sh` PASS; P5 `76/76`; `py_compile` PASS; SDK-free C++ contracts/offline `7/7 + 7/7`; `git diff --check` PASS; `light_gate.py` no warning; YAML and equivalent workflow-structure checks PASS.
 - Independent reviewer rebuilt a clean snapshot from `git archive HEAD` plus the final diff and reproduced the same gates with no P0/P1/P2 finding. Independent QA reproduced the full visual-pack failure path with both TrueType factories blocked and confirmed all outputs were generated; a fresh Python 3.11 environment installed from `requirements-p5.txt` and passed `76/76` with `pip check` clean.
 - Non-blocking limits: actionlint was not independently available in this snapshot; the hosted Ubuntu runner was not executed. Pillow versions older than the pinned 11.3.0 may not expose the legacy bitmap loader; Windows/MSVC, TensorRT/GPU, and hardware remain separate gates.
+
+## P4 TensorRT 10 Windows recovery (2026-08-24)
+
+- Evidence: `artifacts/p4-tensorrt-20260824-trt10-rebuild`.
+- TensorRT 10.15.1 engine rebuilt from `yanzhi20260115.onnx` on RTX 4060 Laptop (CC 8.9), engine SHA-256 `9E54C0543F2B797D067ABA68C6530FF62861FF00E6DDA0C5D2CB5B6B2EF34A43`.
+- Fixed-input batch: 116/116 processed; detector/source/observer/save errors 0; dropped 0; NG 88; OK 28. Negative paths: invalid config/shape/malformed CLI/conflicting CLI = 4/4/2/2.
+- Claim boundary: `groundTruthAvailable=false`, `accuracyMetricsClaimed=false`, `realRejectEnabled=false`; this row proves TensorRT execution and output traceability only, not commercial performance or production acceptance.
+
+## P2/P7 Windows local acceleration (2026-08-24)
+
+- `artifacts/p2-contracts-20260824-accelerated-v2`: Debug and Release MSBuild plus executable contract tests exit 0; 7/7 tests pass in each configuration. Evidence-root canonicalization fixed a relative-path false failure.
+- `tests/CigVision.ProductState/x64/Release/CigVision.ProductState.exe`: Release rebuild and runtime output `8/8 product state tests passed`.
+- Boundary: these are contract/state tests without camera, DAQNavi, IO/reject, Qt UI interaction, GPU soak, or three-party sign-off.
+
+## P3 Windows offline acceleration (2026-08-24)
+
+- Evidence: `artifacts/p3-offline-20260824-accelerated`.
+- Debug/Release offline test builds and runs pass 7/7 each; main Qt Release rebuild passes; fixed 8-frame offline batch reports processed=8, OK=4, NG=4, detector/source/observer/save errors=0, dropped=0; invalid manifest exits 2.
+- Startup observation includes `startup/offline-window.png` and `startup/startup-observation.json`.
+- Boundary: fixture detector and offline mode are test-only; no commercial accuracy, GPU inference, real camera, DAQNavi, IO/reject, safety interlock, or three-party sign-off claim.
+- 2026-08-24 P6 Windows simulation evidence: PASS at `artifacts/p6-windows-simulation-20260824-accelerated`; simulation-only boundary retained.
+- 2026-08-24 P6/P8 regression: `86 passed, 12 skipped, 80 subtests passed`; compileall, diff check, and light gate PASS.
+- 2026-08-24 P8 MSVC contract soak: PASS at `artifacts/p8-msvc-contract-20260824-v9`; native MSVC build, runtime contract, Windows resource sampling, CPU/RSS gates, and self-verify passed. This is contract-test evidence only; the locked `local-sdkfree-v1` soak and production Windows/GPU/Qt/DAQNavi/IO gates remain open.

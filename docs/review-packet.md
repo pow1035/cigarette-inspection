@@ -1,8 +1,24 @@
 # 评审包
 
+## 2026-08-23 production acceptance acceleration checkpoint
+
+- Scope: read-only production acceptance status aggregator and regression tests.
+- Validation: `python -m unittest discover -s tests -p 'test_production_acceptance_status.py'` -> 4/4 PASS; status command -> exit 2 with only the two controlled P5 artifact roots missing.
+- Integrity boundary: TensorRT, Windows/GPU/Qt, real camera/DAQNavi/IO, safety interlock, and three-party sign-off remain `blocked-unverified`.
+- Recovery helper: `p5_verify_external_digest.py` checks an externally supplied SHA-256 before readiness; it does not claim provenance or production acceptance.
+- Windows build slice: Release Rebuild passed after UTF-8 normalization of `MultipleCameraDefine.h`; `CigVision.exe` and `process.dll` were produced with no C4828 warnings in `artifacts/p1-windows-20260824-release-utf8`.
+- Startup smoke slice: the freshly built Release executable survived five seconds in safe default mode and was then stopped by the harness; no camera, DAQNavi, real IO, GPU, or product-acceptance claim was made.
+
 ## 当前评审入口
 
 当前实现入口是 **P8 本地稳定性与部署工具闭环**。P7 本地源码已完成，Windows/Qt runtime 保留为外部目标机阻断；P5/P6 外部阻断仍保留。P8 继续禁止真实相机、DAQNavi 和真实剔除，fixture/local tooling 不得冒充产品包。
+
+## 2026-08-24 MSVC contract soak acceleration
+
+- Native MSVC was discovered at `E:\visual studio\VC\Tools\MSVC\14.41.34120\bin\Hostx64\x64\cl.exe`; `scripts/p8_continuous_soak.py` now selects controlled `/std:c++17`, `/EHsc`, `/O2`, `/W3`, `/WX` flags for `cl.exe` while preserving the GNU path.
+- Evidence `artifacts/p8-msvc-contract-20260824-v9` passed the locked `contract-test-v1` profile: native build provenance, 1.0-second runtime, complete Windows resource samples, CPU/RSS gates, runtime/progress contracts, clean process-tree confirmation, and self-verify. The regression suite includes an MSVC/GNU compile-spec test.
+- The Windows final-sample path reads CPU/RSS through the live `Popen` handle when a short-lived process has already exited, avoiding false zero CPU accounting without lowering the minimum CPU gate.
+- Scope boundary: this is SDK-free contract-test evidence only. It does not close the locked `local-sdkfree-v1` soak, Qt UI QA, GPU/deployment/rollback, real camera/DAQNavi/IO/safety, or three-party production sign-off.
 
 ## P8 v2 连续运行防假绿增量（2026-07-27，正式 evidence 已收口；hosted 复核已通过）
 
@@ -701,6 +717,15 @@ PASS
 
 ### Git state and submission boundary
 
-- Worktree contains the cumulative uncommitted P5-02C6/C7 implementation and documentation diff; no commit or push was requested or performed.
+- At that historical snapshot, the worktree contained the cumulative uncommitted P5-02C6/C7 implementation and documentation diff; no commit or push had been requested or performed at that time.
 - `artifacts/`, models/engines, dependencies, credentials, licenses and device/customer information remain excluded from submission.
 - C7 tool gate PASS does not close P5 and does not authorize P6/P7, training, threshold/NMS tuning, commercial accuracy or hardware claims.
+# 2026-08-23 integration checkpoint
+
+The isolated P5/P8 integration includes cross-platform hardening for documentation validation, Windows `.py` evidence-helper launching, and monotonic progress timestamps. Validation on this Windows host is `255 passed, 20 skipped, 137 subtests passed`; no target Windows GPU, TensorRT, camera, DAQNavi, IO/reject, or three-party acceptance claim is made.
+- 2026-08-23 integration checkpoint: on this Windows host `core.autocrlf=true` rewrote the evidence-bound class catalog from LF to CRLF without a visible Git content diff, changing its SHA-256. Added `.gitattributes` with LF policy for `config/*.json` and a regression assertion in `tests/p5/test_p5_input_readiness.py`.
+- Current verification: P5 `178` tests passed (`8` skipped), P6 `17` passed (`2` skipped), P8 `81` passed (`10` skipped); Python compileall, `git diff --check`, and `light_gate.py` passed.
+- Readiness now exits `2` with only `reviewed_truth` and `fallback_baseline` missing; model and class catalog checks are OK. It remains blocked because controlled artifacts and external evidence-manifest digests are absent.
+- This checkpoint does not claim formal TensorRT, Windows/GPU/Qt runtime, real camera/DAQNavi/IO, safety interlock, or three-party acceptance.
+- 2026-08-24 P4 runtime checkpoint: TensorRT 10.15.1 engine rebuilt from ONNX and fixed-input Windows batch completed 116/116 with zero detector/source/observer/save errors; evidence `artifacts/p4-tensorrt-20260824-trt10-rebuild`, engine SHA-256 `9E54C0543F2B797D067ABA68C6530FF62861FF00E6DDA0C5D2CB5B6B2EF34A43`. Invalid config/shape and malformed/conflicting CLI paths returned 4/4/2/2. This closes the host TensorRT execution compatibility gap only; reviewed truth, approved thresholds, real camera/DAQNavi/IO, safety interlock, soak, and three-party acceptance remain open. `groundTruthAvailable=false` and `accuracyMetricsClaimed=false` are preserved.
+- 2026-08-24 acceleration evidence: P6 Windows simulation wrapper PASS at `artifacts/p6-windows-simulation-20260824-accelerated`; P6/P8 tests `86 passed, 12 skipped, 80 subtests passed`; compileall, diff check, and light gate PASS. The shell validator remains unavailable on this host. Simulation evidence does not qualify real camera/DAQNavi/IO, safety, GPU, soak, or three-party acceptance.

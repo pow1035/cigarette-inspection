@@ -95,9 +95,24 @@ def catalog_categories(catalog: dict[str, Any]) -> list[dict[str, Any]]:
 def validate_inputs(pass1: dict[str, Any], manifest: dict[str, Any],
                     predictions: dict[str, Any], catalog: dict[str, Any],
                     catalog_sha256: str, annotated_by: str,
-                    reviewed_by: str) -> tuple[set[int], Counter[str]]:
-    if not annotated_by.strip() or not reviewed_by.strip() or annotated_by == reviewed_by:
-        raise PromotionError("annotator and reviewer must be distinct non-empty names")
+                    annotator_id: str, reviewed_by: str,
+                    reviewer_id: str, approved_by: str,
+                    approver_id: str, approval_basis: str
+                    ) -> tuple[set[int], Counter[str]]:
+    annotated_identity = dataset_tools.normalized_identity(annotated_by)
+    reviewed_identity = dataset_tools.normalized_identity(reviewed_by)
+    annotator_identity = dataset_tools.normalized_identity(annotator_id)
+    reviewer_identity = dataset_tools.normalized_identity(reviewer_id)
+    if (not annotated_identity or not reviewed_identity
+            or annotated_identity == reviewed_identity
+            or not annotator_identity or not reviewer_identity
+            or annotator_identity == reviewer_identity):
+        raise PromotionError(
+            "annotator and reviewer must have distinct non-empty names and stable ids")
+    if (not dataset_tools.normalized_identity(approved_by)
+            or not dataset_tools.normalized_identity(approver_id)
+            or not isinstance(approval_basis, str) or not approval_basis.strip()):
+        raise PromotionError("approval requires an explicit approver, stable id, and basis")
     info = pass1.get("info")
     if not isinstance(info, dict):
         raise PromotionError("pass1 info must be an object")
@@ -110,7 +125,10 @@ def validate_inputs(pass1: dict[str, Any], manifest: dict[str, Any],
             raise PromotionError(f"pass1 info.{field} must be {expected!r}")
     if str(info.get("class_catalog_sha256", "")).lower() != catalog_sha256:
         raise PromotionError("pass1 class catalog binding does not match supplied catalog")
-    if info.get("annotators") != [annotated_by]:
+    pass1_annotators = info.get("annotators")
+    if (not isinstance(pass1_annotators, list) or len(pass1_annotators) != 1
+            or dataset_tools.normalized_identity(pass1_annotators[0])
+            != annotated_identity):
         raise PromotionError("pass1 annotator binding does not match approved annotator")
     expected_categories = catalog_categories(catalog)
     if pass1.get("categories") != expected_categories:
@@ -138,8 +156,11 @@ def validate_inputs(pass1: dict[str, Any], manifest: dict[str, Any],
         for field in ("sha256", "width", "height", "source_group", "split", "authorization_status"):
             if image.get(field) != pilot[name].get(field):
                 raise PromotionError(f"pass1 image {name} disagrees with manifest field {field}")
-        if (image.get("annotation_status") != "annotated" or image.get("is_ground_truth") is not False
-                or image.get("source") != "human" or image.get("annotated_by") != annotated_by):
+        if (image.get("annotation_status") != "annotated"
+                or image.get("is_ground_truth") is not False
+                or image.get("source") != "human"
+                or dataset_tools.normalized_identity(image.get("annotated_by"))
+                != annotated_identity):
             raise PromotionError(f"pass1 image is not clean human evidence: {name}")
         if PREDICTION_IMAGE_FIELDS.intersection(image):
             raise PromotionError(f"pass1 image retains prediction provenance: {name}")
@@ -166,7 +187,8 @@ def validate_inputs(pass1: dict[str, Any], manifest: dict[str, Any],
         if (annotation.get("annotation_status") != "annotated"
                 or annotation.get("is_ground_truth") is not False
                 or annotation.get("source") != "human"
-                or annotation.get("annotated_by") != annotated_by
+                or dataset_tools.normalized_identity(annotation.get("annotated_by"))
+                != annotated_identity
                 or PREDICTION_ANNOTATION_FIELDS.intersection(annotation)):
             raise PromotionError(f"pass1 annotation is not clean human evidence: {annotation_id!r}")
         if annotation.get("category_id") in unconfirmed and image_id not in review_ids:
@@ -206,7 +228,9 @@ def validate_inputs(pass1: dict[str, Any], manifest: dict[str, Any],
 
 def promote_reviewed_truth(pass1_path: Path, manifest_path: Path, predictions_path: Path,
                            class_catalog_path: Path, output_dir: Path, annotated_by: str,
-                           reviewed_by: str, reviewed_at: str,
+                           annotator_id: str, reviewed_by: str, reviewer_id: str,
+                           approved_by: str, approver_id: str, approval_basis: str,
+                           reviewed_at: str,
                            expected_pass1_sha256: str, expected_manifest_sha256: str,
                            expected_predictions_sha256: str,
                            expected_class_catalog_sha256: str,
@@ -252,7 +276,8 @@ def promote_reviewed_truth(pass1_path: Path, manifest_path: Path, predictions_pa
             raise PromotionError(f"source {label} validation failed:\n- " + "\n- ".join(errors))
     review_ids, decisions = validate_inputs(
         pass1, source_manifest, source_predictions, catalog,
-        input_hashes["class_catalog"], annotated_by, reviewed_by)
+        input_hashes["class_catalog"], annotated_by, annotator_id,
+        reviewed_by, reviewer_id, approved_by, approver_id, approval_basis)
 
     approved_manifest = copy.deepcopy(source_manifest)
     for record in approved_manifest["images"]:
@@ -265,7 +290,8 @@ def promote_reviewed_truth(pass1_path: Path, manifest_path: Path, predictions_pa
         "ground_truth_complete": True, "accuracy_metrics_claimed": False,
         "annotation_stage": "reviewed-ground-truth", "annotation_status": "reviewed",
         "authorization_status": "approved", "evaluation_split": "pilot", "source": "human",
-        "annotators": [annotated_by], "reviewers": [reviewed_by],
+        "annotators": [annotated_by], "annotator_ids": [annotator_id],
+        "reviewers": [reviewed_by], "reviewer_ids": [reviewer_id],
         "reviewed_at": reviewed_at, "review_method": "human-double-review",
         "source_pass1_sha256": input_hashes["source_pass1"],
         "review_exclusion_policy": "REVIEW images remain reviewed members but have no formal GT boxes",
@@ -274,7 +300,8 @@ def promote_reviewed_truth(pass1_path: Path, manifest_path: Path, predictions_pa
         image.update({
             "annotation_status": "reviewed", "authorization_status": "approved",
             "is_ground_truth": True, "source": "human", "annotated_by": annotated_by,
-            "reviewed_by": reviewed_by, "reviewed_at": reviewed_at,
+            "annotator_id": annotator_id, "reviewed_by": reviewed_by,
+            "reviewer_id": reviewer_id, "reviewed_at": reviewed_at,
         })
     retained = []
     for annotation in truth["annotations"]:
@@ -282,7 +309,9 @@ def promote_reviewed_truth(pass1_path: Path, manifest_path: Path, predictions_pa
             continue
         annotation.update({
             "annotation_status": "reviewed", "is_ground_truth": True, "source": "human",
-            "annotated_by": annotated_by, "reviewed_by": reviewed_by, "reviewed_at": reviewed_at,
+            "annotated_by": annotated_by, "annotator_id": annotator_id,
+            "reviewed_by": reviewed_by, "reviewer_id": reviewer_id,
+            "reviewed_at": reviewed_at,
         })
         retained.append(annotation)
     truth["annotations"] = retained
@@ -326,12 +355,13 @@ def promote_reviewed_truth(pass1_path: Path, manifest_path: Path, predictions_pa
             "schema_version": "p5-ground-truth-attestation-v1",
             "review_method": "human-double-review", "authorization_status": "approved",
             "evaluation_split": "pilot", "annotated_by": annotated_by,
-            "reviewed_by": reviewed_by, "reviewed_at": reviewed_at,
+            "annotator_id": annotator_id, "reviewed_by": reviewed_by,
+            "reviewer_id": reviewer_id, "reviewed_at": reviewed_at,
             "ground_truth_sha256": hashes["ground_truth"],
             "manifest_sha256": hashes["manifest"],
             "class_catalog_sha256": input_hashes["class_catalog"],
-            "attested_at": attested_at, "authorization_approved_by": "project-owner",
-            "approval_basis": "project-owner-attestation-in-codex-task",
+            "attested_at": attested_at, "authorization_approved_by": approved_by,
+            "approver_id": approver_id, "approval_basis": approval_basis,
             "review_process_note": (
                 "annotator completed each page and a distinct reviewer checked each page; "
                 "the legacy workbench retained only the annotator name"),
@@ -348,7 +378,10 @@ def promote_reviewed_truth(pass1_path: Path, manifest_path: Path, predictions_pa
             "schema_version": "p5-reviewed-truth-promotion-summary-v1", "status": "PASS",
             "evaluation_split": "pilot", "review_method": "human-double-review",
             "authorization_status": "approved", "annotated_by": annotated_by,
-            "reviewed_by": reviewed_by, "reviewed_at": reviewed_at, "attested_at": attested_at,
+            "annotator_id": annotator_id, "reviewed_by": reviewed_by,
+            "reviewer_id": reviewer_id, "reviewed_at": reviewed_at,
+            "authorization_approved_by": approved_by, "approver_id": approver_id,
+            "approval_basis": approval_basis, "attested_at": attested_at,
             "reviewed_image_count": len(truth["images"]),
             "comparable_image_count": len(truth["images"]) - len(review_ids),
             "review_excluded_image_count": len(review_ids),
@@ -413,7 +446,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--class-catalog", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--annotated-by", required=True)
+    parser.add_argument("--annotator-id", required=True)
     parser.add_argument("--reviewed-by", required=True)
+    parser.add_argument("--reviewer-id", required=True)
+    parser.add_argument("--approved-by", required=True)
+    parser.add_argument("--approver-id", required=True)
+    parser.add_argument("--approval-basis", required=True)
     parser.add_argument("--reviewed-at", required=True)
     parser.add_argument("--attested-at")
     parser.add_argument("--expected-pass1-sha256", required=True)
@@ -428,7 +466,9 @@ def main() -> int:
     try:
         summary = promote_reviewed_truth(
             args.pass1, args.manifest, args.predictions, args.class_catalog,
-            args.output, args.annotated_by, args.reviewed_by, args.reviewed_at,
+            args.output, args.annotated_by, args.annotator_id,
+            args.reviewed_by, args.reviewer_id, args.approved_by,
+            args.approver_id, args.approval_basis, args.reviewed_at,
             args.expected_pass1_sha256, args.expected_manifest_sha256,
             args.expected_predictions_sha256, args.expected_class_catalog_sha256,
             args.attested_at)

@@ -4,6 +4,18 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
+python_cmd=""
+for candidate in python3 python; do
+  if "$candidate" -c 'import sys' >/dev/null 2>&1; then
+    python_cmd="$candidate"
+    break
+  fi
+done
+if [[ -z "$python_cmd" ]]; then
+  echo "FAIL Python 3 interpreter not found (tried python3 and python)" >&2
+  exit 1
+fi
+
 required=(
   AGENTS.md
   docs/requirements.md
@@ -57,6 +69,8 @@ rg -q 'KI-022 .* 已修复 ' docs/known-issues.md
 rg -q 'KI-028 .* 验证中（源配置已修复） ' docs/known-issues.md
 
 for file in scripts/p5_input_readiness.py tests/p5/test_p5_input_readiness.py \
+    scripts/production_acceptance_status.py tests/test_production_acceptance_status.py \
+    scripts/p5_verify_external_digest.py tests/test_p5_verify_external_digest.py \
     scripts/p6_simulation_preflight.py tests/p6/test_p6_simulation_preflight.py \
     scripts/p6_windows_simulation_evidence.py tests/p6/test_p6_windows_simulation_evidence.py \
     tests/p6/fake_cigvision_runtime.py scripts/run_windows_p6_simulation.ps1 \
@@ -104,8 +118,10 @@ rg -q 'AC-00-01' docs/acceptance-criteria.md
 rg -q 'AC-00-07' docs/evidence-matrix.md
 rg -q 'D-001' docs/decisions.md
 rg -q 'KI-001' docs/known-issues.md
-rg -q '^Pillow==11\.3\.0$' requirements-p5.txt
+rg -q '^Pillow==11\.3\.0\r?$' requirements-p5.txt
 rg -q 'p5_input_readiness\.py' README.md docs/task-plan.md docs/evidence-matrix.md
+rg -q 'production_acceptance_status\.py' README.md docs/task-plan.md docs/evidence-matrix.md
+rg -q 'p5_verify_external_digest\.py' README.md docs/task-plan.md docs/evidence-matrix.md
 rg -q 'RealtimeSimulation\.h' scripts/run_all_local_gates.sh
 rg -q 'RealtimeLoadSimulation\.h' scripts/run_all_local_gates.sh
 rg -q 'ProductRuntimeState\.h' scripts/run_all_local_gates.sh
@@ -142,7 +158,7 @@ rg -q 'collect_windows_p8_host_reports\.ps1' README.md docs/task-plan.md \
 rg -q 'run_windows_p8_preacceptance\.ps1' README.md docs/task-plan.md \
   docs/evidence-matrix.md docs/p8-local-closure.md
 rg -q 'run_all_local_gates\.sh --core' .github/workflows/p5-local-gates.yml
-python3 - .github/workflows/p5-local-gates.yml <<'PY'
+"$python_cmd" - .github/workflows/p5-local-gates.yml <<'PY'
 import sys
 from pathlib import Path
 
@@ -217,6 +233,13 @@ for action, pinned_reference in expected.items():
         raise SystemExit(
             f"FAIL {workflow}: expected exactly {pinned_reference!r}, found {actual!r}"
         )
+PY
+
+"$python_cmd" - <<'PY'
+from pathlib import Path
+
+path = Path("01_上位机_QT_新版_CigVision/源码/MultipleCameraDefine.h")
+path.read_text(encoding="utf-8")
 PY
 for ci_status_doc in README.md HANDOFF_P5.md AGENTS.md \
     docs/evidence-matrix.md docs/observability.md docs/progress-log.md \
@@ -456,6 +479,8 @@ rg -q '^\| P5-02C4 探索性分歧可视化 \|' docs/task-plan.md
 rg -q '^\| P5-02C5 临时 ONNX Runtime CPU pilot 基线 \|' docs/task-plan.md
 rg -q '^\| P5-02C7 受控输入就绪与 fresh-clone 复核 \|' docs/task-plan.md
 rg -q '^\| AC-05-06 \|' docs/acceptance-criteria.md docs/evidence-matrix.md
+rg -q '^\| AC-05-07 \|' docs/acceptance-criteria.md docs/evidence-matrix.md
+rg -q '^\| AC-05-08 \|' docs/acceptance-criteria.md docs/evidence-matrix.md
 rg -q '^\| AC-06-01 \|' docs/acceptance-criteria.md docs/evidence-matrix.md
 rg -q '^\| AC-06-02 \|' docs/acceptance-criteria.md docs/evidence-matrix.md
 rg -q '^\| AC-06-03 \|' docs/acceptance-criteria.md docs/evidence-matrix.md
@@ -548,7 +573,7 @@ cleanup_readiness() {
 }
 trap cleanup_readiness EXIT
 readiness_status=0
-python3 scripts/p5_input_readiness.py \
+"$python_cmd" scripts/p5_input_readiness.py \
   --require-reviewed --require-fallback --output "$readiness_report" \
   >"$readiness_stdout" || readiness_status=$?
 if [[ "$readiness_status" -ne 0 && "$readiness_status" -ne 2 ]]; then
@@ -556,7 +581,7 @@ if [[ "$readiness_status" -ne 0 && "$readiness_status" -ne 2 ]]; then
   cat "$readiness_stdout" >&2 || true
   exit 1
 fi
-python3 - "$readiness_report" "$readiness_status" <<'PY'
+"$python_cmd" - "$readiness_report" "$readiness_status" <<'PY'
 import json
 import sys
 
@@ -592,7 +617,10 @@ done
 
 while IFS= read -r -d '' file; do
   status=0
-  output="$(git diff --no-index --check -- /dev/null "$file" 2>&1)" || status=$?
+  # Normalize CRLF only for this synthetic diff so Git for Windows does not
+  # report every carriage return as trailing whitespace.
+  output="$(git -c core.autocrlf=input -c core.safecrlf=false \
+    diff --no-index --check -- /dev/null "$file" 2>&1)" || status=$?
   if [[ $status -gt 1 || -n "$output" ]]; then
     echo "FAIL whitespace check for untracked file: $file" >&2
     [[ -n "$output" ]] && echo "$output" >&2

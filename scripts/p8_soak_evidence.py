@@ -615,6 +615,8 @@ def _run_once(
     argv = _expand_command(
         command_template, output_dir, evidence_root,
         restart, round_number, iteration)
+    if os.name == "nt" and argv and Path(argv[0]).suffix.lower() == ".py":
+        argv = [sys.executable, *argv]
     environment = os.environ.copy()
     environment.update({
         "P8_SOAK_OUTPUT_DIR": str(output_dir),

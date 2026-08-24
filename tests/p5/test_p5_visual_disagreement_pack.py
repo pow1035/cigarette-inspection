@@ -59,7 +59,7 @@ def make_fixture(root):
     images_dir = root / "images"
     images_dir.mkdir()
     pairs = []
-    decisions = [("NG", "OK"), ("NG", "REVIEW"), ("NG", "NG")]
+    decisions = [("NG", "OK"), ("OK", "REVIEW"), ("NG", "NG")]
     for image_id, (predicted_decision, human_decision) in enumerate(decisions, start=1):
         name = f"sample-{image_id}.jpg"
         Image.new("RGB", (100, 50), (30 * image_id, 40, 60)).save(images_dir / name, "JPEG", quality=95)
@@ -181,13 +181,18 @@ class VisualDisagreementPackTests(unittest.TestCase):
             self.assertEqual(result["summary"]["human_review_image_count"], 1)
             self.assertEqual(result["summary"]["class_changed_image_count"], 1)
             self.assertEqual(result["summary"]["class_changed_box_count"], 1)
+            self.assertEqual(result["summary"]["unmatched_box_image_count"], 2)
+            self.assertEqual(result["summary"]["prediction_only_box_count"], 1)
+            self.assertEqual(result["summary"]["human_only_box_count"], 1)
+            self.assertEqual(result["summary"]["unmatched_box_count"], 2)
             self.assertFalse(result["summary"]["ground_truth_used"])
             self.assertEqual(len(list((output_dir / "cases").glob("*.jpg"))), 3)
             with (output_dir / "case-index.csv").open(encoding="utf-8-sig", newline="") as stream:
                 rows = list(csv.DictReader(stream))
             self.assertEqual([row["image_id"] for row in rows], ["1", "3", "2"])
             self.assertEqual([row["reason_codes"] for row in rows], [
-                "decision_different", "class_changed", "human_review",
+                "decision_different;unmatched_boxes", "class_changed",
+                "human_review;unmatched_boxes",
             ])
             manifest = json.loads((output_dir / "manifest.json").read_text(encoding="utf-8"))
             self.assertEqual(len(manifest["source_images"]), 3)
@@ -202,6 +207,91 @@ class VisualDisagreementPackTests(unittest.TestCase):
             )
             for term in VISUAL.FORBIDDEN_OUTPUT_TERMS:
                 self.assertNotIn(term.lower(), combined)
+
+    def test_same_ng_decisions_with_position_or_count_disagreement_are_selected(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            prediction_path, human_path, catalog_path, analysis_dir, images_dir = make_fixture(root)
+            predictions = json.loads(prediction_path.read_text(encoding="utf-8"))
+            human = json.loads(human_path.read_text(encoding="utf-8"))
+
+            for image in human["images"]:
+                image["cigarette_decision"] = "OK" if image["id"] == 2 else "NG"
+                image["notes"] = ""
+            human["annotations"] = [
+                annotation(11, 1, 1, [1, 1, 10, 10], "human"),
+                annotation(12, 3, 7, [20, 5, 10, 10], "human"),
+            ]
+
+            for image_id in (4, 5):
+                name = f"sample-{image_id}.jpg"
+                Image.new("RGB", (100, 50), (30 * image_id, 40, 60)).save(
+                    images_dir / name, "JPEG", quality=95)
+                common = {
+                    "id": image_id,
+                    "file_name": name,
+                    "width": 100,
+                    "height": 50,
+                    "sha256": VISUAL.sha256_file(images_dir / name),
+                    "is_ground_truth": False,
+                }
+                predictions["images"].append({
+                    **common,
+                    "annotation_status": "preannotated",
+                    "predicted_decision": "NG",
+                    "cigarette_decision": "REVIEW",
+                })
+                human["images"].append({
+                    **common,
+                    "annotation_status": "annotated",
+                    "cigarette_decision": "NG",
+                    "source": "human",
+                    "annotated_by": "annotator-a",
+                    "notes": "",
+                })
+
+            predictions["annotations"].extend([
+                annotation(20, 4, 1, [1, 1, 10, 10], "prediction"),
+                annotation(21, 5, 1, [2, 2, 10, 10], "prediction"),
+                annotation(22, 5, 2, [50, 20, 10, 10], "prediction"),
+            ])
+            human["annotations"].extend([
+                annotation(30, 4, 1, [70, 30, 10, 10], "human"),
+                annotation(31, 5, 1, [2, 2, 10, 10], "human"),
+            ])
+            prediction_path.write_text(
+                json.dumps(predictions, ensure_ascii=False), encoding="utf-8")
+            human_path.write_text(json.dumps(human, ensure_ascii=False), encoding="utf-8")
+            refresh_analysis_fixture(
+                prediction_path, human_path, catalog_path, analysis_dir)
+
+            output_dir = root / "visual-pack"
+            result = VISUAL.build_pack(
+                prediction_path, human_path, catalog_path, analysis_dir,
+                images_dir, output_dir,
+            )
+
+            self.assertEqual(result["summary"]["selected_image_count"], 2)
+            self.assertEqual(result["summary"]["decision_different_image_count"], 0)
+            self.assertEqual(result["summary"]["unmatched_box_image_count"], 2)
+            self.assertEqual(result["summary"]["prediction_only_box_count"], 2)
+            self.assertEqual(result["summary"]["human_only_box_count"], 1)
+            self.assertEqual(result["summary"]["unmatched_box_count"], 3)
+            with (output_dir / "case-index.csv").open(
+                    encoding="utf-8-sig", newline="") as stream:
+                rows = list(csv.DictReader(stream))
+            self.assertEqual([row["image_id"] for row in rows], ["4", "5"])
+            self.assertEqual(
+                [row["reason_codes"] for row in rows],
+                ["unmatched_boxes", "unmatched_boxes"],
+            )
+            self.assertEqual(
+                [
+                    (row["prediction_only_box_count"], row["human_only_box_count"])
+                    for row in rows
+                ],
+                [("1", "1"), ("1", "0")],
+            )
 
     def test_source_hash_mismatch_is_rejected_before_output_creation(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -407,12 +497,18 @@ class VisualDisagreementPackTests(unittest.TestCase):
             "prediction_box_count": 0,
             "human_box_count": 1,
             "class_changed_box_count": 0,
+            "prediction_only_box_count": 0,
+            "human_only_box_count": 1,
         }
         summary = {
             "selected_image_count": 1,
             "decision_different_image_count": 1,
             "human_review_image_count": 0,
             "class_changed_box_count": 0,
+            "unmatched_box_image_count": 1,
+            "prediction_only_box_count": 0,
+            "human_only_box_count": 1,
+            "unmatched_box_count": 1,
         }
         output = VISUAL.render_html([row], summary)
         self.assertNotIn('<img src=x onerror="boom">', output)

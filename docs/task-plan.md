@@ -2,6 +2,13 @@
 
 <!-- CURRENT_PHASE:P8 -->
 
+### Production acceptance acceleration checkpoint (2026-08-23)
+
+- [x] Add `scripts/production_acceptance_status.py` and regression coverage. It prioritizes controlled P5 artifact recovery and keeps TensorRT, Windows/GPU/Qt, real-device safety, and three-party sign-off as separate blocking gates.
+- [x] Add `scripts/p5_verify_external_digest.py` and regression coverage so recovered evidence-manifest files can be checked against an out-of-band SHA-256 before readiness.
+- [ ] Restore reviewed-truth and fallback artifacts through the approved channel and compare external evidence-manifest digests before rerunning the pilot.
+- [ ] Execute target-machine and witnessed-site gates in dependency order; local Linux/SDK-free evidence remains non-substitutive.
+
 当前阶段：P8 本地稳定性、部署与交付预验收进行中。正式 `final-v2` 2×300 秒 evidence、KI-048 独立 reviewer 和正式 evidence QA/observability/cleanup 均已收口，且 evidence-bound 源文件未被当前返修改动。提交 `5f6a06a` 的 hosted `Local gates` run `30219159920`（job `89838475434`）FAIL，发现 Linux CPU tick 将 0.12 秒短 project contract 量化为 0.00 秒，以及 POSIX core dump 使旧 abort fixture 被误分类。修复提交 `cc7a3ab` 把 public wrapper/direct project contract 实际时长提高到 1.0 秒（locked profile 最低仍 0.12 秒、timeout 2.0 秒、其他阈值不变），并在 POSIX abort 前设置 `RLIMIT_CORE=0`；Mac 与 Colima/Linux 原始 full、P8 81/81、当前 CI 修复 reviewer 与 QA/observability 均 PASS，P0/P1/P2/P3=0/0/0/0。修复提交已 push，hosted run `30221330296`（job `89844182732`）SUCCESS，因此实现提交门已通过。P8/AC-08 整体仍因外部条件保持进行中。
 
 | 阶段 | 状态 | 目标 | 退出条件 |
@@ -50,7 +57,7 @@ P0、P1 已通过提交门；以下为 P1 完成记录，本轮不开始 P2 实�
 | P2-01 四类核心数据契约 | 已完成 | `core/InspectionContracts.h`；FramePacket 自持字节；Detection/InspectionResult/RejectCommand 校验 |
 | P2-02 可替换运行接口 | 已完成 | `core/InspectionInterfaces.h`；IFrameSource/IDetector/IInspectionResultSink/IRejectOutput/IClock |
 | P2-03 线程安全有界队列 | 已完成 | `core/BoundedQueue.h`；容量、溢出结果、丢弃计数、关闭和等待语义 |
-| P2-04 无硬件契约测试 | Debug/Release 通过 | `artifacts/p2-contracts-20260711-122211`；两配置 MSBuild/test exit 0，7/7 测试通过 |
+| P2-04 无硬件契约测试 | Debug/Release 通过 | `artifacts/p2-contracts-20260824-accelerated-v2`；两配置 MSBuild/test exit 0，7/7 测试通过；修复相对 EvidenceRoot 路径解析 |
 | P2-05 主程序回归构建 | Release 通过 | `artifacts/p2-main-regression-20260711-120926`；环境检查和 Rebuild exit 0 |
 
 P2 不替换现有 `picStruct`、相机回调或灰度队列，不增加消费者。离线消费链属于 P3；P6 只新增文件/录制流消费者，真实相机原始帧适配冻结；真实剔除仍禁止。
@@ -295,3 +302,6 @@ PowerShell 静态门输出固定 `syntaxCompatibilityTargets=["5.1"]`、`scriptA
 - [x] Reject result frame-id mismatches, invalid results, zero cigarette numbers, schedule overflow, unsafe output status and output exceptions without creating a real-IO path.
 - [x] Run the SDK-free simulation regression and retain P5/P6 boundary evidence.
 - [x] Connect the core source to the Qt image/recording manifest and persist a simulation trace from the product entry point (Qt/Windows runtime evidence remains a separate unchecked item in P6-01B).
+- [x] Recover TensorRT 10 engine compatibility and run the 116-image Windows fixed-input batch; commercial metrics remain blocked until controlled reviewed-truth artifacts and approved thresholds are restored.
+- [x] Re-run Windows P2 Debug/Release contract tests with absolute evidence-root normalization; both configurations pass 7/7.
+- [x] Re-run Windows P3 offline Debug/Release tests and main Qt Release batch; evidence captures 8/8 frames, startup window, and invalid-manifest rejection.

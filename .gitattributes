@@ -1,0 +1,3 @@
+# Evidence-bound JSON and manifests must retain LF bytes across Windows/Linux checkouts.
+config/p5-class-catalog.json text eol=lf
+config/*.json text eol=lf

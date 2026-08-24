@@ -19,8 +19,8 @@
 | ID | 标准 | 状态 |
 | --- | --- | --- |
 | AC-01-01 | Windows x64 工具链和依赖版本有可执行检查清单 | 通过 |
-| AC-01-02 | Debug/Release 至少一个配置在目标 Windows 机器构建成功 | 通过 |
-| AC-01-03 | 相机映射、数组释放、回调元数据和编号快照生命周期问题有可复查证据 | 通过（静态） |
+| AC-01-02 | Debug/Release 至少一个配置在目标 Windows 机器构建成功 | 通过（2026-08-24 本机 Release Rebuild；`artifacts/p1-windows-20260824-release-utf8`；CigVision.exe/process.dll；无 C4828） |
+| AC-01-03 | 相机映射、数组释放、回调元数据和编号快照生命周期问题有可复查证据 | 通过（静态；Release 启动烟测另见 `artifacts/p1-windows-20260824-release-utf8/startup-smoke.json`） |
 | AC-01-04 | P1 当前没有剔除输出实现，默认配置也不启用剔除 | 通过（静态） |
 | AC-01-05 | Run/Stop 和析构对相机回调、队列、IO 线程有明确且可复查的生命周期 | 通过（静态） |
 | AC-01-06 | Debug/Release 均声明 MVS 依赖，process DLL 与主程序有构建关系、父目录头文件路径和同目录输出 | 通过（静态） |
@@ -44,12 +44,15 @@
 | AC-05-04 | 试标样本按唯一哈希确定性选择，覆盖来源/尺寸/判定/已出现类别，并提供只读原图、预览、COCO/CSV 和源图哈希证据 | 通过（技术复核包；双人真值已由 P5-02C3 独立门确认） |
 | AC-05-05 | 本地首标工作台严格绑定 30 图身份，支持安全保存/恢复和人工首轮导出，并阻止未完成、未确认类别及未经独立复核的真值导出 | 通过（技术切片；原 pass1 保持非真值，双人复核事实经独立 attestation 晋级，不绕过工作台真值门） |
 | AC-05-06 | 受控 P5 评估开始前校验模型、类别目录、artifact manifest 内部 schema/输出大小/SHA-256 与 reviewed attestation；缺失或错配时不得开始指定范围 pilot，并要求外部 evidence-manifest 摘要核对 | 进行中（工具门通过；当前 fresh clone 缺少受控 reviewed-truth/fallback artifacts，manifest 自身认证需走受控恢复渠道） |
+| AC-05-07 | 生产验收状态必须把本地工程门与外部数据、目标机、现场安全和三方签字分开，并按依赖顺序给出下一步 | 进行中（`scripts/production_acceptance_status.py` 已实现；真实外部门禁仍未验证） |
+| AC-05-08 | 受控恢复后的 evidence-manifest 必须先通过外部 SHA-256 核对，再进入 readiness 和 pilot | 进行中（`scripts/p5_verify_external_digest.py` 已实现并覆盖 match/mismatch/missing/invalid；真实 artifact 尚未恢复） |
 
 P2 正式证据：`artifacts/p2-contracts-20260711-122211` 的 Debug/Release 纯 C++ 契约工程均 MSBuild/test exit 0，7/7 测试通过；`artifacts/p2-main-regression-20260711-120926` 的 CigVision Release 回归 Rebuild exit 0。独立 reviewer/QA 返修复核均 PASS，AC-02 已关闭；不据此声明相机、算法、离线闭环或剔除通过。
 
 P3 正式证据：`artifacts/p3-offline-20260711-132348` 顶层 exit 0。离线核心 Debug/Release 各 7/7；Release 主程序 Rebuild exit 0；固定 8 图生成输入清单、8 份完整逐帧 JSON、8 份 PNG 和汇总 JSON，统计为 OK=4、NG=4、error/dropped/saveFailures=0；非法 manifest exit 2。Computer Use 在 `--offline` 下完成单图选择、保存、预览和统计刷新。独立 reviewer `019f4f8b-ce3e-7c31-b77a-78e6c04ec59f` 与 QA `019f4f8b-f75a-7a53-8de6-25206dfa2526` 最终 PASS，AC-03 关闭。该证据只证明确定性链路测试检测器，不证明 TensorRT、传统 Halcon 算法准确率、相机、DAQNavi 或剔除。
 
 P4 正式证据：`artifacts/p4-tensorrt-20260711-150510` 顶层 exit 0，Release Rebuild、116 图 TensorRT 批处理、无效 engine/尺寸和残缺/冲突 CLI 拒绝均通过；逐图生成 116 JSON、116 原图 PNG、116 带框 PNG，processed=116、error/drop/save failure=0，3 组重复输入结果一致，10 个 P4 源码/工程/脚本哈希已绑定。独立 reviewer 六项 finding 全部 resolved、技术 gate PASS；返修后独立 QA 证据 `artifacts/p4-qa-independent-postfix-20260711` gate PASS。该样本没有人工 ground truth，只支持运行完整性、输出分布、视觉抽查和 detector latency 声明，不支持准确率、误检率或漏检率声明。
+2026-08-24 P4 runtime refresh：TensorRT 10.15.1 engine rebuilt from ONNX and Windows fixed-input batch completed 116/116 with zero detector/source/observer/save errors in `artifacts/p4-tensorrt-20260824-trt10-rebuild`. This refresh proves runtime execution only; reviewed truth and approved effect thresholds remain required for AC-05-02.
 
 ## P6-P8 本地产品化与交付预验收
 

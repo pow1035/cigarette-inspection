@@ -99,6 +99,26 @@ PROJECT_COMPILE_FLAGS = (
 )
 PROJECT_INCLUDE_PATH = "01_上位机_QT_新版_CigVision/源码"
 
+def _is_msvc_compiler(path: str | os.PathLike[str]) -> bool:
+    """Identify cl.exe so controlled Windows builds can use native flags."""
+    return Path(os.fspath(path)).name.casefold() in {"cl", "cl.exe"}
+
+
+def _project_compile_spec(
+    compiler: str,
+    standard: str,
+    output: str,
+) -> tuple[tuple[str, ...], list[str]]:
+    """Return compiler flags and argv for MSVC or the existing GNU toolchain."""
+    source = str(ROOT / PROJECT_RUNTIME_SOURCES[0])
+    include = str(ROOT / PROJECT_INCLUDE_PATH)
+    if _is_msvc_compiler(compiler):
+        flags = ("/nologo", f"/std:{standard}", "/EHsc", "/O2", "/W3", "/WX")
+        return flags, [compiler, *flags, f"/I{include}", source, f"/Fe:{output}"]
+    flags = PROJECT_COMPILE_FLAGS
+    return flags, [compiler, f"-std={standard}", *flags, f"-I{include}", source, "-o", output]
+
+
 LOCKED_PROFILES: dict[str, dict[str, Any]] = {
     "contract-test-v1": {
         "durationClass": "test-only-short",
@@ -672,7 +692,7 @@ def _validate_build_provenance(
         "path", "size", "sha256", "version",
     }:
         raise ContinuousSoakError("build compiler exact shape mismatch")
-    _validate_build_file_record(
+    compiler_path = _validate_build_file_record(
         {key: compiler[key] for key in ("path", "size", "sha256")},
         "build compiler",
     )
@@ -708,7 +728,10 @@ def _validate_build_provenance(
         if standard not in ({"c++17", "c++14"} if profile_name == "contract-test-v1"
                             else {"c++17"}):
             raise ContinuousSoakError("project runner standard is not allowed by profile")
-        if tuple(flags) != PROJECT_COMPILE_FLAGS or include_path != PROJECT_INCLUDE_PATH:
+        expected_flags, expected_argv = _project_compile_spec(
+            str(compiler_path), standard, document["executable"]["path"]
+        )
+        if tuple(flags) != expected_flags or include_path != PROJECT_INCLUDE_PATH:
             raise ContinuousSoakError("project runner compile flags mismatch")
         recorded_paths = tuple(
             _string(item.get("path") if isinstance(item, dict) else None,
@@ -721,15 +744,6 @@ def _validate_build_provenance(
             source_paths.append(_validate_build_file_record(
                 item, f"build sourceFiles[{index}]", ROOT,
             ))
-        expected_argv = [
-            compiler["path"],
-            f"-std={standard}",
-            *PROJECT_COMPILE_FLAGS,
-            f"-I{ROOT / PROJECT_INCLUDE_PATH}",
-            str(ROOT / PROJECT_RUNTIME_SOURCES[0]),
-            "-o",
-            document["executable"]["path"],
-        ]
         if compile_argv != expected_argv:
             raise ContinuousSoakError("project runner compile argv mismatch")
     else:
@@ -864,18 +878,12 @@ def _verify_build_provenance_snapshot(
     }:
         raise ContinuousSoakError("snapshotted compile record shape mismatch")
     if runtime_kind == PROJECT_RUNTIME_KIND:
-        expected_argv = [
-            compiler["path"],
-            f"-std={compile_record['standard']}",
-            *PROJECT_COMPILE_FLAGS,
-            f"-I{ROOT / PROJECT_INCLUDE_PATH}",
-            str(ROOT / PROJECT_RUNTIME_SOURCES[0]),
-            "-o",
-            executable["path"],
-        ]
+        expected_flags, expected_argv = _project_compile_spec(
+            compiler["path"], compile_record["standard"], executable["path"]
+        )
         if (
             tuple(item["path"] for item in source_records) != PROJECT_RUNTIME_SOURCES
-            or tuple(compile_record["flags"]) != PROJECT_COMPILE_FLAGS
+            or tuple(compile_record["flags"]) != expected_flags
             or compile_record["includePath"] != PROJECT_INCLUDE_PATH
             or compile_record["argv"] != expected_argv
             or compile_record["standard"] not in (
@@ -1061,7 +1069,7 @@ def _posix_wait_until_gone(
     return not _posix_process_group_exists(group_id, resource_collector)
 
 
-def _windows_cpu_seconds(pid: int) -> float | None:
+def _windows_cpu_seconds(pid: int, process_handle: int | None = None) -> float | None:
     if os.name != "nt":
         return None
     try:
@@ -1085,7 +1093,7 @@ def _windows_cpu_seconds(pid: int) -> float | None:
         ]
         kernel32.CloseHandle.restype = wintypes.BOOL
         kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
-        handle = kernel32.OpenProcess(0x1000, False, pid)
+        handle = process_handle or kernel32.OpenProcess(0x1000, False, pid)
         if not handle:
             return None
         try:
@@ -1105,12 +1113,13 @@ def _windows_cpu_seconds(pid: int) -> float | None:
             user_ticks = (int(user.high) << 32) | int(user.low)
             return (kernel_ticks + user_ticks) / 10_000_000.0
         finally:
-            kernel32.CloseHandle(handle)
+            if not process_handle:
+                kernel32.CloseHandle(handle)
     except (AttributeError, OSError, TypeError, ValueError):
         return None
 
 
-def _windows_rss_bytes(pid: int) -> int | None:
+def _windows_rss_bytes(pid: int, process_handle: int | None = None) -> int | None:
     if os.name != "nt":
         return None
     try:
@@ -1144,7 +1153,7 @@ def _windows_rss_bytes(pid: int) -> int | None:
             ctypes.POINTER(ProcessMemoryCounters),
             wintypes.DWORD,
         ]
-        handle = kernel32.OpenProcess(0x0400 | 0x0010, False, pid)
+        handle = process_handle or kernel32.OpenProcess(0x0400 | 0x0010, False, pid)
         if not handle:
             return None
         try:
@@ -1156,21 +1165,29 @@ def _windows_rss_bytes(pid: int) -> int | None:
                 return None
             return int(counters.workingSetSize)
         finally:
-            kernel32.CloseHandle(handle)
+            if not process_handle:
+                kernel32.CloseHandle(handle)
     except (AttributeError, OSError, TypeError, ValueError):
         return None
 
 
-def _windows_group_resources(root_pid: int) -> tuple[int, float, int, str] | None:
+def _windows_group_resources(
+    root_pid: int, root_process_handle: int | None = None
+) -> tuple[int, float, int, str] | None:
     process_ids = LEGACY._windows_process_tree_pids(root_pid)
-    if process_ids is None:
+    if process_ids is None and root_process_handle is None:
         return None
+    if process_ids is None:
+        process_ids = [root_pid]
     rss_bytes = 0
     cpu_seconds = 0.0
     count = 0
     for pid in process_ids:
-        rss = _windows_rss_bytes(pid)
-        cpu = _windows_cpu_seconds(pid)
+        root_handle = root_process_handle if pid == root_pid else None
+        rss = _windows_rss_bytes(pid, root_handle)
+        cpu = _windows_cpu_seconds(
+            pid, root_process_handle if pid == root_pid else None
+        )
         if rss is None or cpu is None:
             return None
         rss_bytes += rss
@@ -1185,9 +1202,10 @@ def _group_resources(
     root_pid: int,
     group_id: int,
     resource_collector: dict[str, Any],
+    root_process_handle: int | None = None,
 ) -> tuple[int, float, int, str] | None:
     if os.name == "nt":
-        return _windows_group_resources(root_pid)
+        return _windows_group_resources(root_pid, root_process_handle)
     return _posix_group_resources(group_id, resource_collector)
 
 
@@ -1200,8 +1218,11 @@ def _sample(
     evidence_root: Path,
     started_monotonic: float,
     resource_collector: dict[str, Any],
+    root_process_handle: int | None = None,
 ) -> dict[str, Any]:
-    resources = _group_resources(root_pid, group_id, resource_collector)
+    resources = _group_resources(
+        root_pid, group_id, resource_collector, root_process_handle
+    )
     try:
         disk_free = shutil.disk_usage(evidence_root).free
     except OSError:
@@ -1389,7 +1410,9 @@ def _validate_progress_contract(
     if path.is_symlink() or not path.is_file():
         raise ContinuousSoakError("runtime progress must be a regular file")
     records = _load_progress_records(path)
-    previous_elapsed = 0.0
+    # A process may emit progress timestamps quantized to the same tick on
+    # Windows. Accept equal samples while rejecting any time reversal.
+    previous_elapsed = -1e-12
     previous_sessions = 0
     previous_frames = 0
     maximum_gap = 0.0
@@ -1406,8 +1429,8 @@ def _validate_progress_contract(
         ):
             raise ContinuousSoakError(f"{label}: coordinate/sequence mismatch")
         elapsed = _number(record["elapsedSeconds"], f"{label}.elapsedSeconds")
-        if elapsed <= previous_elapsed:
-            raise ContinuousSoakError(f"{label}: elapsed time must strictly increase")
+        if elapsed < previous_elapsed:
+            raise ContinuousSoakError(f"{label}: elapsed time must be monotonic")
         maximum_gap = max(maximum_gap, elapsed - previous_elapsed)
         previous_elapsed = elapsed
         sessions = _integer(record["sessionsCompleted"], f"{label}.sessions", 1)
@@ -1651,6 +1674,10 @@ def _run_once(
         iteration,
         minimum_duration,
     )
+    # Windows does not execute Unix-shebang Python helpers directly. Keep the
+    # recorded command faithful to the process we actually launch.
+    if os.name == "nt" and argv and Path(argv[0]).suffix.lower() == ".py":
+        argv = [sys.executable, *argv]
     environment = os.environ.copy()
     environment.update({
         "P8_SOAK_OUTPUT_DIR": str(output_dir),
@@ -1809,6 +1836,23 @@ def _run_once(
                     process_exited_monotonic = time.monotonic()
                 except subprocess.TimeoutExpired:
                     termination_reason = termination_reason or "residual-process"
+            # A short-lived Windows process may exit between sampler ticks. Keep
+            # the Popen handle alive and take one final CPU/RSS sample through it
+            # before stopping the sampler, since OpenProcess(pid) can no longer
+            # open the exited PID.
+            if os.name == "nt" and process is not None and exit_code is not None:
+                final_sample = _sample(
+                    process.pid,
+                    group_id,
+                    output_dir,
+                    stdout_path,
+                    stderr_path,
+                    evidence_root,
+                    started_monotonic,
+                    resource_collector,
+                    getattr(process, "_handle", None),
+                )
+                samples.append(final_sample)
             sample_stop_event.set()
             sampler_thread.join(timeout=2.5)
         except OSError as error:
@@ -2162,8 +2206,8 @@ def _validate_samples_document(
             raise ContinuousSoakError(f"{label}: exact shape mismatch")
         _timestamp(sample["sampledAt"], f"{label}.sampledAt")
         elapsed = _number(sample["elapsedSeconds"], f"{label}.elapsedSeconds")
-        if elapsed < 0.0 or elapsed <= previous_elapsed:
-            raise ContinuousSoakError(f"{label}: elapsed time must strictly increase")
+        if elapsed < 0.0 or elapsed < previous_elapsed:
+            raise ContinuousSoakError(f"{label}: elapsed time must be monotonic")
         previous_elapsed = elapsed
         resource_values = (
             sample["processGroupRssBytes"],
@@ -2471,7 +2515,9 @@ def verify_evidence(root: Path) -> None:
         )
         for run, coordinates in zip(runs, expected_coordinates)
     ]
-    if any(run["argv"] != [
+    if any(run["argv"] != (
+        ([sys.executable] if os.name == "nt" and command_template[0].lower().endswith(".py") else [])
+        + [
         value.replace("{output_dir}", str(root / run["outputDirectory"]))
             .replace("{evidence_root}", str(root))
             .replace("{restart}", str(run["restart"]))
@@ -2482,7 +2528,8 @@ def verify_evidence(root: Path) -> None:
                 str(float(thresholds["minimumDurationSeconds"])),
             )
         for value in command_template
-    ] for run in validated_runs):
+        ]
+    ) for run in validated_runs):
         raise ContinuousSoakError("continuous soak command template expansion mismatch")
     if any(run["cwd"] != document["cwd"] for run in validated_runs):
         raise ContinuousSoakError("continuous soak cwd binding mismatch")
@@ -2686,13 +2733,16 @@ def _build_project_runtime(
         raise ContinuousSoakError("unsupported project runner C++ standard")
     compiler = _resolved_regular_file(os.fspath(compiler_value), "compiler")
     requested_output = LEGACY._new_evidence_root(executable_value)
+    if _is_msvc_compiler(str(compiler)) and requested_output.suffix.casefold() != ".exe":
+        requested_output = Path(str(requested_output) + ".exe")
     try:
         executable_output = requested_output.parent.resolve(strict=True) / requested_output.name
     except OSError as error:
         raise ContinuousSoakError("controlled runtime output parent unavailable") from error
     try:
+        version_arguments = [] if _is_msvc_compiler(str(compiler)) else ["--version"]
         completed = subprocess.run(
-            [str(compiler), "--version"],
+            [str(compiler), *version_arguments],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
@@ -2718,15 +2768,9 @@ def _build_project_runtime(
             "size": source.stat().st_size,
             "sha256": LEGACY._sha256_file(source),
         })
-    compile_argv = [
-        str(compiler),
-        f"-std={standard}",
-        *PROJECT_COMPILE_FLAGS,
-        f"-I{ROOT / PROJECT_INCLUDE_PATH}",
-        str(ROOT / PROJECT_RUNTIME_SOURCES[0]),
-        "-o",
-        str(executable_output),
-    ]
+    compile_flags, compile_argv = _project_compile_spec(
+        str(compiler), standard, str(executable_output)
+    )
     try:
         build = subprocess.run(
             compile_argv,
@@ -2767,7 +2811,7 @@ def _build_project_runtime(
         },
         "compile": {
             "standard": standard,
-            "flags": list(PROJECT_COMPILE_FLAGS),
+            "flags": list(compile_flags),
             "includePath": PROJECT_INCLUDE_PATH,
             "argv": compile_argv,
         },

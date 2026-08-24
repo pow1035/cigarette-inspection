@@ -42,7 +42,7 @@
 | KI-036 | 阻断 | 旧工作台只保存一个名字，曾导致复核身份与授权证据缺失 | 2026-07-19 用户澄清肖朗逐页标注、小狼逐页检查并批准为真实数据；原 pass1 不变，正式证据 `artifacts/p5-reviewed-truth-20260719-124537` 为 30 reviewed、20 comparable、10 REVIEW excluded、35 GT 框；独立 reviewer/QA 最终 PASS | 已修复 | P5-02C3 |
 | KI-037 | 高 | P5 首标工作台是无账号体系的 localhost 单机工具，且旧导出只保存单一人员名 | 工作台继续仅绑定 loopback、`/api/export-reviewed` 固定 409；复核晋级改由哈希绑定的 `p5_promote_reviewed_truth.py` 和项目负责人 attestation 完成，不把原 pass1 原地改真值 | 接受限制 | P5-02C3 |
 | KI-038 | 低 | 当前 Windows 会话无创建符号链接权限，P5 可视化包的符号链接逃逸子分支未取得运行态证据 | 独立 QA `019f7866-8956-7af3-b466-c578bce34bc6`；`..`、绝对路径、分析输出及构建入口逃逸均已实际拒绝；待开发者模式、相应权限或 CI 补证 | 接受限制（非阻断） | P5/CI |
-| KI-039 | 阻断 | 正式 P4 TensorRT 基线在当前主机仍不可用，现有 engine 无法反序列化且 ONNX 重建缺少插件 | 现有 `.engine` 在 TensorRT 8.6.1 报 `Magic tag does not match`；ONNX 重建在 `Mod` 节点失败；需兼容的编译执行文件、engine 或完整 TensorRT/CUDA/plugin 工具链 | 开放 | P5 |
+| KI-039 | 阻断 | 正式 P4 商业指标仍未完成；TensorRT 运行链已在当前 Windows/GPU 主机恢复 | TensorRT 10.15.1 从 ONNX 重建 engine 并完成 116 图批处理（`artifacts/p4-tensorrt-20260824-trt10-rebuild`），但当前输入无 reviewed ground truth，不能计算或声明准确率/误检/漏检；旧 TRT 8.6 engine 仍不兼容 | 开放 | P4/P5 |
 | KI-040 | 阻断 | fresh clone 不包含被 `.gitignore` 排除的 reviewed-truth 与 fallback baseline artifact，指定范围 pilot 无法在本机复算 | readiness strict exit 2；需受控恢复、核对外部 evidence-manifest 摘要，再通过内部 manifest/大小/SHA-256/attestation 门 | 开放 | P5 |
 | KI-041 | 高 | P7 产品状态、参数页和复核页尚未在 Qt/Windows 目标机编译运行，当前无法证明布局、信号槽、会话/profile 落盘和交互正确 | `ProductRuntimeState` 8/8；typed profile 和 Qt 源码已接线并固定 local-only；当前 Mac 无 Qt/MSVC，缺 Computer Use/人工 UI 运行证据 | 验证中 | P7 |
 | KI-042 | 中 | Qt `QJsonDocument` 默认会折叠重复键，可能让 TensorRT 配置歧义通过 | loader 增加原始 token 扫描并按解码后顶层 key 拒绝重复字段；P8 preflight 再独立门禁；当前无 Qt/MSVC，仅完成源码修复 | 已修复，runtime 待验证 | P7/P8 |
@@ -57,9 +57,10 @@
 
 详细审计摘要见 `docs/code-audit.md`。代码检查不能替代 Windows、GPU 或真实硬件运行证据。
 
-## KI-039: formal P4 TensorRT baseline unavailable on current host
+## KI-039: formal P4 TensorRT commercial baseline remains blocked
 
-- Status: OPEN; fallback baseline available but explicitly non-formal.
+  - Status: OPEN; TensorRT execution is now available on the Windows target, but the formal commercial baseline remains blocked by reviewed-truth/authorization and approved threshold inputs.
+  - 2026-08-24 runtime recovery: TensorRT 10.15.1 rebuilt `yanzhi20260115.onnx` successfully and processed all 116 fixed images with zero detector/source/observer/save errors. Evidence is execution-only and explicitly sets `groundTruthAvailable=false` and `accuracyMetricsClaimed=false`.
 - Available `.engine` files fail TensorRT 8.6.1 deserialization with `Magic tag does not match`.
 - ONNX-to-engine recovery fails at a `Mod` node because the required plugin is unavailable.
 - Required recovery input: compatible compiled inference executable plus DLLs, a host-compatible engine, or the exact original TensorRT/CUDA/plugin toolchain.
@@ -72,3 +73,11 @@
 - The read-only readiness command reports only absent controlled artifact roots with exit 2. Missing base files, incomplete artifact directories, malformed manifests, manifest-bound file mismatches, invalid attestation, parent references and symbolic-link paths return exit 3.
 - Readiness proves internal consistency relative to the supplied manifest; it does not authenticate a coordinated replacement of the manifest and all outputs. The fallback evidence-manifest SHA-256 is recorded in `HANDOFF_P5.md`; the reviewed evidence-manifest digest is not present in this clone and must be supplied through the controlled recovery channel.
 - Required recovery: copy the two evidence directories through a controlled channel, verify their external evidence-manifest digests, then rerun readiness and the exact pilot command. Do not commit the artifacts or substitute CPU smoke for the formal TensorRT gate.
+
+| KI-051 | 低 | Windows checkout line-ending guard | `.gitattributes`; `tests/p5/test_p5_input_readiness.py`; `scripts/p5_input_readiness.py` | 已修复 | P5 |
+
+## KI-051: Windows checkout line-ending guard (resolved)
+
+- `config/p5-class-catalog.json` is evidence-bound by SHA-256. Windows `core.autocrlf` previously rewrote LF to CRLF without a visible content diff, producing a false readiness mismatch.
+- `.gitattributes` now pins repository JSON evidence inputs to LF. A regression test asserts the catalog bytes and expected digest remain stable.
+- Readiness now reaches the intended external-input gate: exit 2 with only the reviewed-truth and fallback artifact roots missing; no catalog mismatch remains.

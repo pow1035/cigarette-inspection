@@ -529,7 +529,8 @@ def _copy_and_hash(source: Path, destination: Path) -> tuple[int, str]:
 
 def _write_new_file(path: Path, raw: bytes) -> None:
     try:
-        descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0)
+        descriptor = os.open(path, flags, 0o644)
     except OSError as exc:
         raise ReleaseError(f"cannot create {path}: {exc}") from exc
     try:

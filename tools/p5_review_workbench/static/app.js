@@ -4,7 +4,7 @@
   const HANDLE_SIZE = 8;
   const MIN_BOX_SIZE = 4;
   const state = {
-    session: { mode: "", revision: null, operator_id: "" },
+    session: { mode: "", revision: null, operator_name: "", operator_id: "" },
     categories: [],
     images: [],
     activeImageId: null,
@@ -23,7 +23,8 @@
 
   const el = {};
   const ids = [
-    "sessionMeta", "progressText", "progressPercent", "progressBar", "operatorId",
+    "sessionMeta", "progressText", "progressPercent", "progressBar",
+    "operatorName", "operatorNameLabel", "operatorId", "operatorIdLabel",
     "saveBtn", "exportBtn", "imageCount", "imageSearch", "statusFilter", "imageList",
     "prevBtn", "nextBtn", "queuePosition", "selectTool", "drawTool", "fitBtn",
     "actualBtn", "originalBtn", "previewBtn", "viewportInfo", "deleteBoxBtn",
@@ -141,6 +142,7 @@
     state.categories = Array.isArray(payload.categories) ? payload.categories : [];
     state.images = Array.isArray(payload.images) ? payload.images.map(normalizeImage) : [];
     state.dirty = false;
+    el.operatorName.value = state.session.operator_name || "";
     el.operatorId.value = state.session.operator_id || "";
     if (!state.images.some((image) => String(image.id) === String(state.activeImageId))) {
       state.activeImageId = state.images[0]?.id ?? null;
@@ -182,7 +184,18 @@
     const total = state.images.length;
     const completed = state.images.filter(isComplete).length;
     const percent = total ? Math.round((completed / total) * 100) : 0;
-    el.sessionMeta.textContent = `${modeName(state.session.mode)}模式（仅本机）`;
+    const split = state.session.dataset_split;
+    const splitName = split === "train"
+      ? "训练集"
+      : (split === "validation" ? "验证集" : "试点集");
+    el.sessionMeta.textContent = `${modeName(state.session.mode)} · ${splitName}（仅本机）`;
+    const reviewerMode = state.session.mode === "reviewer";
+    el.operatorNameLabel.textContent = reviewerMode ? "复核人姓名" : "标注人姓名";
+    el.operatorIdLabel.textContent = reviewerMode ? "复核人稳定 ID" : "标注人稳定 ID";
+    el.exportBtn.textContent = reviewerMode ? "导出复核候选" : "导出首标";
+    el.exportBtn.title = reviewerMode
+      ? "导出已逐图独立复核、但尚未批准的非真值候选"
+      : "导出第一轮人工标注";
     el.progressText.textContent = `已完成 ${completed} / ${total} 张`;
     el.progressPercent.textContent = `${percent}%`;
     el.progressBar.style.width = `${percent}%`;
@@ -423,10 +436,16 @@
 
   async function save() {
     if (state.saving) return;
+    const operatorName = el.operatorName.value.trim();
     const operatorId = el.operatorId.value.trim();
+    if (!operatorName) {
+      el.operatorName.focus();
+      showToast("保存前必须填写真实的责任人姓名。", "error");
+      return;
+    }
     if (!operatorId) {
       el.operatorId.focus();
-      showToast("保存前必须填写真实的标注人 ID。", "error");
+      showToast("保存前必须填写唯一且稳定的人员 ID。", "error");
       return;
     }
     state.saving = true;
@@ -435,7 +454,7 @@
     try {
       const payload = await apiRequest("/api/save", {
         method: "POST",
-        body: JSON.stringify(savePayload(operatorId)),
+        body: JSON.stringify(savePayload(operatorName, operatorId)),
       });
       const currentId = state.activeImageId;
       applyServerState(payload);
@@ -470,11 +489,12 @@
     };
   }
 
-  function savePayload(operatorId) {
+  function savePayload(operatorName, operatorId) {
     if (state.apiShape === "legacy") {
       return {
         revision: state.session.revision,
         mode: state.session.mode,
+        operator_name: operatorName,
         operator_id: operatorId,
         categories: state.categories,
         images: state.images.map((image) => ({ ...image, boxes: image.boxes.map((box) => ({ ...box, bbox: box.bbox.map(Number) })) })),
@@ -482,6 +502,7 @@
     }
     return {
       revision: state.session.revision,
+      operator_name: operatorName,
       operator_id: operatorId,
       images: state.images.map(editableImage),
     };
@@ -501,10 +522,18 @@
     }
     state.saving = true;
     renderHeader();
-    setStatus("saving", "正在导出第一轮人工标注……");
+    setStatus(
+      "saving",
+      state.session.mode === "reviewer"
+        ? "正在导出独立复核候选……"
+        : "正在导出第一轮人工标注……",
+    );
     try {
-      const payload = await apiRequest("/api/export-pass1", { method: "POST", body: JSON.stringify({}) });
-      const message = payload?.path ? `首标已导出：${payload.path}` : (payload?.message || "首标导出完成。");
+      const reviewerMode = state.session.mode === "reviewer";
+      const endpoint = reviewerMode ? "/api/export-reviewed" : "/api/export-pass1";
+      const payload = await apiRequest(endpoint, { method: "POST", body: JSON.stringify({}) });
+      const noun = reviewerMode ? "复核候选" : "首标";
+      const message = payload?.path ? `${noun}已导出：${payload.path}` : (payload?.message || `${noun}导出完成。`);
       setStatus("success", String(message));
       showToast(String(message), "success", 5000);
     } catch (error) {
@@ -828,6 +857,10 @@
     el.nextBtn.addEventListener("click", () => navigate(1));
     el.saveBtn.addEventListener("click", save);
     el.exportBtn.addEventListener("click", exportPass1);
+    el.operatorName.addEventListener("input", () => {
+      state.session.operator_name = el.operatorName.value;
+      markDirty();
+    });
     el.operatorId.addEventListener("input", () => {
       state.session.operator_id = el.operatorId.value;
       markDirty();

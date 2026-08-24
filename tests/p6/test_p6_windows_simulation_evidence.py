@@ -72,7 +72,7 @@ class P6WindowsSimulationEvidenceTests(unittest.TestCase):
             "[SystemParams]\nrejectEnabled=" + reject_enabled + "\n",
             encoding="utf-8",
         )
-        runner = root / "CigVision.exe"
+        runner = root / "CigVision.py"
         shutil.copy2(FAKE_RUNTIME, runner)
         runner.chmod(0o755)
         return manifest, config, runner

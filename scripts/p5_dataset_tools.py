@@ -18,6 +18,7 @@ import os
 import re
 import struct
 import sys
+import unicodedata
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any, Iterable
@@ -353,7 +354,8 @@ def normalize_preannotation_bbox(
     return normalized, normalized != original
 
 
-def preannotate(manifest: dict, p4_results: Path) -> dict:
+def preannotate(
+        manifest: dict, p4_results: Path, required_split: str | None = None) -> dict:
     canonical = canonical_map(manifest)
     aliases = {
         item["file_name"]: item.get("canonical_file_name")
@@ -380,7 +382,11 @@ def preannotate(manifest: dict, p4_results: Path) -> dict:
     images = []
     annotations = []
     annotation_id = 1
-    for image_id, name in enumerate(sorted(canonical, key=str.lower), 1):
+    selected_names = [
+        name for name in sorted(canonical, key=str.lower)
+        if required_split is None or canonical[name].get("split") == required_split
+    ]
+    for image_id, name in enumerate(selected_names, 1):
         record = canonical[name]
         result = by_source.get(name)
         images.append({
@@ -847,7 +853,7 @@ def validate_annotations(
         name for name, record in canonical.items()
         if required_split is None or record.get("split") == required_split
     }
-    if require_reviewed and required_split is not None and not expected_files:
+    if required_split is not None and not expected_files:
         errors.append(f"manifest contains no canonical images in split {required_split!r}")
     images = data.get("images")
     annotations = data.get("annotations")
@@ -912,21 +918,26 @@ def validate_annotations(
         if require_reviewed:
             annotated_by = image.get("annotated_by")
             reviewed_by = image.get("reviewed_by")
-            if (not isinstance(annotated_by, str) or not annotated_by.strip()
-                    or not isinstance(reviewed_by, str) or not reviewed_by.strip()
-                    or annotated_by == reviewed_by):
+            annotator_id = image.get("annotator_id")
+            reviewer_id = image.get("reviewer_id")
+            if (not normalized_identity(annotated_by)
+                    or not normalized_identity(reviewed_by)
+                    or normalized_identity(annotated_by) == normalized_identity(reviewed_by)
+                    or not normalized_identity(annotator_id)
+                    or not normalized_identity(reviewer_id)
+                    or normalized_identity(annotator_id) == normalized_identity(reviewer_id)):
                 errors.append(f"ground truth image requires distinct annotator and reviewer: {name}")
             if "p4_result_present" in image or image.get("source") == "prediction":
                 errors.append(f"ground truth image retains prediction provenance: {name}")
         image_ids[image_id] = image
 
-    if require_reviewed and seen_files != expected_files:
+    if required_split is not None and seen_files != expected_files:
         missing = sorted(expected_files - seen_files)
         extra = sorted(seen_files - expected_files)
         if missing:
-            errors.append(f"ground truth is incomplete; missing canonical images: {missing}")
+            errors.append(f"dataset is incomplete; missing canonical images: {missing}")
         if extra:
-            errors.append(f"ground truth contains images outside the evaluation split: {extra}")
+            errors.append(f"dataset contains images outside the required split: {extra}")
 
     annotation_ids = set()
     annotations_by_image = Counter()
@@ -982,6 +993,17 @@ def validate_annotations(
             }
             if annotation.get("source") != "human" or prediction_fields.intersection(annotation):
                 errors.append(f"ground truth annotation retains prediction provenance: {annotation_id!r}")
+            image = image_ids[image_id]
+            identity_fields = (
+                "annotated_by", "annotator_id", "reviewed_by", "reviewer_id")
+            if any(
+                    not normalized_identity(annotation.get(field))
+                    or normalized_identity(annotation.get(field))
+                    != normalized_identity(image.get(field))
+                    for field in identity_fields):
+                errors.append(
+                    "ground truth annotation personnel identity does not match "
+                    f"its image: {annotation_id!r}")
         if (require_reviewed and isinstance(category_id, int) and not isinstance(category_id, bool)
                 and 0 <= category_id < len(CLASS_DEFINITIONS)
                 and CLASS_DEFINITIONS[category_id]["mappingStatus"].startswith("unconfirmed")):
@@ -1019,9 +1041,54 @@ def _ratio(numerator: int, denominator: int) -> float:
 
 REQUIRED_EVALUATION_BINDINGS = {
     "ground_truth", "predictions", "manifest", "class_catalog",
-    "model", "engine", "detector_config", "attestation",
+    "model", "engine", "detector_config", "attestation", "runtime_evidence",
+    "runtime_runner", "runtime_executable", "safety_config",
 }
-FALLBACK_EVALUATION_BINDINGS = (REQUIRED_EVALUATION_BINDINGS - {"engine"}) | {"runtime_contract"}
+FALLBACK_EVALUATION_BINDINGS = (
+    REQUIRED_EVALUATION_BINDINGS - {
+        "engine", "runtime_evidence", "runtime_runner",
+        "runtime_executable", "safety_config",
+    }) | {"runtime_contract"}
+
+
+def normalized_identity(value: Any) -> str:
+    if not isinstance(value, str):
+        return ""
+    normalized = unicodedata.normalize("NFKC", value)
+    normalized = "".join(
+        character for character in normalized
+        if not _is_default_ignorable(character))
+    return normalized.strip().casefold()
+
+
+DEFAULT_IGNORABLE_UNICODE_VERSION = "17.0.0"
+DEFAULT_IGNORABLE_RANGES = (
+    (0x00AD, 0x00AD),
+    (0x034F, 0x034F),
+    (0x061C, 0x061C),
+    (0x115F, 0x1160),
+    (0x17B4, 0x17B5),
+    (0x180B, 0x180F),
+    (0x200B, 0x200F),
+    (0x202A, 0x202E),
+    (0x2060, 0x206F),
+    (0x3164, 0x3164),
+    (0xFE00, 0xFE0F),
+    (0xFEFF, 0xFEFF),
+    (0xFFA0, 0xFFA0),
+    (0xFFF0, 0xFFF8),
+    (0x1BCA0, 0x1BCA3),
+    (0x1D173, 0x1D17A),
+    (0xE0000, 0xE0FFF),
+)
+
+
+def _is_default_ignorable(character: str) -> bool:
+    # Unicode 17.0.0 DerivedCoreProperties.txt, Default_Ignorable_Code_Point.
+    codepoint = ord(character)
+    return any(
+        start <= codepoint <= end
+        for start, end in DEFAULT_IGNORABLE_RANGES)
 
 
 def validate_evaluation_provenance(
@@ -1054,10 +1121,20 @@ def validate_evaluation_provenance(
         errors.append(f"ground-truth attestation evaluation_split must be {split!r}")
     annotated_by = attestation.get("annotated_by")
     reviewed_by = attestation.get("reviewed_by")
-    if (not isinstance(annotated_by, str) or not annotated_by.strip()
-            or not isinstance(reviewed_by, str) or not reviewed_by.strip()
-            or annotated_by == reviewed_by):
+    annotator_id = attestation.get("annotator_id")
+    reviewer_id = attestation.get("reviewer_id")
+    if (not normalized_identity(annotated_by)
+            or not normalized_identity(reviewed_by)
+            or normalized_identity(annotated_by) == normalized_identity(reviewed_by)
+            or not normalized_identity(annotator_id)
+            or not normalized_identity(reviewer_id)
+            or normalized_identity(annotator_id) == normalized_identity(reviewer_id)):
         errors.append("ground-truth attestation requires distinct annotator and reviewer")
+    if (not normalized_identity(attestation.get("authorization_approved_by"))
+            or not normalized_identity(attestation.get("approver_id"))
+            or not isinstance(attestation.get("approval_basis"), str)
+            or not attestation["approval_basis"].strip()):
+        errors.append("ground-truth attestation requires an explicit approver and approval basis")
     try:
         dt.datetime.fromisoformat(str(attestation.get("reviewed_at")))
     except ValueError:
@@ -1072,6 +1149,109 @@ def validate_evaluation_provenance(
                 or attestation.get(field) != bindings[binding_name].get("sha256")):
             errors.append(f"ground-truth attestation {field} does not match evidence binding")
     return errors
+
+
+def validate_tensorrt_runtime_evidence(
+        evidence: dict, bindings: dict[str, dict[str, str]], manifest: dict,
+        predictions: dict, split: str) -> list[str]:
+    errors = []
+    if not isinstance(evidence, dict):
+        return ["TensorRT runtime evidence must be an object"]
+    expected_scalars = {
+        "schema_version": "p5-tensorrt-pilot-runtime-v1",
+        "status": "PASS",
+        "backend": "TensorRT",
+        "formal_p4_tensorrt_evidence": True,
+        "engine_plan_version_verified": True,
+        "accuracy_claimed": False,
+        "ground_truth_available": False,
+        "exit_code": 0,
+        "errors": 0,
+        "dropped": 0,
+        "save_failures": 0,
+    }
+    for field, expected in expected_scalars.items():
+        if evidence.get(field) != expected:
+            errors.append(f"TensorRT runtime evidence {field} must be {expected!r}")
+    if (not isinstance(evidence.get("tensorrt_version"), str)
+            or not evidence["tensorrt_version"].strip()):
+        errors.append("TensorRT runtime evidence tensorrt_version must be non-empty")
+    for field in ("sample_count", "result_json_count", "source_png_count",
+                  "annotated_png_count", "processed"):
+        value = evidence.get(field)
+        if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+            errors.append(f"TensorRT runtime evidence {field} must be a positive integer")
+    counts = [
+        evidence.get(field) for field in
+        ("sample_count", "result_json_count", "source_png_count",
+         "annotated_png_count", "processed")
+    ]
+    if all(isinstance(value, int) and not isinstance(value, bool) for value in counts):
+        if len(set(counts)) != 1:
+            errors.append("TensorRT runtime evidence processed/output counts must match")
+
+    for field, binding_name in (
+            ("model", "model"), ("engine", "engine"),
+            ("detector_config", "detector_config"), ("predictions", "predictions"),
+            ("runner_script", "runtime_runner"),
+            ("executable", "runtime_executable"),
+            ("safety_config", "safety_config")):
+        record = evidence.get(field)
+        if (not isinstance(record, dict)
+                or str(record.get("sha256", "")).lower()
+                != str(bindings.get(binding_name, {}).get("sha256", "")).lower()):
+            errors.append(
+                f"TensorRT runtime evidence {field} SHA-256 does not match evaluation binding")
+
+    safety = evidence.get("safety")
+    if (not isinstance(safety, dict)
+            or safety.get("reject_enabled") is not False
+            or safety.get("hardware_initialized") is not False
+            or safety.get("reject_commands_generated") is not False):
+        errors.append("TensorRT runtime evidence safety declaration is invalid")
+
+    canonical = canonical_map(manifest)
+    expected_images = {
+        name: record["sha256"] for name, record in canonical.items()
+        if record.get("split") == split
+    }
+    if (all(isinstance(value, int) and not isinstance(value, bool) for value in counts)
+            and counts[0] != len(expected_images)):
+        errors.append(
+            "TensorRT runtime evidence sample/output counts must equal the evaluation split")
+    runtime_images = evidence.get("input_images")
+    if not isinstance(runtime_images, list):
+        errors.append("TensorRT runtime evidence input_images must be a list")
+    else:
+        actual_images = {}
+        for item in runtime_images:
+            if (not isinstance(item, dict) or not isinstance(item.get("file_name"), str)
+                    or not isinstance(item.get("sha256"), str)
+                    or item["file_name"] in actual_images):
+                errors.append("TensorRT runtime evidence input_images contain invalid bindings")
+                continue
+            actual_images[item["file_name"]] = item["sha256"]
+        if actual_images != expected_images:
+            errors.append(
+                "TensorRT runtime evidence input_images do not exactly match the evaluation split")
+
+    prediction_images = {
+        image["file_name"]: image["sha256"] for image in predictions.get("images", [])
+        if isinstance(image, dict) and isinstance(image.get("file_name"), str)
+    }
+    if prediction_images != expected_images:
+        errors.append("TensorRT predictions do not exactly cover the evaluation split")
+    return errors
+
+
+def validate_engine_candidate(path: Path) -> None:
+    """Reject obvious placeholders before a record can call them TensorRT plans."""
+    if path.stat().st_size < 4096:
+        raise DatasetError("TensorRT engine candidate is too small to be a serialized plan")
+    with path.open("rb") as stream:
+        prefix = stream.read(4096)
+    if b"\x00" not in prefix:
+        raise DatasetError("TensorRT engine candidate is not a binary serialized plan")
 
 
 def validate_fallback_runtime_contract(
@@ -1144,7 +1324,8 @@ def evaluate(
         iou_threshold: float, attestation: dict,
         bindings: dict[str, dict[str, str]], split: str = "test",
         runtime_contract: dict | None = None,
-        detector_config: dict | None = None) -> dict:
+        detector_config: dict | None = None,
+        runtime_evidence: dict | None = None) -> dict:
     if not 0 < iou_threshold <= 1:
         raise DatasetError("IoU threshold must be in (0, 1]")
     provenance_errors = validate_evaluation_provenance(attestation, bindings, split)
@@ -1169,9 +1350,21 @@ def evaluate(
         gt_errors.append(f"ground truth info.evaluation_split must be {split!r}")
     if gt_errors:
         raise DatasetError("accuracy evaluation refused because ground truth is incomplete or invalid:\n- " + "\n- ".join(gt_errors))
-    prediction_errors = validate_annotations(predictions, manifest, require_reviewed=False)
+    prediction_errors = validate_annotations(
+        predictions, manifest, require_reviewed=False, required_split=split)
     if prediction_errors:
         raise DatasetError("predictions are invalid:\n- " + "\n- ".join(prediction_errors))
+    if any(image.get("p4_result_present") is not True for image in predictions["images"]):
+        raise DatasetError(
+            "predictions are invalid:\n- every evaluation image must record completed inference")
+    if "engine" in bindings:
+        runtime_errors = validate_tensorrt_runtime_evidence(
+            runtime_evidence, bindings, manifest, predictions, split)
+        if runtime_errors:
+            raise DatasetError(
+                "accuracy evaluation refused because TensorRT runtime evidence is invalid:\n- "
+                + "\n- ".join(runtime_errors)
+            )
 
     review_excluded = [
         image["file_name"] for image in ground_truth["images"]
@@ -1184,6 +1377,21 @@ def evaluate(
     if not gt_images:
         raise DatasetError("accuracy evaluation refused because the split has no OK/NG ground truth")
     pred_images = {image["file_name"]: image for image in predictions["images"]}
+    if set(pred_images) != set(image["file_name"] for image in ground_truth["images"]):
+        raise DatasetError(
+            "predictions are invalid:\n- prediction and ground-truth image sets must match")
+    for name, ground_truth_image in {
+            image["file_name"]: image for image in ground_truth["images"]}.items():
+        prediction_image = pred_images[name]
+        for field in ("sha256", "split"):
+            if prediction_image.get(field) != ground_truth_image.get(field):
+                raise DatasetError(
+                    f"predictions are invalid:\n- image identity mismatch for {name}: {field}")
+        for field in ("annotated_by", "reviewed_by", "annotator_id", "reviewer_id"):
+            if normalized_identity(ground_truth_image.get(field)) != normalized_identity(
+                    attestation.get(field)):
+                raise DatasetError(
+                    f"ground truth identity does not match attestation for {name}: {field}")
     gt_by_image = defaultdict(list)
     pred_by_image = defaultdict(list)
     gt_id_to_name = {image["id"]: image["file_name"] for image in ground_truth["images"]}
@@ -1377,9 +1585,10 @@ def command_audit(args: argparse.Namespace) -> None:
 
 def command_preannotate(args: argparse.Namespace) -> None:
     configure_classes(args.class_catalog)
-    value = preannotate(read_json(args.manifest), args.p4_results)
+    manifest = read_json(args.manifest)
+    value = preannotate(manifest, args.p4_results, args.split)
     value["info"]["class_catalog_sha256"] = sha256_file(args.class_catalog)
-    errors = validate_annotations(value, read_json(args.manifest))
+    errors = validate_annotations(value, manifest, required_split=args.split)
     if errors:
         raise DatasetError("generated preannotations are invalid:\n- " + "\n- ".join(errors))
     write_json(args.output, value)
@@ -1473,8 +1682,30 @@ def command_evaluate(args: argparse.Namespace) -> None:
         "attestation": args.attestation,
     }
     if args.engine is not None:
+        required_runtime_paths = {
+            "--runtime-evidence": args.runtime_evidence,
+            "--runtime-runner": args.runtime_runner,
+            "--runtime-executable": args.runtime_executable,
+            "--safety-config": args.safety_config,
+        }
+        missing = [
+            option for option, path in required_runtime_paths.items() if path is None
+        ]
+        if missing:
+            raise DatasetError(
+                "TensorRT evaluation requires " + ", ".join(missing))
+        validate_engine_candidate(args.engine)
         binding_paths["engine"] = args.engine
+        binding_paths["runtime_evidence"] = args.runtime_evidence
+        binding_paths["runtime_runner"] = args.runtime_runner
+        binding_paths["runtime_executable"] = args.runtime_executable
+        binding_paths["safety_config"] = args.safety_config
     else:
+        if any(path is not None for path in (
+                args.runtime_evidence, args.runtime_runner,
+                args.runtime_executable, args.safety_config)):
+            raise DatasetError(
+                "TensorRT runtime evidence options are only valid with --engine")
         binding_paths["runtime_contract"] = args.runtime_contract
     bindings = {}
     for name, path in binding_paths.items():
@@ -1486,7 +1717,8 @@ def command_evaluate(args: argparse.Namespace) -> None:
         read_json(args.manifest), args.iou, read_json(args.attestation),
         bindings, args.split,
         read_json(args.runtime_contract) if args.runtime_contract else None,
-        read_json(args.detector_config))
+        read_json(args.detector_config),
+        read_json(args.runtime_evidence) if args.runtime_evidence else None)
     write_json(args.output, report)
     print(json.dumps({"image_count": report["image_count"], "micro": report["micro"],
                       "cigarette_level": report["cigarette_level"]}, sort_keys=True))
@@ -1506,6 +1738,7 @@ def build_parser() -> argparse.ArgumentParser:
     pre.add_argument("--manifest", type=Path, required=True)
     pre.add_argument("--p4-results", type=Path, required=True)
     pre.add_argument("--output", type=Path, required=True)
+    pre.add_argument("--split", choices=sorted(VALID_SPLITS - {"unassigned"}))
     pre.add_argument("--class-catalog", type=Path, default=DEFAULT_CLASS_CATALOG)
     pre.set_defaults(function=command_preannotate)
 
@@ -1543,6 +1776,18 @@ def build_parser() -> argparse.ArgumentParser:
     runtime = evaluation.add_mutually_exclusive_group(required=True)
     runtime.add_argument("--engine", type=Path)
     runtime.add_argument("--runtime-contract", type=Path)
+    evaluation.add_argument(
+        "--runtime-evidence", type=Path,
+        help="required structured runtime record when --engine is used")
+    evaluation.add_argument(
+        "--runtime-runner", type=Path,
+        help="runner script bound by the runtime record")
+    evaluation.add_argument(
+        "--runtime-executable", type=Path,
+        help="CigVision executable bound by the runtime record")
+    evaluation.add_argument(
+        "--safety-config", type=Path,
+        help="config.ini with rejectEnabled=false bound by the runtime record")
     evaluation.add_argument("--detector-config", type=Path, required=True)
     evaluation.add_argument("--iou", type=float, default=0.5)
     evaluation.add_argument("--split", choices=sorted(VALID_SPLITS - {"unassigned"}), default="test")

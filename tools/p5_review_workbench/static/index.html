@@ -24,9 +24,13 @@
         <div class="progress-track"><span id="progressBar"></span></div>
       </div>
       <div class="header-actions">
+        <label class="operator-field" for="operatorName">
+          <span id="operatorNameLabel">标注人姓名</span>
+          <input id="operatorName" type="text" maxlength="64" autocomplete="off" placeholder="必填：责任人姓名">
+        </label>
         <label class="operator-field" for="operatorId">
-          <span>标注人 ID</span>
-          <input id="operatorId" type="text" maxlength="64" autocomplete="off" placeholder="必填：姓名或工号">
+          <span id="operatorIdLabel">标注人稳定 ID</span>
+          <input id="operatorId" type="text" maxlength="64" autocomplete="off" placeholder="必填：唯一工号或稳定 ID">
         </label>
         <button id="saveBtn" class="button primary" type="button" title="保存更改（Ctrl+S）">保存</button>
         <button id="exportBtn" class="button" type="button" title="导出第一轮人工标注">导出首标</button>

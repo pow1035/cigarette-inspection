@@ -84,4 +84,24 @@ P1 需保存 Windows 环境检查输出、MSBuild 完整日志、退出码、生
 
 ## P5-02C1 首标工作台证据
 
-三轮返修冻结 `artifacts/p5-review-workbench-20260711-203902` 保存 48 项单测、超限拒绝 10 次重复、localhost health/state、完整 package 文件清单、Browser 交互记录、一次性 QA 草稿、两张界面截图、9 个源码快照、dirty diff 和 20 项 SHA-256 manifest。Browser 证据覆盖 30 图加载、模型预览四类编辑控件只读、预览态键盘 Delete 后框数 4→4、Alice 完成 1 张 OK 后 Bob 修改全局操作员仍保留逐图 Alice/revision 1、剩余 29 张时导出拒绝、控制台 0 warning/error 和三栏视口边界；自动测试还覆盖服务启动后的源图/preview 替换对 GET/save/export 受控 409。该 QA 草稿只验证软件行为，不是责任人员首标、人工 QA 或 ground truth；reviewed 导出仍固定拒绝。
+三轮返修冻结 `artifacts/p5-review-workbench-20260711-203902` 保存 48 项单测、超限拒绝 10 次重复、localhost health/state、完整 package 文件清单、Browser 交互记录、一次性 QA 草稿、两张界面截图、9 个源码快照、dirty diff 和 20 项 SHA-256 manifest。Browser 证据覆盖 30 图加载、模型预览四类编辑控件只读、预览态键盘 Delete 后框数 4→4、测试操作员 A 完成 1 张 OK 后测试操作员 B 修改全局操作员仍保留逐图操作员 A/revision 1、剩余 29 张时导出拒绝、控制台 0 warning/error 和三栏视口边界；自动测试还覆盖服务启动后的源图/preview 替换对 GET/save/export 受控 409。该 QA 草稿只验证软件行为，不是责任人员首标、人工 QA 或 ground truth；reviewed 导出仍固定拒绝。
+
+## P5-04/P5-05 转移与开发集证据
+
+`artifacts/p5-development-split-20260720-162941` 保存 120 项发现、119 PASS、1 skipped 的完整 P5 测试输出、显式 `EXIT_CODE=0`、生成命令、输入与实现哈希、顶层运行 manifest，以及事件感知开发包。顶层 manifest SHA-256 为 `ABE8CCA5D4ACDC70F3B47B635E9C3407E38FE96ABA2D81F23990ABA7B7EC1923`；包 manifest SHA-256 为 `863B0CDAAA656B6E4DD65A0240316C022CFC06C7CC2A5FEA7056477E8CAE3E29`，绑定 78 个输出和恰好九类权威目录，包括 58 张 train、15 张 validation 原图副本、两个 COCO 预标注、开发 manifest、selection 和 UTF-8 review CSV。所有输出明确 `ground_truth=false`、`human_review_status=pending`、`training_complete=false`。默认 1000 ms 事件门隔离 10 张临近 pilot 图；该时间窗和 pilot-only 特征均作为 limitation 记录。`160352`、`160418`、`160516`、`160907`、`161946` 和 `162210` 分别因捕获中止、空计数、实现哈希过时、reviewer 首轮门不完整、双流捕获停滞和 reviewer 二轮边界缺口而被取代。
+
+## P5-06 工作台运行证据
+
+`artifacts/p5-development-review-20260720-172354` 是技术切片通过证据：manifest SHA-256 为 `9FEA54F3BB7BB93A22381F71C5F12E1785B4C2F973193D66DDA03B745FB2AE7C`，7 个 source、45 个 evidence 和 1 个输入绑定共 53/53 复算通过；保存工作台 32/32 和 P5 全量 134/133/1 的 stdout、stderr、独立退出码，`py_compile`、`node --check`、PowerShell parser、`git diff --check`、真实包 smoke 和最终 launcher health/state。真实包 smoke 复算 78/78 package outputs，train 58、validation 15、跨 split 哈希交叉 0，每个 split 有 80 个运行绑定；旧 pilot fingerprint 迁移、运行期 GET state fail-closed、普通路径及真实 Windows junction 的 launcher 零写入拒绝均有专项回归。独立 reviewer、QA 和 observability 最终 PASS。平铺证据仍保留早期 8883 launcher 文件，正式 validation 只引用 8884 的 `launcher-smoke-final-*`；真实包/launcher smoke 没有独立 stderr，当前源码也没有新的 UI 截图，这三项为已接受的 P3 取证限制。`164716` 的截图只作为相同 UI 的历史技术参考；上述证据不支持标签正确性、真值、准确率或人工 QA 声明，in-app Browser 继续按 KI-043 标记 degraded。
+
+## P5-07 独立复核候选证据
+
+`artifacts/p5-second-review-20260720-182613` 是首轮被阻断证据：虽然其 8 source + 35 evidence 内部哈希一致，但未绑定完整 28 modified + 6 untracked 工作树，部分命令缺转录，docs validation 早于文档修改，最终 Playwright 绑定只覆盖 GET。该目录不能用于 P5-07 最终 PASS。
+
+返修证据位于 `artifacts/p5-second-review-20260720-185601`：绑定全部 28 modified + 6 untracked 工作树文件；命令日志保存命令、stdout/stderr 和退出码；Edge executable、`GET /api/state`、`POST /api/save`、`POST /api/export-reviewed`、console、DOM 和 1440x900 截图均已保存。manifest 从最终测试日志解析 48/48、39/39、153/152/1，不再硬编码计数；旧 manifest 构建记录和两份失败 Playwright 记录分别标为 `process-superseded`/`process-failure`、`supports_pass=false`，所有顶层日志已规范化为 UTF-8。独立 observability 已复算 34/34 workspace、60/60 evidence 并 PASS；最终文档同步后重建的 digest 以同目录 `manifest.sha256` 为准。
+
+合成复核候选记录 3/3 completed、3 accepted，当前候选 SHA-256 为 `EE71F8F5F5078915B850A5035A9CD63CB3D351CF9D51EBC399B1F7E750483E4A`。该运行只验证状态机、身份字段、pass1 内容绑定、非真值导出和 UI；合成夹具、operator 输入和本地 SHA-256 不能证明真实人员身份、标签正确性、业务授权或不可抵赖性。独立 reviewer、QA、observability 和 documentation maintenance 均 PASS，P5-07 技术切片证据门关闭。
+
+## P5-07A 本地补样来源审计
+
+`artifacts/p5-source-audit-20260720-194240` 记录 2 个视频的元数据、SHA-256 和各 12 帧均匀联系表，以及 8 图覆盖缺口锚点包。锚点 final 包 manifest SHA-256 与总证据 manifest SHA-256 分别由各自 sidecar 给出；自查复算 final 包 19/19 输出、总证据 30/30 绑定。第一次 OpenCV 中文路径解码失败产生的单个半成品文件作为 `process-failure` 保存并明确不支持 PASS。该证据不包含运行服务日志、真实人工标注、授权、真值、模型效果或硬件声明。

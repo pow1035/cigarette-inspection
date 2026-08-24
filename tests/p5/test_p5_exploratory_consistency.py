@@ -102,7 +102,7 @@ def fixture_datasets():
         "annotations": [
             fixture_annotation(11, 1, 1, [0, 0, 10, 10], "human"),
             fixture_annotation(12, 1, 5, [20, 0, 10, 10], "human"),
-            fixture_annotation(13, 1, 4, [60, 0, 10, 10], "human"),
+            fixture_annotation(13, 3, 4, [60, 0, 10, 10], "human"),
         ],
         "categories": fixture_categories(),
     }
@@ -187,6 +187,91 @@ class ExploratoryConsistencyTests(unittest.TestCase):
                 human_input = candidate if role == "human" else human
                 with self.assertRaises(ANALYSIS.InputContractError):
                     ANALYSIS.analyze(pred_input, human_input)
+
+    def test_role_status_and_human_source_are_strict(self):
+        predictions, human = fixture_datasets()
+        mutations = []
+        for section in ("images", "annotations"):
+            candidate = copy.deepcopy(predictions)
+            candidate[section][0]["annotation_status"] = "annotated"
+            mutations.append((f"prediction-{section}-status", "prediction", candidate))
+
+            candidate = copy.deepcopy(human)
+            candidate[section][0]["annotation_status"] = "preannotated"
+            mutations.append((f"human-{section}-status", "human", candidate))
+            candidate = copy.deepcopy(human)
+            candidate[section][0]["source"] = "model"
+            mutations.append((f"human-{section}-source", "human", candidate))
+
+        for name, role, candidate in mutations:
+            with self.subTest(name=name):
+                pred_input = candidate if role == "prediction" else predictions
+                human_input = candidate if role == "human" else human
+                with self.assertRaises(ANALYSIS.InputContractError):
+                    ANALYSIS.analyze(pred_input, human_input)
+
+    def test_ok_and_ng_decisions_must_match_box_presence(self):
+        predictions, human = fixture_datasets()
+        mutations = []
+
+        candidate = copy.deepcopy(predictions)
+        candidate["images"][0]["predicted_decision"] = "OK"
+        mutations.append(("prediction-ok-with-box", "prediction", candidate))
+        candidate = copy.deepcopy(predictions)
+        candidate["images"][1]["predicted_decision"] = "NG"
+        mutations.append(("prediction-ng-without-box", "prediction", candidate))
+        candidate = copy.deepcopy(human)
+        candidate["images"][0]["cigarette_decision"] = "OK"
+        mutations.append(("human-ok-with-box", "human", candidate))
+        candidate = copy.deepcopy(human)
+        candidate["images"][1]["cigarette_decision"] = "NG"
+        mutations.append(("human-ng-without-box", "human", candidate))
+
+        for name, role, candidate in mutations:
+            with self.subTest(name=name):
+                pred_input = candidate if role == "prediction" else predictions
+                human_input = candidate if role == "human" else human
+                with self.assertRaisesRegex(
+                        ANALYSIS.InputContractError,
+                        "OK but contains defect boxes|NG but has no defect boxes"):
+                    ANALYSIS.analyze(pred_input, human_input)
+
+        review_predictions = copy.deepcopy(predictions)
+        review_predictions["images"][0]["predicted_decision"] = "REVIEW"
+        review_human = copy.deepcopy(human)
+        review_human["images"][0]["cigarette_decision"] = "REVIEW"
+        ANALYSIS.analyze(review_predictions, review_human)
+
+    def test_hash_bound_catalog_requires_all_coco_category_fields(self):
+        predictions, human = fixture_datasets()
+        mutations = {
+            "id": 99,
+            "name": "forged-name",
+            "display_name_zh": "伪造类别",
+            "mapping_status": "forged-status",
+            "supercategory": "forged-supercategory",
+        }
+        for field, value in mutations.items():
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as temp:
+                pred_candidate = copy.deepcopy(predictions)
+                human_candidate = copy.deepcopy(human)
+                pred_candidate["categories"][0][field] = value
+                human_candidate["categories"][0][field] = value
+                root = Path(temp)
+                prediction_path = root / "predictions.json"
+                human_path = root / "human.json"
+                prediction_path.write_text(
+                    json.dumps(pred_candidate, ensure_ascii=False), encoding="utf-8")
+                human_path.write_text(
+                    json.dumps(human_candidate, ensure_ascii=False), encoding="utf-8")
+                with self.assertRaisesRegex(
+                        ANALYSIS.InputContractError, "class catalog"):
+                    ANALYSIS.run(
+                        prediction_path,
+                        human_path,
+                        ROOT / "config" / "p5-class-catalog.json",
+                        root / "analysis",
+                    )
 
     def test_iou_boundary_and_equal_iou_tie_are_deterministic(self):
         boundary = ANALYSIS.match_image_boxes(

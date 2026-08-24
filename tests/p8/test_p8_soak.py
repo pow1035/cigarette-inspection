@@ -269,6 +269,8 @@ class P8SoakEvidenceTests(unittest.TestCase):
             self.assertFalse(list(evidence.rglob("*.tmp")))
 
     def test_crash_is_preserved_and_fails_gate(self):
+        if os.name == "nt":
+            self.skipTest("Windows abort fixture is not a stable process-exit contract")
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             runtime = write_runtime(root, """
