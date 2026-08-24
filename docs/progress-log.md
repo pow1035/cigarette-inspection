@@ -28,6 +28,14 @@
 - 使用隔离的 Python 3.12 环境安装 ONNX Runtime 1.20.1，精确加载 SHA-256 为 `956554A92E8E7F9338B86E2B25FAE3E40F87DDF7F702E04B213AE46C5E26D0C4` 的模型；`images`/`output0` 运行时形状为 `[1,3,992,992]`/`[1,300,6]`，CPU 零输入推理输出为有限 FP32。该检查只证明当前 Mac 可运行 ONNX CPU 诊断链，不是图像效果、正式 TensorRT 或性能证据；受控 reviewed-truth artifact 未随 Git 克隆，完整 pilot 复算仍需恢复该外部输入。
 - warning 修复快照已统一 process DLL 的 `IMAGEPROCESS_EXPORTS` 定义、两项目 `/utf-8` 和 22 份历史原型免责声明，并在当时通过 `--full`；该结果不覆盖当前 P8 v2，且仍缺目标 Windows Release Rebuild。
 
+## 2026-08-24 - Windows 本机 WSL2 本地门禁跑通
+
+- 在 Windows 11 主机(含 RTX 4050 Laptop GPU,无 Qt/MSVC/HALCON/TensorRT)通过 WSL2 Ubuntu 24.04 建立本地门禁运行环境:apt 安装 g++ 13.3、ripgrep、xmllint;venv `/opt/cigvision-venv` 安装 Pillow==11.3.0、PyYAML==6.0.3;`git clone -c core.autocrlf=false` 干净克隆到 `/root/cigarette-inspection`(LF 行尾)。
+- 运行 `./scripts/run_all_local_gates.sh --core` 与 `--full` 均 PASS:P5 100、P6 17、P8 81、contracts 7、offline 7、simulation 15、product-state 8,C++17/C++14、ASan/UBSan、20×重复、`git diff --check` 全过。
+- 环境搭建与复现步骤见 `docs/local-run-environment.md`。
+- 边界:本次仅验证 SDK-free 检测闭环核心逻辑与 Python 工具,不覆盖 Qt 产品、TensorRT/GPU、相机/IO 或真实数据;P8 目标机与现场项保持未验证(与 `known-issues.md` KI-039/KI-040/KI-041/KI-043 一致)。
+- 观察:P8 连续运行测试 `test_healthy_continuous_runtime_passes_and_reverifies` 在首次冷启动/高负载下偶发失败一次,复跑即过,后续稳定;记为非阻断 flaky。
+
 ## 2026-07-27 - P8 v2 连续运行防假绿证据链
 
 - 新增 `config/p8-continuous-soak-profiles-v1.json`，代码内 `LOCKED_PROFILES` 与 tracked JSON 必须完全一致；CLI 无阈值覆盖选项。
